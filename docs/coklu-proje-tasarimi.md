@@ -112,3 +112,7 @@ Kullanıcı Claude masaüstü kenar çubuğunun ekran görüntüsünü gönderip
 4. **Grup = bir proje klasörü** (üst grup etiketi yok).
 5. Arka plan bildirimi: **rozet + Windows bildirimi**.
 6. Aşamalar **P1→P5 sırayla**, her biri test + commit.
+
+## 9. Düzeltme (2026-10-23, kullanıcı itirazı)
+
+Karar 2 **iptal**: eşzamanlı görev üst sınırı ve kuyruk **yok**. Claude Code/Codex/OpenCode da sınır koymuyor; yalnız sağlayıcının kendi limiti geçerli. Aynı klasörde tek görev kuralı yalnız geri alma (snapshot/fark) doğru kalsın diye sürer; farklı klasörler sınırsız paralel çalışır.
