@@ -103,3 +103,12 @@ Kullanıcı Claude masaüstü kenar çubuğunun ekran görüntüsünü gönderip
 4. ~~Gruplama~~ **Karar verildi:** Claude'daki gibi proje grupları (bkz. 6b). Kalan soru: grup = tek proje klasörü mü, yoksa birkaç klasörü bir araya getiren üst grup etiketi de olsun mu?
 5. **Arka plandaki projenin bildirimi:** görev biterken/onay beklerken sol kenarda rozet + (uygulama pencere dışındaysa) Windows bildirimi istenir mi?
 6. **Sırayla yapılacak aşamalar** (P1→P5) uygun mu, yoksa önce yalnız P1+P2 (altyapı) yapılıp arayüz sonra mı?
+
+## 8. Verilen kararlar (2026-10-23)
+
+1. Proje başına **1 görev**.
+2. Eşzamanlı üst sınır **3**, fazlası sırada bekler.
+3. Proje listesi **yalnız kullanıcının eklediği** projeler.
+4. **Grup = bir proje klasörü** (üst grup etiketi yok).
+5. Arka plan bildirimi: **rozet + Windows bildirimi**.
+6. Aşamalar **P1→P5 sırayla**, her biri test + commit.
