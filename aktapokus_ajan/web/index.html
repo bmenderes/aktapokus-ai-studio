@@ -461,7 +461,7 @@ function kenarCiz(){const k=$("#gecmis");if(!S.gruplar)return;const q=katla($("#
   if(!n&&!son.length)k.append(e("div",{class:"mut3",text:q?"Eşleşen yok.":"Henüz proje yok. '+ Proje' ile bir klasör ekleyin."}))}
 $("#kenarAra").oninput=kenarCiz;$("#yeniProje").onclick=()=>klasorSecimiAc();
 /* proje başına olay saklama: seçili olmayan projelerin olayları yalnız saklanır; projeye geçince yeniden oynatılarak görünüm kurulur */
-function projeGorunumuKur(){S.tekrar=true;try{$("#akis").textContent="";S.planDugmeleri={};S.planEtiket={};S.rolDurum={};S.adimDiv={};S.canliDiv=null;S.fark=null;S.kararBekliyor=false;degisiklikCiz(null);
+function projeGorunumuKur(){S.imza=null;S.tekrar=true;try{$("#akis").textContent="";S.planDugmeleri={};S.planEtiket={};S.rolDurum={};S.adimDiv={};S.canliDiv=null;S.fark=null;S.kararBekliyor=false;degisiklikCiz(null);
     for(const o of (S.olaylar[S.projeId]||[])){try{olayIsle(o)}catch(x){console.error(x)}}}finally{S.tekrar=false}
   kosuGorunumu();rolleriCiz()}
 function bildirim(baslik,metin){try{if(document.hasFocus()&&!document.hidden)return;if("Notification" in window&&Notification.permission==="granted")new Notification(baslik,{body:metin,icon:"/favicon.ico",tag:"aktapokus"})}catch(x){}}
@@ -648,7 +648,7 @@ function yenileOnizleme(){if(S.tekrar)return;if($("#cerceve").src)$("#cerceve").
 $("#yenile").onclick=()=>{yenileOnizleme();dosyalariYukle()};$("#onizGit").onclick=onizGoster;
 $("#onizTur").onchange=()=>{$("#onizYol").value=$("#onizTur").value==="url"?"http://localhost:5261/":"/";onizGoster()};
 $("#onizYol").addEventListener("keydown",ev=>{if(ev.key==="Enter")onizGoster()});
-async function izle(){if(!S.klasor||!$("#canliOnizleme").checked)return;try{const r=await api("/api/imza");if(S.imza&&r.imza!==S.imza){S.imza=r.imza;yenileOnizleme();dosyalariYukle()}else if(!S.imza)S.imza=r.imza}catch(x){}}
+async function izle(){if(!S.klasor||!$("#canliOnizleme").checked)return;const pid=S.projeId;try{const r=await api("/api/imza");if(pid!==S.projeId)return;if(S.imza&&r.imza!==S.imza){S.imza=r.imza;yenileOnizleme();dosyalariYukle()}else if(!S.imza)S.imza=r.imza}catch(x){}}
 setInterval(izle,2500);
 /* ---- Ortam cipi (proje + TAM klasor yolu), proje menusu ve yeni klasor secici ---- */
 const yolAd=y=>String(y||"").split(/[\\/]/).filter(Boolean).pop()||String(y||"");

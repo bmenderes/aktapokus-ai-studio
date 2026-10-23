@@ -550,8 +550,8 @@ def test_favicon_tokensiz_servis_edilir_ve_sayfa_ona_baglanir(kur):
 
 
 # ---------- onizleme sunucusu ----------
-def onizleme(sv, yol, host=None):
-    c = http.client.HTTPConnection("127.0.0.1", sv.onizleme_port, timeout=10)
+def onizleme(sv, yol, host=None, proje=None):
+    c = http.client.HTTPConnection("127.0.0.1", sv.onizleme_port(proje or sv.app.secili_kimlik), timeout=10)
     c.request("GET", yol, headers={"Host": host} if host else {})
     r = c.getresponse()
     return r.status, r.read(), dict(r.getheaders())
@@ -564,12 +564,12 @@ def test_onizleme_sunar_ve_yalitir(kur):
     (p / "site").mkdir()
     (p / "site" / "stil.css").write_text("h1{color:red}", encoding="utf-8")
     (p / ".env").write_text("SECRET=abc123", encoding="utf-8")
-    assert onizleme(sv, "/")[0] == 404  # klasor henuz secilmedi
+    assert api("GET", "/api/onizleme")[0] == 409  # klasor henuz secilmedi
     klasor_sec(api, p)
     st, govde, h = onizleme(sv, "/")
     assert st == 200 and govde == b"<h1>Merhaba</h1>"
     assert "Content-Security-Policy" not in h  # CSP sandbox/frame-ancestors uygulama icindeki tarayici panelinde cerceveyi bos birakiyordu (denendi)
-    assert sv.onizleme_port != sv.port  # yalitim: ayri port = ayri koken
+    assert sv.onizleme_port(sv.app.secili_kimlik) != sv.port  # yalitim: ayri port = ayri koken
     assert h["X-Content-Type-Options"] == "nosniff" and h["Cache-Control"] == "no-store"
     assert onizleme(sv, "/site/stil.css")[2]["Content-Type"].startswith("text/css")
     for kotu in ("/.env", "/.git/config", "/.opencode/opencode.json", "/%2e%2e/%2e%2e/windows/win.ini", "/site/%2e%2e/.env", "/..%5c..%5cx", "/site/", "/yok.html"):
@@ -578,7 +578,8 @@ def test_onizleme_sunar_ve_yalitir(kur):
     assert onizleme(sv, "/", host="evil.example.com")[0] == 403
     assert onizleme(sv, "/", host=f"127.0.0.1:{sv.port}")[0] == 403  # uygulama portuyla degil, onizleme portuyla eslesmeli
     st, d = api("GET", "/api/onizleme")
-    assert d["url"] == f"http://127.0.0.1:{sv.onizleme_port}/" and sv.onizleme_port != sv.port
+    port = sv.onizleme_port(sv.app.secili_kimlik)
+    assert d["url"] == f"http://127.0.0.1:{port}/" and port != sv.port
 
 
 def test_onizleme_proje_degisince_yeni_klasoru_sunar(kur, tmp_path):
@@ -839,3 +840,35 @@ def test_arayuz_kenar_cubugu_proje_gruplari_icin_gerekli_parcalari_icerir():
     for parca in ('id="kenarAra"', 'id="yeniProje"', "/api/proje-gruplari", "projeGorunumuKur", "Son görevler", "Daha fazla göster", "arkaPlanOlayi"):
         assert parca in html, parca
     assert "görev çalışırken proje değiştirilemez" not in html  # P2'den beri proje degistirmek serbest
+
+
+# ---------- coklu proje P5: proje basina onizleme ----------
+def test_her_projenin_onizlemesi_kendi_portunda_ve_secim_degisse_de_sasmaz(kur, tmp_path):
+    from aktapokus_ajan import projeler
+
+    app, sv, api, _ = kur()
+    ikinci = _ikinci_proje(tmp_path)
+    (kur.proje / "index.html").write_text("alfa", encoding="utf-8")
+    (ikinci / "index.html").write_text("beta", encoding="utf-8")
+    klasor_sec(api, kur.proje)
+    url_a = api("GET", "/api/onizleme")[1]
+    klasor_sec(api, ikinci)
+    url_b = api("GET", "/api/onizleme")[1]
+    assert url_a["url"] != url_b["url"] and url_a["proje"] == projeler.proje_kimligi(kur.proje)
+    a, b = projeler.proje_kimligi(kur.proje), projeler.proje_kimligi(ikinci)
+    # secili proje B iken A'nin (ayri pencerede acik) onizlemesi hala A'yi sunar
+    assert onizleme(sv, "/", proje=a)[1] == b"alfa" and onizleme(sv, "/", proje=b)[1] == b"beta"
+    klasor_sec(api, kur.proje)
+    assert onizleme(sv, "/", proje=b)[1] == b"beta"
+    # bir projenin portu digerinin Host'uyla acilamaz
+    assert onizleme(sv, "/", proje=a, host=f"127.0.0.1:{sv.onizleme_port(b)}")[0] == 403
+    assert api("GET", f"/api/p/{b}/onizleme")[1]["proje"] == b  # proje oneki: secili projeden bagimsiz
+
+
+def test_onizleme_sunuculari_kapanista_kapanir(kur, tmp_path):
+    app, sv, api, _ = kur()
+    klasor_sec(api, kur.proje)
+    port = sv.onizleme_port(app.secili_kimlik)
+    sv.kapat()
+    with pytest.raises(OSError):
+        http.client.HTTPConnection("127.0.0.1", port, timeout=2).request("GET", "/")

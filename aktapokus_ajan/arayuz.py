@@ -974,7 +974,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                 if yol == "/api/klasorler":
                     return self._gonder(200, app.klasorleri_listele(q.get("yol")))
                 if yol == "/api/onizleme":
-                    return self._gonder(200, {"url": sunucu.onizleme_url()})
+                    o = app._oturum()
+                    return self._gonder(200, {"url": sunucu.onizleme_url(o.kimlik), "proje": o.kimlik})
                 if yol == "/api/olaylar":
                     return self._akis(int(q.get("son", "0") or 0))
             if yontem == "POST":
@@ -1088,7 +1089,9 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
     return H
 
 
-def yapi_onizleme(app: Uygulama, sunucu: "ArayuzSunucusu"):
+def yapi_onizleme(app: Uygulama, sunucu: "ArayuzSunucusu", proje: str):
+    """Tek bir projenin onizleme sunucusu: SABIT o projeyi sunar (bilgisayarda secili proje degisse de ayri pencerede acik onizleme sasmaz)."""
+
     class O(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
 
@@ -1104,9 +1107,10 @@ def yapi_onizleme(app: Uygulama, sunucu: "ArayuzSunucusu"):
             self.wfile.write(b)
 
         def do_GET(self):
-            if not _host_gecerli(self.headers.get("Host"), {sunucu.onizleme_port}):
+            if not _host_gecerli(self.headers.get("Host"), {self.server.server_address[1]}):
                 return self._hata(403, "Gecersiz Host")
-            klasor = app.klasor
+            oturum = app.oturumlar.get(proje)
+            klasor = oturum.klasor if oturum else None
             if klasor is None:
                 return self._hata(404, "Klasor secilmedi")
             yol = urllib.parse.unquote(urllib.parse.urlsplit(self.path).path)
@@ -1146,24 +1150,37 @@ class ArayuzSunucusu:
         self.http = ThreadingHTTPServer(("127.0.0.1", port), yapi_arayuz(app, self))
         self.http.daemon_threads = True
         self.port = self.http.server_address[1]
-        self.onizleme_http = ThreadingHTTPServer(("127.0.0.1", 0), yapi_onizleme(app, self))
-        self.onizleme_http.daemon_threads = True
-        self.onizleme_port = self.onizleme_http.server_address[1]
+        self.onizlemeler: dict[str, ThreadingHTTPServer] = {}  # proje kimligi -> o projeyi sunan onizleme sunucusu (ilk istekte, ayri portta)
+        self._onizleme_kilit = threading.Lock()
 
     def url(self) -> str:
         return f"http://127.0.0.1:{self.port}/#t={self.app.token}"
 
-    def onizleme_url(self) -> str:
-        return f"http://127.0.0.1:{self.onizleme_port}/"
+    def onizleme_port(self, proje: str) -> int:
+        """Projenin onizleme portu; yoksa baslatir. Her proje AYRI port = ayri koken (uygulamanin token'ina erisemez, projeler birbirinin oturumuna erisemez)."""
+        with self._onizleme_kilit:
+            if self.kapaniyor.is_set():
+                raise UygulamaHatasi("Sunucu kapaniyor", 503)
+            s = self.onizlemeler.get(proje)
+            if s is None:
+                s = ThreadingHTTPServer(("127.0.0.1", 0), yapi_onizleme(self.app, self, proje))
+                s.daemon_threads = True
+                threading.Thread(target=s.serve_forever, daemon=True).start()
+                self.onizlemeler[proje] = s
+            return s.server_address[1]
+
+    def onizleme_url(self, proje: str) -> str:
+        return f"http://127.0.0.1:{self.onizleme_port(proje)}/"
 
     def baslat(self) -> None:
         threading.Thread(target=self.http.serve_forever, daemon=True).start()
-        threading.Thread(target=self.onizleme_http.serve_forever, daemon=True).start()
 
     def kapat(self) -> None:
         self.kapaniyor.set()
         self.app.terminalleri_kapat()  # terminal surecleri arayuzle birlikte kapanir
-        for s in (self.http, self.onizleme_http):
+        with self._onizleme_kilit:
+            onizlemeler = list(self.onizlemeler.values())
+        for s in (self.http, *onizlemeler):
             try:
                 s.shutdown()
                 s.server_close()
