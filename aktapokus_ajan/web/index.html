@@ -106,6 +106,10 @@ body{position:relative}
 .k-ust{color:var(--tx2)}
 .k-oge:hover,.k-ust:hover{background:var(--panel2)}
 .k-oge.on{background:var(--accbg);color:var(--acc);font-weight:500}
+.cikti{display:flex;gap:8px;align-items:center;padding:5px 8px;border:1px solid var(--line);border-radius:8px;margin:4px 0;cursor:pointer;background:var(--panel)}
+.cikti:hover{background:var(--panel2)}
+.cikti-ad{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cikti-r{flex:none;min-width:36px;text-align:center;font:11px var(--mono);padding:1px 4px;border-radius:4px;background:var(--panel2);color:var(--tx2)}
 @media (max-width:900px){#ayarlar.on{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}#ayarMenu{flex-direction:row;overflow:auto;border-right:none;border-bottom:1px solid var(--line)}#ayarMenu button{white-space:nowrap}#ayarIcerik{padding:12px}}
 @media (max-width:900px){#main{grid-template-columns:1fr}#sol,#sag{border:none}}
 </style>
@@ -129,7 +133,7 @@ body{position:relative}
     </div>
   </div>
   <div id="sag">
-    <div id="sekmeler"><button class="sekme on" data-p="p-onizleme">Önizleme</button><button class="sekme" data-p="p-degisiklik">Değişiklikler</button><button class="sekme" data-p="p-belgeler">Belgeler</button><button class="sekme" data-p="p-dosyalar">Dosyalar</button><button class="sekme" data-p="p-gunluk">Günlük</button></div>
+    <div id="sekmeler"><button class="sekme on" data-p="p-onizleme">Önizleme</button><button class="sekme" data-p="p-degisiklik">Değişiklikler</button><button class="sekme" data-p="p-ciktilar">Çıktılar</button><button class="sekme" data-p="p-belgeler">Belgeler</button><button class="sekme" data-p="p-dosyalar">Dosyalar</button><button class="sekme" data-p="p-gunluk">Günlük</button></div>
     <div id="p-onizleme" class="panel on">
       <div class="row"><span id="onizUrl" class="mono mut" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span><label class="row mut"><input type="checkbox" id="canliOnizleme" checked> canlı</label><button id="yenile" title="Yenile">Yenile</button></div>
       <div class="row" style="margin-top:4px"><select id="onizTur"><option value="dosya">Proje dosyaları</option><option value="url">Yerel sunucu</option></select><input id="onizYol" style="flex:1" placeholder="/index.html" value="/"><button id="onizGit">Git</button></div>
@@ -137,6 +141,7 @@ body{position:relative}
       <div class="mut3" style="margin-top:4px">Önizleme ayrı bir kapıda, yalıtılmış çerçevede çalışır; uygulamaya erişemez.</div>
     </div>
     <div id="p-degisiklik" class="panel"></div>
+    <div id="p-ciktilar" class="panel"></div>
     <div id="p-belgeler" class="panel"><div class="row"><select id="belgeSec" style="max-width:100%"></select><span class="mut3">işlenmiş Markdown</span></div><div id="belgeIcerik" class="md" style="margin-top:6px"></div></div>
     <div id="p-dosyalar" class="panel"><div id="agac" class="agac mono"></div><div id="dosyaGoster" style="margin-top:8px"></div></div>
     <div id="p-gunluk" class="panel mono"><div id="gunluk"></div></div>
@@ -169,7 +174,7 @@ function md(src){
     if(!l.trim()){i++;continue}
     let p=[];while(i<L.length&&L[i].trim()&&!/^(```|#{1,3}\s|\s*[-*]\s|\s*\d+\.\s|\s*>|\|)/.test(L[i]))p.push(L[i++]);if(!p.length){p.push(L[i++])}h+="<p>"+satir(p.join(" "))+"</p>"}
   return h}
-function sekme(id){document.querySelectorAll(".sekme").forEach(b=>b.classList.toggle("on",b.dataset.p===id));document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("on",p.id===id))}
+function sekme(id){document.querySelectorAll(".sekme").forEach(b=>b.classList.toggle("on",b.dataset.p===id));document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("on",p.id===id));if(id==="p-ciktilar")ciktilariYukle()}
 document.querySelectorAll(".sekme").forEach(b=>b.onclick=()=>sekme(b.dataset.p));
 function akisaEkle(n){const a=$("#akis");const alta=a.scrollTop+a.clientHeight>=a.scrollHeight-40;a.append(n);if(alta)a.scrollTop=a.scrollHeight;return n}
 function gunluge(m){const g=$("#gunluk");g.append(e("div",{class:"mut",text:new Date().toLocaleTimeString("tr-TR")+"  "+m}))}
@@ -396,6 +401,24 @@ async function gecmisYukle(){const k=$("#gecmis");if(!S.klasor){k.textContent=""
   catch(x){k.textContent=""}}
 
 $("#yeniGorev").onclick=yeniGorev;
+/* ---- Ciktilar (Outputs): projede gorevlerle olusan/degisen dosyalar ---- */
+const CIKTI_ROZET={html:"html",md:"md",gorsel:"img",kod:"kod",diger:"dosya"};
+function boyutYaz(n){return n<1024?n+" B":n<1048576?(n/1024).toFixed(1)+" KB":(n/1048576).toFixed(1)+" MB"}
+function ciktiAc(c){
+  if(c.tur==="html"||c.tur==="gorsel"){$("#onizTur").value="dosya";$("#onizYol").value="/"+c.yol;onizGoster();sekme("p-onizleme")}
+  else if(c.tur==="md"){const s=$("#belgeSec");if([...s.options].some(o=>o.value===c.yol))s.value=c.yol;belgeAc(c.yol);sekme("p-belgeler")}
+  else{dosyaGoster(c.yol);sekme("p-dosyalar")}}
+async function ciktilariYukle(){const p=$("#p-ciktilar");const dugme=document.querySelector('[data-p="p-ciktilar"]');
+  if(!S.klasor){dugme.textContent="Çıktılar";p.textContent="";p.append(e("div",{class:"mut3",text:"Önce bir proje seçin."}));return}
+  let d;try{d=await api("/api/ciktilar")}catch(x){p.textContent="";p.append(e("div",{class:"badge b-err",text:x.message}));return}
+  dugme.textContent="Çıktılar"+(d.toplam?" ("+d.toplam+")":"");p.textContent="";
+  p.append(e("div",{class:"row",style:"justify-content:space-between;margin-bottom:6px;gap:8px"},e("span",{class:"mut3",style:"white-space:normal",text:d.toplam?d.toplam+" dosya · görevlerle oluşan/değişen, korunmuş olanlar":"Henüz çıktı yok. Görevler dosya oluşturup 'Korunsun' dediğinizde burada listelenir."}),e("button",{text:"Yenile",onclick:ciktilariYukle})));
+  const liste=S.ciktiHepsi?d.ciktilar:d.ciktilar.slice(0,15);
+  for(const c of liste)p.append(e("div",{class:"cikti",title:c.yol+"\nOluşturan görev: "+c.gorev+(c.adet>1?"\n"+c.adet+" kez değişti":""),onclick:()=>ciktiAc(c)},
+    e("span",{class:"cikti-r",text:CIKTI_ROZET[c.tur]||"dosya"}),
+    e("div",{style:"min-width:0;flex:1"},e("div",{class:"cikti-ad",text:c.ad}),e("div",{class:"mut3 mono",style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:(c.klasor?c.klasor+"/ · ":"")+c.degisti.slice(5,16)+" · "+boyutYaz(c.boyut)})),
+    e("span",{class:"badge "+(c.durum==="yeni"?"b-ok":"b-warn"),text:c.durum==="yeni"?"yeni":"değişti"})));
+  if(d.toplam>15)p.append(e("button",{style:"margin-top:4px",text:S.ciktiHepsi?"Daha az göster":"Daha fazla göster ("+(d.toplam-15)+")",onclick:()=>{S.ciktiHepsi=!S.ciktiHepsi;ciktilariYukle()}}))}
 function cliBolumu(){const kap=e("div");
   const liste=e("div");kap.append(liste);
   for(const c of S.clilar){const sonuc=e("div",{class:"mut3",style:"margin-top:4px"});
@@ -477,7 +500,7 @@ async function durumYukle(){try{const d=await api("/api/durum");S.klasor=d.klaso
 async function gonder(){const t=$("#gorev").value.trim();if(!t||!S.klasor)return;$("#gorev").value="";try{const p=await api("/api/gorev",{method:"POST",body:{gorev:t}});S.kosu={kimlik:p.kosu,gorev:t,durum:"plan"};kosuGorunumu()}catch(x){akisaEkle(e("div",{class:"badge b-err",text:x.message}))}}
 $("#gonder").onclick=gonder;$("#gorev").addEventListener("keydown",ev=>{if(ev.key==="Enter"&&!ev.shiftKey){ev.preventDefault();gonder()}});
 $("#durdur").onclick=async()=>{try{await api("/api/gorev/"+S.kosu.kimlik+"/durdur",{method:"POST",body:{}})}catch(x){alert(x.message)}};
-async function dosyalariYukle(){if(!S.klasor)return;try{const d=await api("/api/dosyalar");S.imza=d.imza;S.degisen=Object.assign({},d.degisen||{});agacCiz(d.dosyalar);belgeleriCiz(d.belgeler)}catch(x){}}
+async function dosyalariYukle(){if(!S.klasor)return;ciktilariYukle();try{const d=await api("/api/dosyalar");S.imza=d.imza;S.degisen=Object.assign({},d.degisen||{});agacCiz(d.dosyalar);belgeleriCiz(d.belgeler)}catch(x){}}
 function agacCiz(liste){const a=$("#agac");a.textContent="";const kok={};for(const f of liste){const p=f.yol.split("/");let n=kok;p.forEach((s,i)=>{n=n[s]=n[s]||(i===p.length-1?{__f:f.yol}:{})})}
   const ciz=(n,kap,d)=>{for(const k of Object.keys(n).sort((x,y)=>{const a1=n[x].__f?1:0,b1=n[y].__f?1:0;return a1-b1||x.localeCompare(y)})){const c=n[k];if(c.__f){const dur=S.degisen[c.__f];const sat=e("div",{class:"f",style:"padding-left:"+d*12+"px",onclick:()=>dosyaGoster(c.__f)});if(dur)sat.append(e("span",{style:"color:var(--"+(dur==="A"?"ok":dur==="D"?"err":"warn")+")",text:dur+" "}));sat.append(k);kap.append(sat)}else{const sat=e("div",{class:"d mut",style:"padding-left:"+d*12+"px",text:"▸ "+k});kap.append(sat);const alt=e("div");kap.append(alt);let ac=d<1;alt.style.display=ac?"":"none";sat.textContent=(ac?"▾ ":"▸ ")+k;sat.onclick=()=>{ac=!ac;alt.style.display=ac?"":"none";sat.textContent=(ac?"▾ ":"▸ ")+k};ciz(c,alt,d+1)}}};ciz(kok,a,0)}
 async function dosyaGoster(yol){const g=$("#dosyaGoster");g.textContent="";try{const r=await api("/api/dosya?yol="+encodeURIComponent(yol));g.append(e("div",{class:"row"},e("b",{text:yol}),yol.toLowerCase().endsWith(".md")?e("button",{text:"Belgelerde aç",onclick:()=>{$("#belgeSec").value=yol;belgeAc(yol);sekme("p-belgeler")}}):null));

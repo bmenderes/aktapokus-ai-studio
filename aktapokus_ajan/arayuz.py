@@ -28,7 +28,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import clitanim, guard, istatistik, projeler, snapshot
+from . import ciktilar, clitanim, guard, istatistik, projeler, snapshot
 from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
 from .pipeline import HatHatasi, _kayit_klasoru, calistir_hat, son_kayit
@@ -363,6 +363,12 @@ class Uygulama:
             raise self._sunucu_hatasi(hata) from None
         return {"tamam": True}
 
+    # --- ciktilar (Outputs): projede gorevlerle olusan/degisen dosyalarin birlesik listesi (yalniz okur) ---
+    def ciktilar(self) -> dict:
+        klasor = self._klasor()
+        liste = ciktilar.topla(klasor, ciktilar.kayitlari_oku(klasor), guvenli_goreli)
+        return {"ciktilar": liste, "toplam": len(liste)}
+
     # --- gorev gecmisi (sol kenar cubugu): .aktapokus/kayitlar altindaki calistirma kayitlari, yalniz okunur ---
     def gecmis(self, adet: int = 30) -> list[dict]:
         klasoru = _kayit_klasoru(self._klasor())
@@ -662,6 +668,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                     return self._gonder(200, app.proje_listesi())
                 if yol == "/api/istatistik":
                     return self._gonder(200, app.istatistik(q.get("kapsam", "proje")))
+                if yol == "/api/ciktilar":
+                    return self._gonder(200, app.ciktilar())
                 if yol == "/api/gecmis":
                     return self._gonder(200, app.gecmis_kaydi(q["id"]) if q.get("id") else {"gecmis": app.gecmis()})
                 if yol == "/api/saglayicilar":

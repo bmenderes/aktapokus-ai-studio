@@ -590,3 +590,8 @@ def test_onizleme_proje_degisince_yeni_klasoru_sunar(kur, tmp_path):
     assert onizleme(sv, "/")[1] == b"bir"
     st, _ = api("POST", "/api/klasor", {"yol": str(ikinci), "git_baslat": True})
     assert st == 200 and onizleme(sv, "/")[1] == b"iki"
+
+
+def test_cikti_sekmesi_ve_paneli_sayfada_var():
+    html = (Path(__file__).parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
+    assert 'data-p="p-ciktilar"' in html and 'id="p-ciktilar"' in html and "function ciktilariYukle" in html and "/api/ciktilar" in html
