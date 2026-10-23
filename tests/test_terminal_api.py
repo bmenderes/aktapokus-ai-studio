@@ -181,3 +181,19 @@ def test_arayuz_sayfasi_terminal_dugmesini_ve_vendor_yollarini_icerir():
     html = (WEB / "index.html").read_text(encoding="utf-8")
     for parca in ('id="terminalDugme"', 'id="terminalSayfa"', "/vendor/xterm.js", "/vendor/addon-fit.js", "/api/terminal/ac"):
         assert parca in html, parca
+
+
+def test_inter_yazi_tipi_sunulur_ve_arayuzde_tanimlidir(api):
+    from aktapokus_ajan.arayuz import WEB
+
+    _, sv, _ = api
+    for ad in ("inter-latin-wght-normal.woff2", "inter-latin-ext-wght-normal.woff2"):
+        c = http.client.HTTPConnection("127.0.0.1", sv.port, timeout=10)
+        c.request("GET", f"/vendor/{ad}")
+        r = c.getresponse()
+        govde = r.read()
+        c.close()
+        assert r.status == 200 and r.getheader("Content-Type") == "font/woff2" and govde[:4] == b"wOF2", ad
+    html = (WEB / "index.html").read_text(encoding="utf-8")
+    assert '"Inter"' in html and "inter-latin-ext-wght-normal.woff2" in html  # Turkce karakterler (ğşıİ) latin-ext dosyasinda
+    assert "system-ui,-apple-system" not in html  # eski varsayilan yazi tipi bir daha kullanilmaz

@@ -7,3 +7,4 @@ Ucuncu taraf dosyalar (arayuzdeki terminal ekrani). Elle DEGISTIRILMEZ; guncelle
   paket ozeti:
   sha512-jYcgT6xtVYhnhgxh3QgYDnnNMYTcf8ElbxxFzX0IZo+vabQqSPAjC3c1wJrKB5E19VwQei89QCiZZP86DCPF7g==
 Indirme tarihi: 2026-10-23 (npm pack ile; kullanici onayiyla)
+inter-latin-wght-normal.woff2, inter-latin-ext-wght-normal.woff2: @fontsource-variable/inter@5.3.0 (jsdelivr), OFL-1.1

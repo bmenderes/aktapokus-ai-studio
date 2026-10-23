@@ -713,7 +713,8 @@ def _origin_gecerli(origin: str | None, portlar: set[int]) -> bool:
     return any(origin == f"http://{ad}:{port}" for ad in ("127.0.0.1", "localhost") for port in portlar)
 
 
-VENDOR_DOSYALARI = {"xterm.js": "application/javascript; charset=utf-8", "xterm.css": "text/css; charset=utf-8", "addon-fit.js": "application/javascript; charset=utf-8"}
+VENDOR_DOSYALARI = {"xterm.js": "application/javascript; charset=utf-8", "xterm.css": "text/css; charset=utf-8", "addon-fit.js": "application/javascript; charset=utf-8",
+    "inter-latin-wght-normal.woff2": "font/woff2", "inter-latin-ext-wght-normal.woff2": "font/woff2"}
 
 
 def _host_gecerli(host: str | None, portlar: set[int]) -> bool:
