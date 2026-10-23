@@ -168,7 +168,7 @@ body.suruklenir iframe{pointer-events:none}
   </div>
   <div class="bolucu" id="bolucuSag" title="Sürükleyin: genişliği değiştirin · çift tıklayın: sıfırla"></div>
   <div id="sag">
-    <div id="sekmeler"><button class="sekme on" data-p="p-onizleme">Önizleme</button><button class="sekme" data-p="p-degisiklik">Değişiklikler</button><button class="sekme" data-p="p-ciktilar">Çıktılar</button><button class="sekme" data-p="p-belgeler">Belgeler</button><button class="sekme" data-p="p-dosyalar">Dosyalar</button><button class="sekme" data-p="p-gunluk">Günlük</button></div>
+    <div id="sekmeler"><button class="sekme on" data-p="p-onizleme">Önizleme</button><button class="sekme" data-p="p-degisiklik">Değişiklikler</button><button class="sekme" data-p="p-ciktilar">Çıktılar</button><button class="sekme" data-p="p-github">GitHub</button><button class="sekme" data-p="p-belgeler">Belgeler</button><button class="sekme" data-p="p-dosyalar">Dosyalar</button><button class="sekme" data-p="p-gunluk">Günlük</button></div>
     <div id="p-onizleme" class="panel on">
       <div class="row"><span id="onizUrl" class="mono mut" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span><label class="row mut"><input type="checkbox" id="canliOnizleme" checked> canlı</label><button id="yenile" title="Yenile">Yenile</button><button id="onizAyri" title="Önizlemeyi ayrı bir pencerede aç">↗ Ayrı pencere</button></div>
       <div class="row" style="margin-top:4px"><select id="onizTur"><option value="dosya">Proje dosyaları</option><option value="url">Yerel sunucu</option></select><input id="onizYol" style="flex:1" placeholder="/index.html" value="/"><button id="onizGit">Git</button></div>
@@ -177,6 +177,7 @@ body.suruklenir iframe{pointer-events:none}
     </div>
     <div id="p-degisiklik" class="panel"></div>
     <div id="p-ciktilar" class="panel"></div>
+    <div id="p-github" class="panel"></div>
     <div id="p-belgeler" class="panel"><div class="row"><select id="belgeSec" style="max-width:100%"></select><span class="mut3">işlenmiş Markdown</span></div><div id="belgeIcerik" class="md" style="margin-top:6px"></div></div>
     <div id="p-dosyalar" class="panel"><div id="agac" class="agac mono"></div><div id="dosyaGoster" style="margin-top:8px"></div></div>
     <div id="p-gunluk" class="panel mono"><div id="gunluk"></div></div>
@@ -193,7 +194,7 @@ body.suruklenir iframe{pointer-events:none}
 const $=s=>document.querySelector(s);
 const T=(()=>{const m=location.hash.match(/t=([\w-]+)/);if(m){try{sessionStorage.setItem("t",m[1])}catch(e){}history.replaceState(null,"",location.pathname)}try{return sessionStorage.getItem("t")||""}catch(e){return m?m[1]:""}})();
 async function api(yol,o={}){const r=await fetch(yol,{method:o.method||"GET",headers:{"X-Aktapokus-Token":T,"Content-Type":"application/json"},body:o.body?JSON.stringify(o.body):undefined});let j=null;try{j=await r.json()}catch(e){}if(!r.ok){const h=new Error((j&&j.hata)||("HTTP "+r.status));h.kod=r.status;throw h}return j}
-function e(tag,a,...c){const n=document.createElement(tag);if(a)for(const k in a){if(k==="class")n.className=a[k];else if(k.startsWith("on")&&typeof a[k]==="function")n[k]=a[k];else if(k==="text")n.textContent=a[k];else n.setAttribute(k,a[k])}for(const x of c){if(x==null)continue;n.append(x.nodeType?x:document.createTextNode(x))}return n}
+function e(tag,a,...c){const n=document.createElement(tag);if(a)for(const k in a){if(k==="class")n.className=a[k];else if(k.startsWith("on")&&typeof a[k]==="function")n[k]=a[k];else if(k==="text")n.textContent=a[k];else if(a[k]===false||a[k]==null){}else n.setAttribute(k,a[k]===true?"":a[k])}for(const x of c){if(x==null)continue;n.append(x.nodeType?x:document.createTextNode(x))}return n}
 const S={olaylar:{},okunmadi:{},fazla:{},gruplar:null,projeId:undefined,tekrar:false,planDugmeleri:{},planEtiket:{},klasor:null,ayar:null,kosu:null,rolDurum:{},adimDiv:{},son:0,butce:200000,canliDiv:null,fark:null,kararBekliyor:false,imza:null,degisen:{}};
 function md(src){
   const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
@@ -210,7 +211,7 @@ function md(src){
     if(!l.trim()){i++;continue}
     let p=[];while(i<L.length&&L[i].trim()&&!/^(```|#{1,3}\s|\s*[-*]\s|\s*\d+\.\s|\s*>|\|)/.test(L[i]))p.push(L[i++]);if(!p.length){p.push(L[i++])}h+="<p>"+satir(p.join(" "))+"</p>"}
   return h}
-function sekme(id){document.querySelectorAll(".sekme").forEach(b=>b.classList.toggle("on",b.dataset.p===id));document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("on",p.id===id));if(id==="p-ciktilar")ciktilariYukle();sagiAc()}
+function sekme(id){document.querySelectorAll(".sekme").forEach(b=>b.classList.toggle("on",b.dataset.p===id));document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("on",p.id===id));if(id==="p-ciktilar")ciktilariYukle();if(id==="p-github")githubPaneliYukle();sagiAc()}
 document.querySelectorAll(".sekme").forEach(b=>b.onclick=()=>sekme(b.dataset.p));
 function akisaEkle(n){const a=$("#akis");const alta=a.scrollTop+a.clientHeight>=a.scrollHeight-40;a.append(n);if(alta)a.scrollTop=a.scrollHeight;return n}
 function gunluge(m){const g=$("#gunluk");g.append(e("div",{class:"mut",text:new Date().toLocaleTimeString("tr-TR")+"  "+m}))}
@@ -326,7 +327,7 @@ async function istatistikYukle(hedef){const p=hedef||S.istHedef||$("#ayarIcerik"
   p.append(e("div",{class:"mut3",style:"margin-top:10px;white-space:normal",text:"Not: abonelik kotanızın (Claude Pro, ChatGPT/Codex) kalan miktarı CLI'lardan güvenilir okunamıyor; burada yalnızca harcanan token ve limite takılma anı görünür."}))}
 function kapsamSecici(){const b=(ad,v)=>e("button",{class:S.istKapsam===v?"pri":"",text:ad,onclick:()=>{S.istKapsam=v;istatistikYukle()}});return e("div",{class:"row"},b("Bu proje","proje"),b("Tüm projeler","tum"),e("button",{text:"Yenile",onclick:()=>istatistikYukle()}))}
 /* ---- AYARLAR: sol menulu tam sayfa (OpenCode Desktop gibi). Bolumler: Genel, Saglayicilar, Modeller, CLI'lar, Roller, Kullanim, Hakkinda ---- */
-const AYAR_BOLUMLERI=[["genel","Genel"],["saglayicilar","Sağlayıcılar"],["modeller","Modeller"],["clilar","CLI'lar"],["mcp","MCP sunucuları"],["beceriler","Beceriler"],["roller","Roller"],["telegram","Telegram"],["kullanim","Kullanım"],["hakkinda","Hakkında"]];
+const AYAR_BOLUMLERI=[["genel","Genel"],["saglayicilar","Sağlayıcılar"],["modeller","Modeller"],["clilar","CLI'lar"],["mcp","MCP sunucuları"],["beceriler","Beceriler"],["github","GitHub"],["roller","Roller"],["telegram","Telegram"],["kullanim","Kullanım"],["hakkinda","Hakkında"]];
 function ayarAc(id){$("#ayarlar").classList.add("on");ayarGit(id||S.ayarBolum||"genel")}
 function ayarKapat(){$("#ayarlar").classList.remove("on")}
 async function clilarYukle(){S.clilar=(await api("/api/clilar")).clilar;return S.clilar}
@@ -342,6 +343,7 @@ async function ayarGit(id){if(S.telegramZ){clearInterval(S.telegramZ);S.telegram
     else if(id==="clilar"){baslik("CLI'lar","Modelleri çalıştıran programlar. Yeni bir CLI'ı kod yazmadan tanımlayarak ekleyebilirsiniz.");await clilarYukle();h.append(cliBolumu())}
     else if(id==="mcp"){baslik("MCP sunucuları","Modellere ek araç ve bilgi veren sunucular. Bir kez tanımlayın, hangi projelerde açılacağını seçin; OpenCode, Claude Code ve Codex'e kendiliğinden aktarılır.");await mcpBolumu(h)}
     else if(id==="beceriler"){baslik("Beceriler","Modelin gerektiğinde yüklediği talimat paketleri. Sizin oluşturduklarınız ~/.agents/skills klasöründe durur; başka yerlerden bulunanlar yalnızca gösterilir.");await beceriBolumu(h)}
+    else if(id==="github"){baslik("GitHub","Bilgisayardaki gh (GitHub CLI) girişini kullanır; uygulama token'ı görmez ya da saklamaz. Depo klonlama burada; commit, push, pull request ve issue işlemleri proje panelindeki GitHub sekmesinde.");await githubBolumu(h)}
     else if(id==="roller"){baslik("Roller","Görevin hangi rollerden, hangi sırayla ve hangi araç + modelle geçeceği.");await clilarYukle();h.append(await rolBolumu());if(!S.canliModeller)canliModelleriYukle()}
     else if(id==="telegram"){baslik("Telegram","Telefondan görev başlatma, onay ve takip. Bot bu uygulamayla aynı süreçte çalışır: telefon ve arayüz aynı proje ve görevleri görür.");await telegramBolumu(h)}
     else if(id==="kullanim"){baslik("Kullanım","Token harcaması, hatalar ve model değiştirme önerileri.");const k=e("div");h.append(k);S.istHedef=k;await istatistikYukle(k)}
@@ -833,6 +835,81 @@ function beceriFormu(kap,b,bitti){const eski=$("#beceriForm");if(eski)eski.remov
   const hata=e("div",{class:"badge b-err",style:"display:none;margin-top:5px;white-space:normal"});const v=a=>k.querySelector('[data-a="'+a+'"]').value;
   const kaydet=e("button",{class:"pri",text:"Kaydet",onclick:async()=>{hata.style.display="none";try{await api("/api/beceriler",{method:"POST",body:{kimlik:v("kimlik").trim(),ad:v("ad").trim(),aciklama:v("aciklama").trim(),govde:v("govde"),otomatik:otomatik.checked}});await bitti()}catch(x){hata.textContent=x.message;hata.style.display=""}}});
   k.append(e("div",{class:"row",style:"margin-top:6px"},kaydet,e("button",{text:"Vazgeç",onclick:()=>k.remove()})),hata);kap.append(k);k.scrollIntoView({block:"nearest"})}
+/* ---- GitHub: sağ panel sekmesi (proje işlemleri) + Ayarlar bölümü (hesap, depo klonlama). Yazan her işlem açık onay penceresiyle. ---- */
+const ghUrlGuvenli=u=>typeof u==="string"&&/^https:\/\/github\.com\//.test(u);
+function ghLink(metin,url){return ghUrlGuvenli(url)?e("a",{href:url,target:"_blank",rel:"noopener noreferrer",text:metin}):e("span",{text:metin})}
+function ghMesaj(kap,metin,tur){let m=kap.querySelector(".gh-mesaj");if(!m){m=e("div",{class:"gh-mesaj",style:"margin:6px 0"});kap.prepend(m)}m.textContent="";m.append(e("div",{class:"badge "+(tur||"b-ok"),style:"display:block;white-space:normal",text:metin}));return m}
+function ghLinkliMesaj(kap,onek,url,tur){const m=ghMesaj(kap,onek,tur);if(ghUrlGuvenli(url)){m.firstChild.append(" ",ghLink(url,url))}}
+async function githubPaneliYukle(){const p=$("#p-github");p.textContent="";
+  if(!S.klasor){p.append(e("div",{class:"mut3",text:"Önce bir proje seçin."}));return}
+  p.append(e("div",{class:"mut3",text:"yükleniyor…"}));
+  const hesap=await api("/api/github/durum").catch(x=>({kurulu:false,giris:false,hata:x.message}));let d=null,hata=null;
+  try{d=await api("/api/github/proje")}catch(x){hata=x.message}
+  p.textContent="";
+  p.append(e("div",{class:"row",style:"justify-content:space-between"},e("span",{class:"row"},e("b",{text:"GitHub"}),hesap.giris?e("span",{class:"badge b-ok",title:"Bu hesapla işlem yapılır (gh oturumu)",text:"@"+hesap.hesap}):e("span",{class:"badge b-err",text:hesap.kurulu?"giriş yok":"gh kurulu değil"})),e("button",{text:"Yenile",onclick:githubPaneliYukle})));
+  if(!hesap.giris)p.append(e("div",{class:"badge b-warn",style:"display:block;white-space:normal;margin:6px 0",text:(hesap.hata||"GitHub'a giriş yapılmamış.")+" Giriş için bir terminalde `gh auth login` çalıştırın."}));
+  if(hata){p.append(e("div",{class:"badge b-err",style:"display:block;white-space:normal;margin-top:6px",text:/git deposu degil/.test(hata)?"Bu klasör bir git deposu değil (geri alma gölge yedekten çalışır, git gerekmez). Commit ve push için klasörde git deposu gerekir; isterseniz Terminal'de `git init` çalıştırın.":hata}));return}
+  const dal=d.dal||"(dal yok)";const uzakAd=d.uzak.depo||d.uzak.url||"";
+  p.append(e("div",{class:"card"},e("div",{class:"row",style:"flex-wrap:wrap;gap:6px"},e("span",{class:"badge b-acc",text:"dal: "+dal}),uzakAd?e("span",{class:"badge",text:"origin: "+uzakAd,title:d.uzak.url}):e("span",{class:"badge b-warn",text:"origin tanımlı değil"}),d.upstream?e("span",{class:"badge",text:"↑"+d.onde+" ↓"+d.geride}):null),
+    e("div",{class:"mut3",style:"margin-top:4px",text:"commit kimliği: "+(d.kimlik.ad||"(ad yok)")+" <"+(d.kimlik.eposta||"e-posta yok")+">"})));
+  if(hesap.giris&&d.uzak.sahip&&hesap.hesap&&d.uzak.sahip.toLowerCase()!==hesap.hesap.toLowerCase())p.append(e("div",{class:"badge b-warn",style:"display:block;white-space:normal;margin:6px 0",text:"Bu depo '"+d.uzak.sahip+"' hesabına ait, giriş yapılı hesap '@"+hesap.hesap+"'. Push ya da PR yetki hatası verebilir."}));
+  /* değişiklikler + commit */
+  const degKart=e("div",{class:"card"});p.append(degKart);
+  degKart.append(e("b",{text:d.degisen_sayisi?(d.degisen_sayisi+" değişen dosya"):"Değişiklik yok"}));
+  const gizli=d.degisen.filter(x=>x.gizli);
+  for(const x of d.degisen.slice(0,40))degKart.append(e("div",{class:"row mono",style:"gap:6px;"+(x.gizli?"opacity:.6":"")},e("span",{style:"min-width:18px",text:x.durum}),e("span",{style:"min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:x.yol,title:x.yol}),x.gizli?e("span",{class:"badge b-warn",text:"commit'e girmez"}):null));
+  if(d.degisen_sayisi>40)degKart.append(e("div",{class:"mut3",text:"… "+(d.degisen_sayisi-40)+" dosya daha"}));
+  if(gizli.length)degKart.append(e("div",{class:"mut3",style:"margin-top:4px",text:"Gizli görünen "+gizli.length+" dosya (.env, anahtar vb.) commit'e alınmaz; silinmez."}));
+  const mesaj=e("textarea",{rows:"2",style:"width:100%;margin-top:6px",placeholder:"Commit mesajı"});
+  const commitBtn=e("button",{class:"pri",text:"Commit",disabled:!d.degisen_sayisi||gizli.length===d.degisen_sayisi,onclick:async()=>{const m=mesaj.value.trim();if(!m){ghMesaj(p,"Commit mesajı yazın","b-err");return}
+    const n=d.degisen_sayisi-gizli.length;if(!confirm(n+" dosya commit edilsin mi?\n\nMesaj: "+m+(gizli.length?"\n\n"+gizli.length+" gizli görünen dosya HARİÇ tutulacak.":"")))return;
+    commitBtn.disabled=true;try{const r=await api("/api/github/commit",{method:"POST",body:{mesaj:m}});await githubPaneliYukle();ghMesaj($("#p-github"),"Commit oluşturuldu: "+r.commit+" ("+r.dosya_sayisi+" dosya"+(r.atlanan_gizli.length?", "+r.atlanan_gizli.length+" gizli dosya atlandı":"")+")")}catch(x){commitBtn.disabled=false;ghMesaj(p,x.message,"b-err")}}});
+  degKart.append(mesaj,e("div",{class:"row",style:"margin-top:6px"},commitBtn));
+  /* dal + push */
+  const dalGiris=e("input",{placeholder:"yeni-dal-adi",style:"flex:1;min-width:0"});
+  const dalBtn=e("button",{text:"Dal oluştur ve geç",onclick:async()=>{const a=dalGiris.value.trim();if(!a)return;if(!confirm("'"+a+"' adlı yeni dal oluşturulup ona geçilsin mi?"))return;try{await api("/api/github/dal",{method:"POST",body:{ad:a}});await githubPaneliYukle()}catch(x){ghMesaj(p,x.message,"b-err")}}});
+  const pushBtn=e("button",{text:"Push",disabled:!d.dal||!uzakAd,title:d.upstream?"Dalı origin'e gönderir":"Dalı origin'e gönderir ve upstream kurar",onclick:async()=>{
+    if(!confirm("'"+dal+"' dalı '"+uzakAd+"' deposuna gönderilsin mi?"+(d.upstream?"\n("+d.onde+" yeni commit)":"\n(Bu dal origin'de yok; oluşturulacak.)")+"\n\nZorla push yapılmaz."))return;
+    pushBtn.disabled=true;try{const r=await api("/api/github/push",{method:"POST",body:{}});await githubPaneliYukle();ghMesaj($("#p-github"),"'"+r.dal+"' dalı gönderildi"+(r.yeni_upstream?" (yeni upstream kuruldu).":"."))}catch(x){pushBtn.disabled=false;ghMesaj(p,x.message,"b-err")}}});
+  p.append(e("div",{class:"card"},e("b",{text:"Dal ve gönderim"}),e("div",{class:"row",style:"margin-top:6px"},dalGiris,dalBtn),e("div",{class:"row",style:"margin-top:6px"},pushBtn)));
+  /* pull request */
+  const prKart=e("div",{class:"card"});p.append(prKart);prKart.append(e("b",{text:"Pull request"}));
+  if(d.pr_hata)prKart.append(e("div",{class:"mut3",text:"PR durumu okunamadı: "+d.pr_hata}));
+  if(d.pr){const k=d.pr.kontroller;prKart.append(e("div",{class:"row",style:"flex-wrap:wrap;gap:6px;margin-top:4px"},e("span",{class:"badge b-acc",text:"#"+d.pr.no+" "+d.pr.durum.toLowerCase()+(d.pr.taslak?" (taslak)":"")}),ghLink(d.pr.baslik||"PR",d.pr.url)),
+    (k.basarili+k.basarisiz+k.bekleyen)?e("div",{class:"row",style:"gap:6px;margin-top:4px"},e("span",{class:"badge b-ok",text:"✓ "+k.basarili}),e("span",{class:"badge "+(k.basarisiz?"b-err":""),text:"✗ "+k.basarisiz}),e("span",{class:"badge",text:"… "+k.bekleyen}),e("span",{class:"mut3",text:"CI kontrolleri"})):e("div",{class:"mut3",text:"CI kontrolü yok"}))}
+  else if(d.dal&&d.uzak.depo){const b=e("input",{placeholder:"PR başlığı",style:"width:100%;margin-top:6px"});const g=e("textarea",{rows:"3",style:"width:100%;margin-top:4px",placeholder:"Açıklama (isteğe bağlı)"});const tk=e("input",{type:"checkbox"});
+    const btn=e("button",{class:"pri",text:"PR aç",onclick:async()=>{const t=b.value.trim();if(!t){ghMesaj(p,"PR başlığı yazın","b-err");return}
+      if(!confirm("'"+d.uzak.depo+"' deposunda '"+dal+"' dalından pull request açılsın mı?\n\nBaşlık: "+t+(tk.checked?"\n(taslak olarak)":"")+"\n\nDalın önce push edilmiş olması gerekir."))return;
+      btn.disabled=true;try{const r=await api("/api/github/pr",{method:"POST",body:{baslik:t,govde:g.value,taslak:tk.checked}});await githubPaneliYukle();ghLinkliMesaj($("#p-github"),"Pull request açıldı:",r.url)}catch(x){btn.disabled=false;ghMesaj(p,x.message,"b-err")}}});
+    prKart.append(e("div",{class:"mut3",text:"Bu dal için PR yok."}),b,g,e("div",{class:"row",style:"margin-top:4px"},e("label",{class:"row mut",style:"gap:4px"},tk,"taslak"),btn))}
+  else prKart.append(e("div",{class:"mut3",text:d.uzak.depo?"Dalda değilsiniz.":"Bu proje bir GitHub deposuna bağlı değil (origin GitHub adresi değil)."}));
+  /* issue'lar */
+  const isKart=e("div",{class:"card"});p.append(isKart);isKart.append(e("b",{text:"Issue'lar"}));
+  if(!d.uzak.depo){isKart.append(e("div",{class:"mut3",text:"GitHub deposuna bağlı değil."}));return}
+  const liste=e("div");const yukleBtn=e("button",{text:"Issue'ları yükle",onclick:async()=>{yukleBtn.disabled=true;liste.textContent="yükleniyor…";try{const r=await api("/api/github/issueler");liste.textContent="";if(!r.issueler.length)liste.append(e("div",{class:"mut3",text:"Açık issue yok."}));
+    for(const i of r.issueler){liste.append(e("div",{style:"margin-top:6px;border-top:1px solid var(--line);padding-top:6px"},e("div",{class:"row",style:"gap:6px;flex-wrap:wrap"},e("span",{class:"badge",text:"#"+i.no}),ghLink(i.baslik,i.url),...i.etiketler.map(t=>e("span",{class:"badge b-acc",text:t}))),
+      e("div",{class:"row",style:"margin-top:4px"},e("button",{text:"Görev olarak başlat",title:"Issue metni görev planına dönüşür; plan onayına kadar hiçbir şey çalışmaz",onclick:async()=>{if(!confirm("Issue #"+i.no+" ("+i.baslik+") görev PLANI olarak başlatılsın mı?\n\nIssue metni GitHub'dan gelir (güvenilmeyen veri); plan kartında tamamını görüp onaylamadan hiçbir şey çalışmaz."))return;
+        try{const r=await api("/api/github/issue-gorev",{method:"POST",body:{no:i.no}});S.kosu={kimlik:r.plan.kosu,gorev:r.plan.gorev,durum:"plan"};kosuGorunumu();ghMesaj(p,"Issue #"+r.issue.no+" görev planı olarak başlatıldı; sohbet ekranında onay bekliyor.")}catch(x){ghMesaj(p,x.message,"b-err")}}}),
+        e("button",{text:"Yorum yaz",onclick:async()=>{const m=prompt("Issue #"+i.no+" için yorum (GitHub'da herkese açık görünür):");if(!m||!m.trim())return;if(!confirm("Issue #"+i.no+" konusuna şu yorum gönderilsin mi?\n\n"+m.trim()))return;
+          try{const r=await api("/api/github/issue-yorum",{method:"POST",body:{no:i.no,metin:m.trim()}});ghLinkliMesaj(p,"Yorum gönderildi.",r.url)}catch(x){ghMesaj(p,x.message,"b-err")}}}))))}
+    }catch(x){liste.textContent="";liste.append(e("div",{class:"badge b-err",style:"white-space:normal",text:x.message}))}yukleBtn.disabled=false}});
+  isKart.append(e("div",{class:"row",style:"margin-top:6px"},yukleBtn),liste)}
+async function githubBolumu(h){const kap=e("div");h.append(kap);
+  const hesap=await api("/api/github/durum").catch(x=>({kurulu:false,giris:false,hata:x.message}));
+  kap.append(e("div",{class:"card"},e("div",{class:"row",style:"justify-content:space-between"},e("span",{class:"row"},e("b",{text:"Hesap"}),hesap.giris?e("span",{class:"badge b-ok",text:"@"+hesap.hesap}):e("span",{class:"badge b-err",text:hesap.kurulu?"giriş yok":"gh kurulu değil"})),e("button",{text:"Yenile",onclick:()=>ayarGit("github")})),
+    e("div",{class:"mut3",style:"margin-top:4px",text:hesap.giris?"İşlemler bu hesapla yapılır (bilgisayardaki gh oturumu). Başka hesapla giriş yaptıysanız önce `gh auth switch` ile hesabı değiştirin.":(hesap.hata||"")+" Giriş için bir terminalde `gh auth login` çalıştırın (token'ı bu uygulamaya girmeniz gerekmez)."})));
+  if(!hesap.giris)return;
+  const k=e("div",{class:"card"});kap.append(k);k.append(e("b",{text:"Depo klonla"}),e("div",{class:"badge b-warn",style:"display:block;white-space:normal;margin:5px 0",text:"Klonlanan depodaki talimat dosyaları (AGENTS.md, .opencode/ vb.) ajanın davranışını etkileyebilir; yalnızca güvendiğiniz depoları açın."}));
+  const ust=e("input",{style:"width:100%",placeholder:"Klonlanacak üst klasör (tam yol)"});
+  try{const kl=(await api("/api/klasorler")).kisayollar;const masa=kl.find(x=>x.ad==="Masaüstü")||kl[0];if(masa)ust.value=masa.yol}catch(x){}
+  const ara=e("input",{placeholder:"Depo ara…",style:"width:100%;margin-top:6px",autocomplete:"off"});const liste=e("div",{style:"margin-top:6px"});let depolar=null;
+  const ciz=()=>{liste.textContent="";const q=katla(ara.value.trim());let n=0;for(const x of depolar||[]){if(q&&!katla(x.depo+" "+x.aciklama).includes(q))continue;if(++n>40)break;
+    liste.append(e("div",{class:"row",style:"justify-content:space-between;gap:6px;margin:3px 0"},e("span",{style:"min-width:0"},e("div",{class:"row",style:"gap:6px"},e("b",{style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:x.depo}),e("span",{class:"badge",text:x.ozel?"özel":"herkese açık"})),x.aciklama?e("div",{class:"mut3",text:x.aciklama}):null),
+      e("button",{text:"Klonla",onclick:async ev=>{const ad=x.depo.split("/")[1];const hedef=ust.value.trim();if(!hedef){alert("Üst klasörü yazın");return}if(!confirm("'"+x.depo+"' deposu '"+hedef+"\\"+ad+"' klasörüne klonlansın ve proje olarak açılsın mı?"))return;
+        const b=ev.target;b.disabled=true;b.textContent="klonlanıyor…";try{await api("/api/github/klonla",{method:"POST",body:{depo:x.depo,klasor:hedef}});ayarKapat();await durumYukle();await dosyalariYukle();await onizlemeKur()}catch(er){b.disabled=false;b.textContent="Klonla";alert(er.message)}}})))}
+    if(!n)liste.append(e("div",{class:"mut3",text:depolar?"Eşleşen depo yok.":""}))};
+  const yukle=e("button",{text:"Depolarımı yükle",onclick:async()=>{yukle.disabled=true;liste.textContent="yükleniyor…";try{depolar=(await api("/api/github/depolar")).depolar;ciz()}catch(x){liste.textContent="";liste.append(e("div",{class:"badge b-err",style:"white-space:normal",text:x.message}))}yukle.disabled=false}});
+  ara.oninput=ciz;k.append(e("label",{class:"mut",style:"display:block"},"Üst klasör",ust),e("div",{class:"row",style:"margin-top:6px"},yukle),ara,liste)}
 (async()=>{if(!T){document.body.textContent="Token yok: arayüzü terminalde yazdırılan adresle açın.";return}await durumYukle();if(!S.klasor)klasorSecimiAc();else{await dosyalariYukle();await onizlemeKur()}olayAkisi()})();
 </script>
 </body>
