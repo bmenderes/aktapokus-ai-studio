@@ -790,3 +790,52 @@ def test_projenin_sonraki_adimi_secili_proje_baskayken_basliyorsa_yine_kendi_otu
     finally:
         for e in ornekler:
             e.serbest.set()
+
+
+# ---------- coklu proje P3: kenar cubugu gruplari ----------
+def test_proje_gruplari_son_gorevler_ve_durum(kur, tmp_path):
+    from aktapokus_ajan import projeler
+
+    app, sv, api, _ = kur()
+    ikinci = _ikinci_proje(tmp_path)
+    tam_kosu(app, api, kur.proje, gorev="birinci gorev")
+    klasor_sec(api, ikinci)  # A kayitli ve bitmis; B secili
+    st, d = api("GET", "/api/proje-gruplari")
+    assert st == 200
+    a, b = projeler.proje_kimligi(kur.proje), projeler.proje_kimligi(ikinci)
+    gruplar = {g["id"]: g for g in d["projeler"]}
+    assert gruplar[b]["secili"] and not gruplar[a]["secili"] and gruplar[a]["acik"]
+    assert [g["gorev"] for g in gruplar[a]["gorevler"]] == ["birinci gorev"] and gruplar[b]["gorevler"] == []
+    assert gruplar[a]["durum"] is None and gruplar[b]["durum"] is None
+    assert [x["gorev"] for x in d["son"]] == ["birinci gorev"] and d["son"][0]["proje"] == a and d["son"][0]["ad"] == kur.proje.name
+    assert api("GET", "/api/durum")[1]["proje"] == b
+
+
+def test_proje_gruplari_calisan_projeyi_gosterir_ve_acik_olmayani_da_listeler(kur, tmp_path):
+    from aktapokus_ajan import projeler
+
+    app, api, ornekler, (a, ka), (b, kb) = _iki_proje_calisan(kur, tmp_path)
+    try:
+        # kayit defterine eklenmis ama bu calismada hic acilmamis ucuncu proje: oturumu yok, yine de listelenir
+        ucuncu = tmp_path / "ucuncu"
+        ucuncu.mkdir()
+        projeler.ekle_veya_guncelle(ucuncu)
+        c = projeler.proje_kimligi(ucuncu)
+        gr = {g["id"]: g for g in api("GET", "/api/proje-gruplari")[1]["projeler"]}
+        assert gr[a]["durum"] == "calisiyor" and gr[a]["gorev"] == "a gorevi" and gr[b]["durum"] == "calisiyor"
+        assert gr[c]["acik"] is False and gr[c]["durum"] is None and gr[c]["var"] is True
+    finally:
+        for e in ornekler:
+            e.serbest.set()
+
+
+def test_proje_gruplari_belirtec_ister(kur):
+    app, sv, api, _ = kur()
+    assert api("GET", "/api/proje-gruplari", token=None)[0] == 401
+
+
+def test_arayuz_kenar_cubugu_proje_gruplari_icin_gerekli_parcalari_icerir():
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
+    for parca in ('id="kenarAra"', 'id="yeniProje"', "/api/proje-gruplari", "projeGorunumuKur", "Son görevler", "Daha fazla göster", "arkaPlanOlayi"):
+        assert parca in html, parca
+    assert "görev çalışırken proje değiştirilemez" not in html  # P2'den beri proje degistirmek serbest

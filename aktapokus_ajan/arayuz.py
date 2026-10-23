@@ -309,7 +309,7 @@ class Uygulama:
             return None
 
     def durum(self) -> dict:
-        d: dict = {"klasor": str(self.klasor) if self.klasor else None, "ayar": self.ayar_ozeti(), "klon_bekleyen": self.klon_bekleyen()}
+        d: dict = {"klasor": str(self.klasor) if self.klasor else None, "proje": self.secili.kimlik if self.secili else None, "ayar": self.ayar_ozeti(), "klon_bekleyen": self.klon_bekleyen()}
         if self.klasor:
             d["git"] = snapshot.hazir_mi(self.klasor)
             d["koruyucu_eksik"] = guard.dogrula(self.klasor)
@@ -576,7 +576,11 @@ class Uygulama:
 
     # --- gorev gecmisi (sol kenar cubugu): .aktapokus/kayitlar altindaki calistirma kayitlari, yalniz okunur ---
     def gecmis(self, adet: int = 30) -> list[dict]:
-        klasoru = _kayit_klasoru(self._klasor())
+        return self._gecmis_oku(self._klasor(), adet)
+
+    @staticmethod
+    def _gecmis_oku(klasor: Path, adet: int) -> list[dict]:
+        klasoru = _kayit_klasoru(klasor)
         dosyalar = sorted(klasoru.glob("*.json"), reverse=True)[: max(1, min(int(adet), 100))] if klasoru.is_dir() else []
         cikti = []
         for d in dosyalar:
@@ -589,6 +593,27 @@ class Uygulama:
                 "token_toplam": k.get("token_toplam", 0), "akis": k.get("akis", []), "degisen_sayisi": len(k.get("degisen") or {}),
             })
         return cikti
+
+    def proje_gruplari(self, adet: int = 8, son_adet: int = 10) -> dict:
+        """Kenar cubugu (Claude gibi): her kayitli proje bir grup (canli durum + son gorevleri) ve tum projelerin en yeni gorevleri ('Son gorevler').
+        Yalniz okur; acik olmayan projeler icin de calisir (kayitlar proje klasorundedir)."""
+        adet = max(1, min(int(adet), 30))
+        acik = {o.kimlik: o for o in list(self.oturumlar.values())}
+        gruplar, son = [], []
+        for pr in projeler.listele():
+            o = acik.get(pr["id"])
+            gorevler = self._gecmis_oku(Path(pr["yol"]), adet) if pr["var"] else []
+            k = o.kosu if o else None
+            aktif = k.durum if k and k.durum in AKTIF_KOSU else None
+            gruplar.append({
+                "id": pr["id"], "ad": pr["ad"], "yol": pr["yol"], "var": pr["var"], "secili": pr["id"] == self.secili_kimlik, "acik": o is not None,
+                "durum": aktif, "gorev": k.gorev[:200] if aktif else None,
+                "gorevler": [{x: g.get(x) for x in ("id", "zaman", "gorev", "durum", "token_toplam", "degisen_sayisi")} for g in gorevler],
+            })
+            for g in gorevler[:son_adet]:
+                son.append({"proje": pr["id"], "ad": pr["ad"], "id": g["id"], "zaman": g["zaman"], "gorev": g["gorev"], "durum": g["durum"]})
+        son.sort(key=lambda g: str(g.get("zaman") or ""), reverse=True)
+        return {"projeler": gruplar, "son": son[:son_adet]}
 
     def gecmis_kaydi(self, kimlik: object) -> dict:
         if not isinstance(kimlik, str) or not re.fullmatch(r"[0-9a-zA-Z_-]{1,64}", kimlik):
@@ -897,6 +922,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
             if yontem == "GET":
                 if yol == "/api/durum":
                     return self._gonder(200, app.durum())
+                if yol == "/api/proje-gruplari":
+                    return self._gonder(200, app.proje_gruplari())
                 if yol == "/api/oturumlar":
                     return self._gonder(200, {"oturumlar": app.oturum_durumlari()})
                 if yol == "/api/ayar":

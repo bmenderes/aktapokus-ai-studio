@@ -36,7 +36,13 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 .rol{display:flex;gap:6px;align-items:flex-start;margin:5px 0;cursor:pointer}
 .rol .n{font-weight:500}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--line2);margin-top:5px;flex:none}
-.dot.calisiyor{background:var(--acc)}.dot.ok{background:var(--ok)}.dot.err{background:var(--err)}
+.dot.calisiyor{background:var(--acc);animation:nabiz 1.4s ease-in-out infinite}.dot.ok{background:var(--ok)}.dot.err{background:var(--err)}.dot.bekliyor{background:#d9a21b}
+@keyframes nabiz{50%{opacity:.35}}
+.grup-ust{display:flex;align-items:center;gap:6px;padding:3px 4px;margin-top:6px;border-radius:6px;cursor:pointer}.grup-ust:hover{background:var(--panel)}
+.grup-ok{width:10px;color:var(--tx3);font-size:10px;flex:none}.grup-ad{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.grup-ust.secili .grup-ad{color:var(--acc)}.grup-ust .dot{margin-top:0}.grup-ust.yok{opacity:.5}
+.grup-art{border:none;background:none;padding:0 6px;color:var(--tx3);font-size:17px;line-height:1;border-radius:6px}.grup-art:hover{background:var(--panel2);color:var(--tx)}
+.grup-govde{margin-left:12px;border-left:1px solid var(--line);padding-left:4px}.grup-daha{border:none;background:none;color:var(--tx3);padding:2px 8px;font-size:12px}.grup-daha:hover{color:var(--tx)}
 .card{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;background:var(--panel)}
 .kullanici{margin-left:auto;max-width:92%;background:var(--panel2);border-radius:8px;padding:6px 9px;margin-top:8px;white-space:pre-wrap}
 .adim{margin:6px 0}
@@ -146,8 +152,9 @@ body.suruklenir iframe{pointer-events:none}
 </div>
 <div id="main">
   <div id="sol">
-    <button id="yeniGorev" class="pri" style="width:100%">+ Yeni görev</button>
-    <div class="sec">Görevler</div><div id="gecmis" class="mut3">-</div>
+    <div class="row" style="gap:6px"><button id="yeniGorev" class="pri" style="flex:1" title="Seçili projede yeni görev">+ Yeni görev</button><button id="yeniProje" title="Yeni proje: bir klasör ekle">+ Proje</button></div>
+    <input id="kenarAra" placeholder="Görev ya da proje ara…" style="width:100%;margin-top:8px" autocomplete="off">
+    <div id="gecmis" class="mut3" style="margin-top:6px">-</div>
     <div class="sec">Klon</div><div id="klon" class="mut">-</div>
     <div style="margin-top:auto;padding-top:10px;display:flex;flex-direction:column;gap:4px"><button id="terminalDugme" style="width:100%" title="PowerShell terminali ve Telegram günlüğü (Alt+3)">⌨ Terminal</button><button id="ayarDugme" style="width:100%" title="Sağlayıcılar, modeller, roller, CLI'lar, kullanım">⚙ Ayarlar</button></div>
   </div>
@@ -187,7 +194,7 @@ const $=s=>document.querySelector(s);
 const T=(()=>{const m=location.hash.match(/t=([\w-]+)/);if(m){try{sessionStorage.setItem("t",m[1])}catch(e){}history.replaceState(null,"",location.pathname)}try{return sessionStorage.getItem("t")||""}catch(e){return m?m[1]:""}})();
 async function api(yol,o={}){const r=await fetch(yol,{method:o.method||"GET",headers:{"X-Aktapokus-Token":T,"Content-Type":"application/json"},body:o.body?JSON.stringify(o.body):undefined});let j=null;try{j=await r.json()}catch(e){}if(!r.ok){const h=new Error((j&&j.hata)||("HTTP "+r.status));h.kod=r.status;throw h}return j}
 function e(tag,a,...c){const n=document.createElement(tag);if(a)for(const k in a){if(k==="class")n.className=a[k];else if(k.startsWith("on")&&typeof a[k]==="function")n[k]=a[k];else if(k==="text")n.textContent=a[k];else n.setAttribute(k,a[k])}for(const x of c){if(x==null)continue;n.append(x.nodeType?x:document.createTextNode(x))}return n}
-const S={planDugmeleri:{},planEtiket:{},klasor:null,ayar:null,kosu:null,rolDurum:{},adimDiv:{},son:0,butce:200000,canliDiv:null,fark:null,kararBekliyor:false,imza:null,degisen:{}};
+const S={olaylar:{},okunmadi:{},fazla:{},gruplar:null,projeId:undefined,tekrar:false,planDugmeleri:{},planEtiket:{},klasor:null,ayar:null,kosu:null,rolDurum:{},adimDiv:{},son:0,butce:200000,canliDiv:null,fark:null,kararBekliyor:false,imza:null,degisen:{}};
 function md(src){
   const esc=s=>s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
   const satir=s=>{s=esc(s);s=s.replace(/`([^`]+)`/g,"<code>$1</code>");s=s.replace(/\*\*([^*]+)\*\*/g,"<b>$1</b>");s=s.replace(/(^|[^*])\*([^*\s][^*]*)\*/g,"$1<i>$2</i>");s=s.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g,(m,t,u)=>/^(https?:\/\/|#)/.test(u)?'<a href="'+u.replace(/"/g,"%22")+'" target="_blank" rel="noopener noreferrer">'+t+"</a>":t);return s};
@@ -421,14 +428,47 @@ async function modelMenusu(rol){ortamMenusuKapat();const eski=$("#modelMenu");if
   if(!S.canliModeller&&!yukleniyor){yukleniyor=true;(async()=>{try{S.canliModeller=(await api("/api/modeller")).modeller}catch(x){canliHata=true}ciz()})()}}
 function yeniGorev(){if(S.kosuAktif||(S.kosu&&S.kosu.durum==="plan")){$("#gorev").focus();return}
   $("#akis").textContent="";S.fark=null;S.kararBekliyor=false;S.canliDiv=null;degisiklikCiz(null);document.querySelectorAll("#gecmis .rol.on").forEach(x=>x.classList.remove("on"));$("#gorev").value="";$("#gorev").focus()}
-async function gecmisYukle(){const k=$("#gecmis");if(!S.klasor){k.textContent="";return}
-  try{const d=await api("/api/gecmis");k.textContent="";
-    const aktif=S.kosu&&["plan","calisiyor","karar-bekliyor"].includes(S.kosu.durum)?S.kosu:null;
-    if(aktif)k.append(e("div",{class:"rol on"},e("span",{class:"dot calisiyor"}),e("div",null,e("div",{class:"n",text:(aktif.gorev||"").slice(0,40)||"(görev)"}),e("div",{class:"mut3",text:aktif.durum==="plan"?"plan onayı bekliyor":aktif.durum==="karar-bekliyor"?"karar bekliyor":"çalışıyor"}))));
-    if(!d.gecmis.length&&!aktif){k.append(e("div",{class:"mut3",text:"henüz görev yok"}));return}
-    for(const g of d.gecmis){const renk=g.durum==="onaylandi"||g.durum==="degisiklik_yok"?"ok":g.durum==="geri_alindi"||g.durum==="reddedildi"?"":"err";
-      const sat=e("div",{class:"rol",title:g.zaman+" · "+g.token_toplam+" token",onclick:()=>{document.querySelectorAll("#gecmis .rol.on").forEach(x=>x.classList.remove("on"));sat.classList.add("on");gecmisAc(g.id)}},e("span",{class:"dot "+renk}),e("div",null,e("div",{class:"n",text:g.gorev.slice(0,40)||"(boş)"}),e("div",{class:"mut3",text:g.zaman.slice(5,16)+" · "+g.degisen_sayisi+" dosya"})));k.append(sat)}}
-  catch(x){k.textContent=""}}
+/* ---- Kenar çubuğu: proje grupları (Claude gibi), canlı durum noktaları, Son görevler, arama ---- */
+const GRUP_ANAHTAR="aktapokus.gruplar";
+function grupAyar(){try{return JSON.parse(localStorage.getItem(GRUP_ANAHTAR)||"{}")||{}}catch(x){return{}}}
+function grupAyarYaz(a){try{localStorage.setItem(GRUP_ANAHTAR,JSON.stringify(a))}catch(x){}}
+let kenarZ=null;
+function gecmisYukle(){if(S.tekrar)return;clearTimeout(kenarZ);kenarZ=setTimeout(kenarCubugu,150)}
+async function kenarCubugu(){try{S.gruplar=await api("/api/proje-gruplari")}catch(x){return}kenarCiz()}
+const gorevRengi=d=>d==="onaylandi"||d==="degisiklik_yok"?"ok":d==="geri_alindi"||d==="reddedildi"?"":"err";
+const durumYazisi=d=>d==="plan"?"plan onayı bekliyor":d==="karar-bekliyor"?"karar bekliyor":"çalışıyor";
+function grupNoktasi(g){return g.durum==="calisiyor"?"calisiyor":(g.durum==="plan"||g.durum==="karar-bekliyor"||S.okunmadi[g.id])?"bekliyor":""}
+async function projeAc(g){if(!g.var){alert("Klasör artık yok: "+g.yol);return false}if(S.projeId===g.id)return true;try{return await projeSec(g.yol)}catch(x){alert(x.message);return false}}
+function kenarCiz(){const k=$("#gecmis");if(!S.gruplar)return;const q=katla($("#kenarAra").value.trim());const ayar=grupAyar();k.textContent="";let n=0;
+  for(const g of S.gruplar.projeler){const gorevler=g.gorevler.filter(t=>!q||katla(g.ad+" "+t.gorev).includes(q));
+    if(q&&!gorevler.length&&!katla(g.ad).includes(q))continue;n++;
+    const acik=q?true:(ayar[g.id]?ayar[g.id]==="a":(g.secili||!!g.durum||!!S.okunmadi[g.id]));
+    const ust=e("div",{class:"grup-ust"+(g.secili?" secili":"")+(g.var?"":" yok"),title:g.yol+(g.var?"":"\n(klasör artık yok)"),onclick:()=>{const a=grupAyar();a[g.id]=acik?"k":"a";grupAyarYaz(a);kenarCiz()}},
+      e("span",{class:"grup-ok",text:acik?"▾":"▸"}),e("span",{class:"dot "+grupNoktasi(g)}),e("span",{class:"grup-ad",text:g.ad}),
+      e("button",{class:"grup-art",text:"+",title:"Bu projede yeni görev",onclick:async ev=>{ev.stopPropagation();if(await projeAc(g))yeniGorev()}}));
+    k.append(ust);if(!acik)continue;
+    const govde=e("div",{class:"grup-govde"});k.append(govde);
+    if(g.durum)govde.append(e("div",{class:"rol"+(g.secili?" on":""),onclick:()=>projeAc(g)},e("span",{class:"dot "+(g.durum==="calisiyor"?"calisiyor":"bekliyor")}),e("div",{style:"min-width:0"},e("div",{class:"n",style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:(g.gorev||"").slice(0,60)||"(görev)"}),e("div",{class:"mut3",text:durumYazisi(g.durum)}))));
+    const sinir=q||S.fazla[g.id]?gorevler.length:5;
+    for(const t of gorevler.slice(0,sinir))govde.append(e("div",{class:"rol",title:t.zaman+" · "+(t.token_toplam||0)+" token",onclick:async()=>{if(!await projeAc(g))return;document.querySelectorAll("#gecmis .rol.on").forEach(x=>x.classList.remove("on"));gecmisAc(t.id)}},
+      e("span",{class:"dot "+gorevRengi(t.durum)}),e("div",{style:"min-width:0"},e("div",{class:"n",style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:(t.gorev||"").slice(0,60)||"(boş)"}),e("div",{class:"mut3",text:String(t.zaman||"").slice(5,16)+" · "+(t.degisen_sayisi||0)+" dosya"}))));
+    if(!gorevler.length&&!g.durum)govde.append(e("div",{class:"mut3",style:"padding:2px 6px",text:"henüz görev yok"}));
+    if(gorevler.length>5&&!q)govde.append(e("button",{class:"grup-daha",text:S.fazla[g.id]?"Daha az göster":"Daha fazla göster",onclick:()=>{S.fazla[g.id]=!S.fazla[g.id];kenarCiz()}}))}
+  const son=S.gruplar.son.filter(t=>!q||katla(t.ad+" "+t.gorev).includes(q)).slice(0,8);
+  if(son.length){k.append(e("div",{class:"sec",text:"Son görevler"}));
+    for(const t of son){const g=S.gruplar.projeler.find(x=>x.id===t.proje);if(!g)continue;
+      k.append(e("div",{class:"rol",title:t.ad+" · "+t.zaman,onclick:async()=>{if(!await projeAc(g))return;gecmisAc(t.id)}},e("span",{class:"dot "+gorevRengi(t.durum)}),e("div",{style:"min-width:0"},e("div",{class:"n",style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:(t.gorev||"").slice(0,60)||"(boş)"}),e("div",{class:"mut3",text:t.ad+" · "+String(t.zaman||"").slice(5,16)}))))}}
+  if(!n&&!son.length)k.append(e("div",{class:"mut3",text:q?"Eşleşen yok.":"Henüz proje yok. '+ Proje' ile bir klasör ekleyin."}))}
+$("#kenarAra").oninput=kenarCiz;$("#yeniProje").onclick=()=>klasorSecimiAc();
+/* proje başına olay saklama: seçili olmayan projelerin olayları yalnız saklanır; projeye geçince yeniden oynatılarak görünüm kurulur */
+function projeGorunumuKur(){S.tekrar=true;try{$("#akis").textContent="";S.planDugmeleri={};S.planEtiket={};S.rolDurum={};S.adimDiv={};S.canliDiv=null;S.fark=null;S.kararBekliyor=false;degisiklikCiz(null);
+    for(const o of (S.olaylar[S.projeId]||[])){try{olayIsle(o)}catch(x){console.error(x)}}}finally{S.tekrar=false}
+  kosuGorunumu();rolleriCiz()}
+function bildirim(baslik,metin){try{if(document.hasFocus()&&!document.hidden)return;if("Notification" in window&&Notification.permission==="granted")new Notification(baslik,{body:metin,icon:"/favicon.ico",tag:"aktapokus"})}catch(x){}}
+function arkaPlanOlayi(o){const g=S.gruplar&&S.gruplar.projeler.find(x=>x.id===o.proje);const ad=g?g.ad:"Proje";
+  if(o.tur==="bitti"){S.okunmadi[o.proje]=true;bildirim(ad+": görev bitti",(o.durum||"")+(o.mesaj?" · "+o.mesaj:""))}
+  else if(o.tur==="karar-bekleniyor"){S.okunmadi[o.proje]=true;bildirim(ad+": karar bekliyor","Değişiklikleri koruyup korumayacağınızı seçin.")}
+  if(["plan","adim-basladi","karar-bekleniyor","bitti"].includes(o.tur))gecmisYukle()}
 
 $("#yeniGorev").onclick=yeniGorev;
 /* ---- Ciktilar (Outputs): projede gorevlerle olusan/degisen dosyalar ---- */
@@ -545,8 +585,11 @@ function cliFormu(kap,t){const eski=$("#cliForm");if(eski)eski.remove();t=t||{};
 function yamaCiz(metin){const p=e("pre",{class:"yama"});for(const l of metin.split("\n")){const c=l.startsWith("+")&&!l.startsWith("+++")?"y-ekle":l.startsWith("-")&&!l.startsWith("---")?"y-sil":(l.startsWith("@@")||l.startsWith("diff")||l.startsWith("index")||l.startsWith("+++")||l.startsWith("---"))?"y-baslik":"";p.append(e("div",{class:c,text:l||" "}))}return p}
 function olayIsle(o){
   if(o.id)S.son=o.id;
+  if(!S.tekrar){const pid=o.proje||S.projeId;const dizi=S.olaylar[pid]=S.olaylar[pid]||[];dizi.push(o);if(dizi.length>1500)dizi.splice(0,dizi.length-1500);
+    if(pid!==S.projeId){arkaPlanOlayi(o);return}
+    if(o.tur==="bitti")bildirim("Görev bitti",(o.durum||"")+(o.mesaj?" · "+o.mesaj:""));else if(o.tur==="karar-bekleniyor")bildirim("Karar bekliyor","Değişiklikleri koruyup korumayacağınızı seçin.")}
   if(o.kosu&&o.tur!=="plan"&&S.planDugmeleri[o.kosu]){S.planDugmeleri[o.kosu].remove();delete S.planDugmeleri[o.kosu];const et=S.planEtiket[o.kosu];if(et)et.textContent=(o.tur==="bitti"&&o.durum==="reddedildi")?"reddedildi":"onaylandı"}
-  if(S.kosu&&o.kosu===S.kosu.kimlik){if(o.tur==="adim-basladi"){S.kosu.durum="calisiyor";kosuGorunumu();gecmisYukle()}else if(o.tur==="karar-bekleniyor"){S.kosu.durum="karar-bekliyor";kosuGorunumu();gecmisYukle()}}
+  if(!S.tekrar&&S.kosu&&o.kosu===S.kosu.kimlik){if(o.tur==="adim-basladi"){S.kosu.durum="calisiyor";kosuGorunumu();gecmisYukle()}else if(o.tur==="karar-bekleniyor"){S.kosu.durum="karar-bekliyor";kosuGorunumu();gecmisYukle()}}
   switch(o.tur){
   case "klasor":break;
   case "plan":{S.butce=o.butce;S.rolDurum={};rolleriCiz();gecmisYukle();const k=e("div",{class:"card",id:"plan-"+o.kosu});
@@ -582,15 +625,15 @@ function olayIsle(o){
   }}
 async function karar(k){const b=$("#karar-dugmeleri");if(b)b.textContent="";try{await api("/api/gorev/"+S.kosu.kimlik+"/karar",{method:"POST",body:{korunsun:k}})}catch(x){alert(x.message)}}
 function kosuGorunumu(){const aktif=S.kosu&&["calisiyor","karar-bekliyor"].includes(S.kosu.durum);S.kosuAktif=!!aktif;const plan=S.kosu&&S.kosu.durum==="plan";$("#durdur").style.display=aktif?"":"none";$("#gonder").disabled=!S.klasor||aktif||plan;$("#gorev").disabled=!S.klasor||aktif||plan;$("#girdiBilgi").textContent=!S.klasor?"önce bir klasör seçin":aktif?"çalışıyor…":plan?"plan onayınızı bekliyor":"";durumMetniGuncelle()}
-async function durumYukle(){try{const d=await api("/api/durum");S.klasor=d.klasor;S.ayar=d.ayar;S.kosu=d.kosu;$("#klasorAd").textContent=d.klasor?d.klasor.split(/[\\/]/).pop():"";ortamCipiCiz();
+async function durumYukle(){if(S.tekrar)return;try{const d=await api("/api/durum");const onceki=S.projeId;S.projeId=d.proje||null;S.klasor=d.klasor;S.ayar=d.ayar;S.kosu=d.kosu;$("#klasorAd").textContent=d.klasor?d.klasor.split(/[\\/]/).pop():"";ortamCipiCiz();
   $("#gitRozet").className="badge "+(d.git?"b-ok":"b-err");$("#gitRozet").textContent=d.klasor?(d.git?"git hazır":"git yok"):"";
   const ke=d.koruyucu_eksik||[];$("#korRozet").className="badge "+(d.klasor?(ke.length?"b-err":"b-ok"):"");$("#korRozet").textContent=d.klasor?(ke.length?"koruyucu eksik":"koruyucu etkin"):"";$("#korRozet").title=ke.join("; ");
   $("#klon").textContent=d.klon_bekleyen==null?"kurulu değil":d.klon_bekleyen+" öneri bekliyor";if(d.klon_bekleyen)$("#klon").title="aktapokus-klon bekleyen komutuyla inceleyin";
-  rolleriCiz();akisCipiGuncelle();gecmisYukle();kosuGorunumu();$("#klasorSec")&&d.klasor&&$("#klasorSec").remove()}catch(x){gunluge("durum alınamadı: "+x.message)}}
-async function gonder(){const t=$("#gorev").value.trim();if(!t||!S.klasor)return;$("#gorev").value="";try{const p=await api("/api/gorev",{method:"POST",body:{gorev:t}});S.kosu={kimlik:p.kosu,gorev:t,durum:"plan"};kosuGorunumu()}catch(x){akisaEkle(e("div",{class:"badge b-err",text:x.message}))}}
+  rolleriCiz();akisCipiGuncelle();gecmisYukle();kosuGorunumu();$("#klasorSec")&&d.klasor&&$("#klasorSec").remove();if(onceki!==S.projeId){if(S.projeId)delete S.okunmadi[S.projeId];projeGorunumuKur()}}catch(x){gunluge("durum alınamadı: "+x.message)}}
+async function gonder(){const t=$("#gorev").value.trim();if(!t||!S.klasor)return;try{if("Notification" in window&&Notification.permission==="default")Notification.requestPermission().catch(()=>{})}catch(x){}$("#gorev").value="";try{const p=await api("/api/gorev",{method:"POST",body:{gorev:t}});S.kosu={kimlik:p.kosu,gorev:t,durum:"plan"};kosuGorunumu()}catch(x){akisaEkle(e("div",{class:"badge b-err",text:x.message}))}}
 $("#gonder").onclick=gonder;$("#gorev").addEventListener("keydown",ev=>{if(ev.key==="Enter"&&!ev.shiftKey){ev.preventDefault();gonder()}});
 $("#durdur").onclick=async()=>{try{await api("/api/gorev/"+S.kosu.kimlik+"/durdur",{method:"POST",body:{}})}catch(x){alert(x.message)}};
-async function dosyalariYukle(){if(!S.klasor)return;ciktilariYukle();try{const d=await api("/api/dosyalar");S.imza=d.imza;S.degisen=Object.assign({},d.degisen||{});agacCiz(d.dosyalar);belgeleriCiz(d.belgeler)}catch(x){}}
+async function dosyalariYukle(){if(!S.klasor||S.tekrar)return;ciktilariYukle();try{const d=await api("/api/dosyalar");S.imza=d.imza;S.degisen=Object.assign({},d.degisen||{});agacCiz(d.dosyalar);belgeleriCiz(d.belgeler)}catch(x){}}
 function agacCiz(liste){const a=$("#agac");a.textContent="";const kok={};for(const f of liste){const p=f.yol.split("/");let n=kok;p.forEach((s,i)=>{n=n[s]=n[s]||(i===p.length-1?{__f:f.yol}:{})})}
   const ciz=(n,kap,d)=>{for(const k of Object.keys(n).sort((x,y)=>{const a1=n[x].__f?1:0,b1=n[y].__f?1:0;return a1-b1||x.localeCompare(y)})){const c=n[k];if(c.__f){const dur=S.degisen[c.__f];const sat=e("div",{class:"f",style:"padding-left:"+d*12+"px",onclick:()=>dosyaGoster(c.__f)});if(dur)sat.append(e("span",{style:"color:var(--"+(dur==="A"?"ok":dur==="D"?"err":"warn")+")",text:dur+" "}));sat.append(k);kap.append(sat)}else{const sat=e("div",{class:"d mut",style:"padding-left:"+d*12+"px",text:"▸ "+k});kap.append(sat);const alt=e("div");kap.append(alt);let ac=d<1;alt.style.display=ac?"":"none";sat.textContent=(ac?"▾ ":"▸ ")+k;sat.onclick=()=>{ac=!ac;alt.style.display=ac?"":"none";sat.textContent=(ac?"▾ ":"▸ ")+k};ciz(c,alt,d+1)}}};ciz(kok,a,0)}
 async function dosyaGoster(yol){const g=$("#dosyaGoster");g.textContent="";try{const r=await api("/api/dosya?yol="+encodeURIComponent(yol));g.append(e("div",{class:"row"},e("b",{text:yol}),yol.toLowerCase().endsWith(".md")?e("button",{text:"Belgelerde aç",onclick:()=>{$("#belgeSec").value=yol;belgeAc(yol);sekme("p-belgeler")}}):null));
@@ -601,7 +644,7 @@ $("#belgeSec").onchange=ev=>belgeAc(ev.target.value);
 let onizTaban="";
 function onizGoster(){const tur=$("#onizTur").value;let url="";if(tur==="dosya"){url=onizTaban.replace(/\/$/,"")+"/"+$("#onizYol").value.replace(/^\//,"")}else{const u=$("#onizYol").value.trim();if(!/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/.test(u)){$("#onizUrl").textContent="yalnızca http://localhost veya 127.0.0.1 adresleri";return}url=u}
   $("#onizUrl").textContent=url;$("#cerceve").src=url}
-function yenileOnizleme(){if($("#cerceve").src)$("#cerceve").src=$("#cerceve").src}
+function yenileOnizleme(){if(S.tekrar)return;if($("#cerceve").src)$("#cerceve").src=$("#cerceve").src}
 $("#yenile").onclick=()=>{yenileOnizleme();dosyalariYukle()};$("#onizGit").onclick=onizGoster;
 $("#onizTur").onchange=()=>{$("#onizYol").value=$("#onizTur").value==="url"?"http://localhost:5261/":"/";onizGoster()};
 $("#onizYol").addEventListener("keydown",ev=>{if(ev.key==="Enter")onizGoster()});
@@ -622,7 +665,6 @@ async function projeSec(yol,gitSor=true){
   await durumYukle();await dosyalariYukle();await onizlemeKur();return true}
 async function ortamMenusu(){const eski=$("#ortamMenu");if(eski){eski.remove();return}
   modelMenusuKapat();
-  if(S.kosuAktif){$("#girdiBilgi").textContent="görev çalışırken proje değiştirilemez";return}
   const m=e("div",{id:"ortamMenu",class:"model-menu"});
   const ara=e("input",{placeholder:"Proje ara…",style:"width:100%",autocomplete:"off"});const liste=e("div",{class:"model-liste"});
   m.append(e("div",{class:"model-grup",style:"margin-top:0",text:"Ortam: bu bilgisayar · son projeler"}),ara,liste,e("div",{class:"model-alt"},e("button",{text:"Klasöre gözat…",onclick:()=>{ortamMenusuKapat();klasorSecimiAc()}})));
