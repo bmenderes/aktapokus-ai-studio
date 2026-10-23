@@ -24,7 +24,7 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 .b-ok{background:var(--okbg);color:var(--ok)}.b-warn{background:var(--warnbg);color:var(--warn)}.b-err{background:var(--errbg);color:var(--err)}.b-acc{background:var(--accbg);color:var(--acc)}
 .row{display:flex;align-items:center;gap:6px}
 #top{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:var(--panel);border-bottom:1px solid var(--line)}
-#main{flex:1;min-height:0;display:grid;grid-template-columns:170px minmax(0,1fr) minmax(0,1.15fr);grid-template-rows:minmax(0,1fr)}
+#main{flex:1;min-height:0;display:grid;--sol-w:190px;--sag-w:46%;--b1:6px;--b2:6px;grid-template-columns:var(--sol-w) var(--b1) minmax(0,1fr) var(--b2) var(--sag-w);grid-template-rows:minmax(0,1fr)}
 #sol{background:var(--panel2);border-right:1px solid var(--line);padding:8px 10px;overflow:auto;min-height:0}
 #orta{display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--line);background:var(--panel)}
 #akis{flex:1;overflow:auto;padding:10px}
@@ -110,13 +110,23 @@ body{position:relative}
 .cikti:hover{background:var(--panel2)}
 .cikti-ad{font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cikti-r{flex:none;min-width:36px;text-align:center;font:11px var(--mono);padding:1px 4px;border-radius:4px;background:var(--panel2);color:var(--tx2)}
+.bolucu{cursor:col-resize;position:relative;background:var(--panel);touch-action:none}
+.bolucu::after{content:"";position:absolute;top:0;bottom:0;left:50%;width:1px;background:var(--line);transition:background .12s,width .12s}
+.bolucu:hover::after,body.suruklenir .bolucu::after{background:var(--acc);width:3px;margin-left:-1px}
+body.suruklenir{cursor:col-resize;user-select:none}
+body.suruklenir iframe{pointer-events:none}
+#main.sol-kapali #sol,#main.sag-kapali #sag{visibility:hidden;overflow:hidden;padding:0;border:none}
+#main.sol-kapali #bolucuSol,#main.sag-kapali #bolucuSag{visibility:hidden;pointer-events:none;overflow:hidden}  /* display:none OLMAZ: izgara yerlesimi (sutun sirasi) bozulur */
+.panel-dugme{padding:1px 8px;font-size:14px;line-height:1.3;color:var(--tx3)}
+.panel-dugme.on{color:var(--tx);background:var(--panel2)}
 @media (max-width:900px){#ayarlar.on{grid-template-columns:1fr;grid-template-rows:auto minmax(0,1fr)}#ayarMenu{flex-direction:row;overflow:auto;border-right:none;border-bottom:1px solid var(--line)}#ayarMenu button{white-space:nowrap}#ayarIcerik{padding:12px}}
-@media (max-width:900px){#main{grid-template-columns:1fr}#sol,#sag{border:none}}
+@media (max-width:900px){#main{grid-template-columns:1fr!important}#sol,#sag{border:none}.bolucu,.panel-dugme{display:none}}
 </style>
 </head>
 <body>
 <div id="top">
   <div class="row"><b>Aktapokus</b><span id="klasorAd" class="mut"></span></div>
+  <div class="row" style="gap:2px"><button id="solDugme" class="panel-dugme on" title="Sol paneli aç/kapat (Alt+1)">◧</button><button id="sagDugme" class="panel-dugme on" title="Sağ paneli aç/kapat (Alt+2)">◨</button></div>
 </div>
 <div id="main">
   <div id="sol">
@@ -125,6 +135,7 @@ body{position:relative}
     <div class="sec">Klon</div><div id="klon" class="mut">-</div>
     <div style="margin-top:auto;padding-top:10px"><button id="ayarDugme" style="width:100%" title="Sağlayıcılar, modeller, roller, CLI'lar, kullanım">⚙ Ayarlar</button></div>
   </div>
+  <div class="bolucu" id="bolucuSol" title="Sürükleyin: genişliği değiştirin · çift tıklayın: sıfırla"></div>
   <div id="orta">
     <div id="akis"></div>
     <div id="girdi">
@@ -132,10 +143,11 @@ body{position:relative}
       <div class="row" style="justify-content:space-between;margin-top:6px;gap:10px;align-items:flex-start"><span style="min-width:0;flex:1"><span class="row" style="gap:6px;flex-wrap:wrap"><span id="ortamCipi"></span><span id="rolCipleri" class="row" style="gap:6px;flex-wrap:wrap"></span></span><span id="girdiBilgi" class="mut3" style="display:block;margin-top:2px"></span></span><span class="row"><button id="durdur" style="display:none">Durdur</button><button id="gonder" class="pri">Gönder</button></span></div>
     </div>
   </div>
+  <div class="bolucu" id="bolucuSag" title="Sürükleyin: genişliği değiştirin · çift tıklayın: sıfırla"></div>
   <div id="sag">
     <div id="sekmeler"><button class="sekme on" data-p="p-onizleme">Önizleme</button><button class="sekme" data-p="p-degisiklik">Değişiklikler</button><button class="sekme" data-p="p-ciktilar">Çıktılar</button><button class="sekme" data-p="p-belgeler">Belgeler</button><button class="sekme" data-p="p-dosyalar">Dosyalar</button><button class="sekme" data-p="p-gunluk">Günlük</button></div>
     <div id="p-onizleme" class="panel on">
-      <div class="row"><span id="onizUrl" class="mono mut" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span><label class="row mut"><input type="checkbox" id="canliOnizleme" checked> canlı</label><button id="yenile" title="Yenile">Yenile</button></div>
+      <div class="row"><span id="onizUrl" class="mono mut" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span><label class="row mut"><input type="checkbox" id="canliOnizleme" checked> canlı</label><button id="yenile" title="Yenile">Yenile</button><button id="onizAyri" title="Önizlemeyi ayrı bir pencerede aç">↗ Ayrı pencere</button></div>
       <div class="row" style="margin-top:4px"><select id="onizTur"><option value="dosya">Proje dosyaları</option><option value="url">Yerel sunucu</option></select><input id="onizYol" style="flex:1" placeholder="/index.html" value="/"><button id="onizGit">Git</button></div>
       <iframe id="cerceve" sandbox="allow-scripts allow-forms allow-same-origin" title="Önizleme"></iframe>
       <div class="mut3" style="margin-top:4px">Önizleme ayrı bir kapıda, yalıtılmış çerçevede çalışır; uygulamaya erişemez.</div>
@@ -174,7 +186,7 @@ function md(src){
     if(!l.trim()){i++;continue}
     let p=[];while(i<L.length&&L[i].trim()&&!/^(```|#{1,3}\s|\s*[-*]\s|\s*\d+\.\s|\s*>|\|)/.test(L[i]))p.push(L[i++]);if(!p.length){p.push(L[i++])}h+="<p>"+satir(p.join(" "))+"</p>"}
   return h}
-function sekme(id){document.querySelectorAll(".sekme").forEach(b=>b.classList.toggle("on",b.dataset.p===id));document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("on",p.id===id));if(id==="p-ciktilar")ciktilariYukle()}
+function sekme(id){document.querySelectorAll(".sekme").forEach(b=>b.classList.toggle("on",b.dataset.p===id));document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("on",p.id===id));if(id==="p-ciktilar")ciktilariYukle();sagiAc()}
 document.querySelectorAll(".sekme").forEach(b=>b.onclick=()=>sekme(b.dataset.p));
 function akisaEkle(n){const a=$("#akis");const alta=a.scrollTop+a.clientHeight>=a.scrollHeight-40;a.append(n);if(alta)a.scrollTop=a.scrollHeight;return n}
 function gunluge(m){const g=$("#gunluk");g.append(e("div",{class:"mut",text:new Date().toLocaleTimeString("tr-TR")+"  "+m}))}
@@ -419,6 +431,38 @@ async function ciktilariYukle(){const p=$("#p-ciktilar");const dugme=document.qu
     e("div",{style:"min-width:0;flex:1"},e("div",{class:"cikti-ad",text:c.ad}),e("div",{class:"mut3 mono",style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:(c.klasor?c.klasor+"/ · ":"")+c.degisti.slice(5,16)+" · "+boyutYaz(c.boyut)})),
     e("span",{class:"badge "+(c.durum==="yeni"?"b-ok":"b-warn"),text:c.durum==="yeni"?"yeni":"değişti"})));
   if(d.toplam>15)p.append(e("button",{style:"margin-top:4px",text:S.ciktiHepsi?"Daha az göster":"Daha fazla göster ("+(d.toplam-15)+")",onclick:()=>{S.ciktiHepsi=!S.ciktiHepsi;ciktilariYukle()}}))}
+/* ---- Esnek paneller: surukle-birak bolucu, ac/kapa dugmeleri, boyutlari hatirla, onizlemeyi ayri pencerede ac ---- */
+const DUZEN_ANAHTAR="aktapokus.duzen";
+const BOLUCU_PX=6,SOL_AZ=140,SOL_COK=420,SAG_AZ=280;
+S.duzen={sol:190,sag:0,solKapali:false,sagKapali:false};
+try{Object.assign(S.duzen,JSON.parse(localStorage.getItem(DUZEN_ANAHTAR)||"{}"))}catch(x){}
+S.duzen.sol=Math.min(SOL_COK,Math.max(SOL_AZ,+S.duzen.sol||190));S.duzen.sag=+S.duzen.sag>=SAG_AZ?+S.duzen.sag:0;S.duzen.solKapali=!!S.duzen.solKapali;S.duzen.sagKapali=!!S.duzen.sagKapali;
+function duzenYaz(){try{localStorage.setItem(DUZEN_ANAHTAR,JSON.stringify(S.duzen))}catch(x){}}
+function duzenUygula(){const m=$("#main");const g=m.clientWidth;const d=S.duzen;if(g<400)return;  // gizli/cok kucuk pencerede olcum anlamsiz: kayitli duzeni bozma
+ 
+  const sol=d.solKapali?0:Math.max(SOL_AZ,Math.min(SOL_COK,+d.sol||190));
+  const sagEnCok=Math.max(SAG_AZ,Math.round(g*0.8)-sol);
+  const sag=d.sagKapali?0:Math.max(SAG_AZ,Math.min(sagEnCok,+d.sag||Math.round(g*0.46)));
+  m.style.setProperty("--sol-w",sol+"px");m.style.setProperty("--sag-w",sag+"px");
+  m.style.setProperty("--b1",d.solKapali?"0px":BOLUCU_PX+"px");m.style.setProperty("--b2",d.sagKapali?"0px":BOLUCU_PX+"px");
+  m.classList.toggle("sol-kapali",!!d.solKapali);m.classList.toggle("sag-kapali",!!d.sagKapali);
+  $("#solDugme").classList.toggle("on",!d.solKapali);$("#sagDugme").classList.toggle("on",!d.sagKapali)}
+function solDegis(){S.duzen.solKapali=!S.duzen.solKapali;duzenUygula();duzenYaz()}
+function sagDegis(){S.duzen.sagKapali=!S.duzen.sagKapali;duzenUygula();duzenYaz()}
+function sagiAc(){if(S.duzen.sagKapali){S.duzen.sagKapali=false;duzenUygula();duzenYaz()}}
+function bolucuBagla(kimlik,taraf){const b=$(kimlik);
+  b.addEventListener("pointerdown",ev=>{ev.preventDefault();b.setPointerCapture(ev.pointerId);document.body.classList.add("suruklenir");
+    const m=$("#main").getBoundingClientRect();
+    const tasi=e2=>{if(m.width<400)return;if(taraf==="sol"){S.duzen.sol=Math.max(SOL_AZ,Math.min(SOL_COK,Math.round(e2.clientX-m.left)));S.duzen.solKapali=false}else{S.duzen.sag=Math.max(SAG_AZ,Math.round(m.right-e2.clientX-BOLUCU_PX));S.duzen.sagKapali=false}duzenUygula()};
+    const birak=()=>{b.removeEventListener("pointermove",tasi);b.removeEventListener("pointerup",birak);b.removeEventListener("pointercancel",birak);document.body.classList.remove("suruklenir");duzenYaz()};
+    b.addEventListener("pointermove",tasi);b.addEventListener("pointerup",birak);b.addEventListener("pointercancel",birak)});
+  b.addEventListener("dblclick",()=>{if(taraf==="sol")S.duzen.sol=190;else S.duzen.sag=0;duzenUygula();duzenYaz()})}
+bolucuBagla("#bolucuSol","sol");bolucuBagla("#bolucuSag","sag");
+$("#solDugme").onclick=solDegis;$("#sagDugme").onclick=sagDegis;
+document.addEventListener("keydown",ev=>{if(ev.altKey&&!ev.ctrlKey&&!ev.metaKey&&(ev.key==="1"||ev.key==="2")){ev.preventDefault();ev.key==="1"?solDegis():sagDegis()}});
+window.addEventListener("resize",duzenUygula);
+$("#onizAyri").onclick=()=>{const u=$("#onizUrl").textContent;if(/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/.test(u))window.open(u,"aktapokus-onizleme","popup=yes,width=1100,height=800");else alert("Önce bir önizleme adresi açın.")};
+duzenUygula();
 function cliBolumu(){const kap=e("div");
   const liste=e("div");kap.append(liste);
   for(const c of S.clilar){const sonuc=e("div",{class:"mut3",style:"margin-top:4px"});

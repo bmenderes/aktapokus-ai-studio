@@ -595,3 +595,18 @@ def test_onizleme_proje_degisince_yeni_klasoru_sunar(kur, tmp_path):
 def test_cikti_sekmesi_ve_paneli_sayfada_var():
     html = (Path(__file__).parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
     assert 'data-p="p-ciktilar"' in html and 'id="p-ciktilar"' in html and "function ciktilariYukle" in html and "/api/ciktilar" in html
+
+
+def test_esnek_paneller_bolucu_dugme_ve_izgara_yerlesimi():
+    html = (Path(__file__).parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")  # text modu satir sonlarini zaten LF yapar
+    for kimlik in ("solDugme", "sagDugme", "bolucuSol", "bolucuSag", "onizAyri"):
+        assert f'id="{kimlik}"' in html, kimlik
+    # izgara sirasi: sol | bolucu | orta | bolucu | sag (bolucular ARADA)
+    sira = [html.index(f'id="{k}"') for k in ("sol", "bolucuSol", "orta", "bolucuSag", "sag")]
+    assert sira == sorted(sira)
+    assert "grid-template-columns:var(--sol-w) var(--b1) minmax(0,1fr) var(--b2) var(--sag-w)" in html
+    # GERCEK HATA: kapali bolucu display:none olursa izgara sutunlari kayar (iki panel kapaninca orta alan 1 piksele cokuyordu)
+    kural = html[html.index("#main.sol-kapali #bolucuSol"):].split("}")[0]
+    assert "visibility:hidden" in kural and "display:none" not in kural
+    assert "aktapokus.duzen" in html and "pointer-events:none" in html  # boyutlar hatirlanir; surukleme sirasinda iframe fareyi calmaz
+    assert "if(g<400)return" in html  # gizli/cok kucuk pencerede kayitli duzen bozulmaz
