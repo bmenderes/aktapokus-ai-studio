@@ -161,7 +161,8 @@ class OpenCodeCalistirici(Calistirici):
         cli = self.cli_yolu or opencode_bul()
         if not cli:
             raise CalistiriciHatasi(
-                "OpenCode CLI bulunamadi. PATH'e ekleyin veya AKTAPOKUS_OPENCODE ortam degiskenini ayarlayin."
+                "OpenCode CLI bulunamadi. PATH'e ekleyin veya AKTAPOKUS_OPENCODE ortam degiskenini ayarlayin (kurulum: https://opencode.ai). "
+                "OpenCode kullanmayacaksaniz Ayarlar > Roller'den kurulu bir CLI (Claude Code, Codex) secin."
             )
         _istemi_denetle(istem)
         komut = [cli, "run", "--standalone", "--format", "json"]
@@ -248,7 +249,8 @@ class ClaudeCodeCalistirici(Calistirici):
         cli = self.cli_yolu or claude_bul()
         if not cli:
             raise CalistiriciHatasi(
-                "Claude Code CLI bulunamadi (npm install -g @anthropic-ai/claude-code) ya da AKTAPOKUS_CLAUDE ile yol verin."
+                "Claude Code CLI bulunamadi (npm install -g @anthropic-ai/claude-code) ya da AKTAPOKUS_CLAUDE ile yol verin. "
+                "Baska bir CLI kullanmak icin Ayarlar > Roller'e bakin."
             )
         komut = [cli, "-p", "--output-format", "json", "--settings", ayar_dosyasi]
         if model:
@@ -385,7 +387,7 @@ class CodexCalistirici(Calistirici):
     def komut(self, klasor: Path, model: str | None, onayli: bool, son_mesaj_dosyasi: str) -> list[str]:
         onek = self.komut_oneki or codex_bul()
         if not onek:
-            raise CalistiriciHatasi("Codex CLI bulunamadi (npm install -g @openai/codex) ya da AKTAPOKUS_CODEX ile yol verin.")
+            raise CalistiriciHatasi("Codex CLI bulunamadi (npm install -g @openai/codex) ya da AKTAPOKUS_CODEX ile yol verin. Baska bir CLI kullanmak icin Ayarlar > Roller'e bakin.")
         komut = [
             *onek, "exec", "--json", "--sandbox", "workspace-write" if onayli else "read-only",
             "--skip-git-repo-check", "-C", str(klasor), "-o", son_mesaj_dosyasi, "-c", 'approval_policy="never"',

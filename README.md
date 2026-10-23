@@ -2,6 +2,20 @@
 
 OpenCode (ve Claude Code) motorlarını **rol/model bazlı** süren, **git anlık görüntüsü, fark, onay ve geri alma** ekleyen ince katman. Yalnızca standart kütüphane; Docker, Ollama, ek bağımlılık yok. Tasarım: `../aktapokus-orkestrasyon/docs/basit-mimari.md`.
 
+## Gereksinimler
+
+| | Gerekli mi? | Not |
+| --- | --- | --- |
+| **Windows 10 (1809+) / 11** | Evet (şimdilik) | Terminal sekmesi ve masaüstü pencere modu Windows'a bağlı |
+| **Python 3.10+** | Evet | Ek paket gerekmez (yalnız standart kütüphane) |
+| **git** | Evet (program) | Klasörün git *deposu* olması gerekmez: geri alma gölge yedekten çalışır |
+| **En az bir ajan CLI'ı** | Evet | **OpenCode** (https://opencode.ai; ücretsiz modeller var), **Claude Code** (`npm install -g @anthropic-ai/claude-code`, Claude hesabı) veya **Codex** (`npm install -g @openai/codex`, ChatGPT hesabı), ya da kendi tanımladığınız bir CLI. Claude Code/Codex'i npm ile kuracaksanız Node.js de gerekir |
+| GitHub CLI (`gh`) | İsteğe bağlı | GitHub sekmesi (PR, issue, klonlama); `gh auth login` |
+| Microsoft Edge | İsteğe bağlı | Masaüstü uygulama penceresi (yoksa tarayıcıda açılır) |
+| Telegram bot token'ı, `segno` | İsteğe bağlı | Telefondan kontrol, QR ile eşleşme |
+
+**Hangi CLI kuruluysa o kullanılır:** yeni bir projenin varsayılan rolleri bilgisayarda kurulu olan ilk CLI'a göre kurulur (OpenCode > Claude Code > Codex). Hiçbiri kurulu değilse arayüz kurulum komutlarını gösterir. Eski bir projenin rolleri kurulu olmayan bir CLI'a bağlıysa arayüz uyarır ve tek tıkla (onayınızla) kurulu olana geçirir; hiçbir ayar kendiliğinden değiştirilmez. **OpenCode'a özgü olanlar:** Ayarlar'daki *Sağlayıcılar* ve *Modeller* bölümleri (model sağlayıcı anahtarları OpenCode'a iletilir) ve OpenCode'un gördüğü becerilerin listesi; bunlar OpenCode kurulu değilse çalışmaz (beceri listesi yalnız kendi becerilerinizi gösterir). Diğer her şey (roller, onay/geri alma, çoklu proje, Git, GitHub, terminal, Telegram, MCP — Claude Code ve Codex'e aktarım dahil) OpenCode olmadan çalışır.
+
 ## Kullanım
 
 ```bat
@@ -136,7 +150,7 @@ Token'ı **siz** `~/.aktapokus/telegram.token` dosyasına (ya da `AKTAPOKUS_TELE
 ## Başka bir bilgisayara kurulum (örn. ev bilgisayarı)
 
 1. `aktapokus-ajan` klasörünü kopyalayın (`.venv`, `.git`, `__pycache__` hariç).
-2. Python 3.10+ ve git kurulu olmalı; **OpenCode** kurulu ve bir modelle ayarlı olmalı (https://opencode.ai).
+2. Gereksinimleri kontrol edin (yukarıdaki **Gereksinimler** bölümü): Python 3.10+, git ve **en az bir ajan CLI'ı** (OpenCode, Claude Code ya da Codex).
 3. `kur.bat` dosyasına çift tıklayın: Python/git'i denetler (eksikse indirme adresini verir), klasörde `.venv` kurar, isteğe bağlı QR paketini (segno) sorar, OpenCode'u bulup bulmadığını yazar. Yönetici izni gerekmez, başka yere dosya yazmaz.
 4. **Her bilgisayar için ayrı Telegram botu açın** (BotFather → `/newbot`); token'ı o bilgisayarda `%USERPROFILE%\.aktapokus\telegram.token` dosyasına yazın. Aynı token iki bilgisayarda aynı anda çalışmaz (Telegram çakışma hatası verir).
 5. `telegram-baslat.bat --kok C:\yol\projeler` (kökler kaydedilir), telefondan bağlantıyı açıp eşleşin. Canlı arayüz: `arayuz-baslat.bat`.

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from . import baglam, guard, snapshot
+from . import baglam, guard, motorlar, snapshot
 from .config import AYAR_KLASORU, VARSAYILAN_AYAR, ayar_yolu
 from .klasor import guvenli_klasor
 
@@ -47,6 +47,7 @@ def hazirla(klasor: str | Path, git_baslat: bool = False) -> dict:
     ayar = "mevcut"
     if not yol.exists():
         yol.parent.mkdir(parents=True, exist_ok=True)
-        yol.write_text(json.dumps(VARSAYILAN_AYAR, ensure_ascii=False, indent=2), encoding="utf-8")
+        # Yeni projenin varsayilan rolleri KURULU motora gore (OpenCode yoksa ama Claude Code/Codex varsa onlarla); mevcut ayar asla ezilmez
+        yol.write_text(json.dumps(motorlar.ayar_uret(motorlar.tercih()), ensure_ascii=False, indent=2), encoding="utf-8")
         ayar = "olusturuldu"
     return {"klasor": klasor, "git": git, "koruyucu": koruyucu, "ayar": ayar, "baglam": baglam_kaynak}

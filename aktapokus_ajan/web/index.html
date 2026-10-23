@@ -160,6 +160,7 @@ body.suruklenir iframe{pointer-events:none}
   </div>
   <div class="bolucu" id="bolucuSol" title="Sürükleyin: genişliği değiştirin · çift tıklayın: sıfırla"></div>
   <div id="orta">
+    <div id="motorUyari" style="display:none"></div>
     <div id="akis"></div>
     <div id="girdi">
       <textarea id="gorev" rows="2" style="width:100%;resize:none" placeholder="Bir görev yazın… (Enter gönderir, Shift+Enter yeni satır)"></textarea>
@@ -634,7 +635,7 @@ async function durumYukle(){if(S.tekrar)return;try{const d=await api("/api/durum
   $("#gitRozet").className="badge "+(d.git?"b-ok":"b-err");$("#gitRozet").textContent=d.klasor?(d.git?(d.golge?"geri alma hazır (gölge yedek)":"git hazır"):"geri alma hazır değil"):"";$("#gitRozet").title=d.golge?"Bu klasör git deposu değil: geri alma, klasörün dışındaki gölge yedekten çalışır (klasöre .git eklenmez).":"";
   const ke=d.koruyucu_eksik||[];$("#korRozet").className="badge "+(d.klasor?(ke.length?"b-err":"b-ok"):"");$("#korRozet").textContent=d.klasor?(ke.length?"koruyucu eksik":"koruyucu etkin"):"";$("#korRozet").title=ke.join("; ");
   $("#klon").textContent=d.klon_bekleyen==null?"kurulu değil":d.klon_bekleyen+" öneri bekliyor";if(d.klon_bekleyen)$("#klon").title="aktapokus-klon bekleyen komutuyla inceleyin";
-  rolleriCiz();akisCipiGuncelle();gecmisYukle();kosuGorunumu();$("#klasorSec")&&d.klasor&&$("#klasorSec").remove();if(onceki!==S.projeId){if(S.projeId)delete S.okunmadi[S.projeId];projeGorunumuKur()}}catch(x){gunluge("durum alınamadı: "+x.message)}}
+  rolleriCiz();akisCipiGuncelle();gecmisYukle();kosuGorunumu();motorUyarisi();$("#klasorSec")&&d.klasor&&$("#klasorSec").remove();if(onceki!==S.projeId){if(S.projeId)delete S.okunmadi[S.projeId];projeGorunumuKur()}}catch(x){gunluge("durum alınamadı: "+x.message)}}
 async function gonder(){const t=$("#gorev").value.trim();if(!t||!S.klasor)return;try{if("Notification" in window&&Notification.permission==="default")Notification.requestPermission().catch(()=>{})}catch(x){}$("#gorev").value="";try{const p=await api("/api/gorev",{method:"POST",body:{gorev:t}});S.kosu={kimlik:p.kosu,gorev:t,durum:"plan"};kosuGorunumu()}catch(x){akisaEkle(e("div",{class:"badge b-err",text:x.message}))}}
 $("#gonder").onclick=gonder;$("#gorev").addEventListener("keydown",ev=>{if(ev.key==="Enter"&&!ev.shiftKey){ev.preventDefault();gonder()}});
 $("#durdur").onclick=async()=>{try{await api("/api/gorev/"+S.kosu.kimlik+"/durdur",{method:"POST",body:{}})}catch(x){alert(x.message)}};
@@ -972,6 +973,21 @@ async function gitPaneliYukle(){const p=$("#p-git");p.textContent="";
         e("span",{class:"row",style:"gap:4px"},e("button",{text:"Uygula",title:"Değişiklikleri geri getirir, raf korunur",onclick:isl(false)}),e("button",{text:"Uygula ve sil",onclick:isl(true)}),e("button",{text:"Sil",onclick:async()=>{if(!confirm("Raf #"+t.indeks+" KALICI olarak silinsin mi?\n\n"+t.mesaj))return;try{await api("/api/git/stash-sil",{method:"POST",body:{indeks:t.indeks}});await yenile("Raf #"+t.indeks+" silindi.")}catch(x){ghMesaj(p,x.message,"b-err")}}}))))}
   }catch(x){stListe.textContent="";stListe.append(e("div",{class:"badge b-err",style:"white-space:normal",text:x.message}))}};
   stB.addEventListener("toggle",()=>{if(stB.open&&!stYuklendi){stYuklendi=true;stYukle()}});if(stB.open){stYuklendi=true;stYukle()}}
+/* ---- Motor denetimi: hiç ajan CLI'ı yoksa kurulum rehberi; projenin rolleri kurulu olmayan bir CLI'a bağlıysa tek tıkla geçiş ---- */
+async function motorUyarisi(){const k=$("#motorUyari");if(!k)return;let d;try{d=await api("/api/motorlar")}catch(x){k.style.display="none";return}
+  k.textContent="";const kurulu=d.motorlar.filter(m=>m.kurulu);
+  const kutu=(tur,...c)=>{k.style.display="";k.append(e("div",{class:"badge "+tur,style:"display:block;white-space:normal;margin:6px 10px;padding:8px 10px"},...c))};
+  if(!d.kurulu_sayisi){
+    const satirlar=d.motorlar.map(m=>e("div",{style:"margin-top:4px"},e("b",{text:m.gorunen+": "}),e("span",{class:"mono",style:"user-select:all",text:m.kurulum})));
+    kutu("b-warn",e("b",{text:"Bu bilgisayarda hiçbir ajan CLI'ı bulunamadı."})," Görev çalıştırmak için bunlardan en az birini kurun (kurduktan sonra uygulamayı yeniden açmanız gerekmez):",...satirlar,
+      e("div",{style:"margin-top:6px"},e("button",{text:"Yeniden kontrol et",onclick:motorUyarisi}),e("button",{style:"margin-left:6px",text:"Özel CLI tanımla",onclick:()=>ayarAc("clilar")})));return}
+  if(d.proje_var&&d.eksik_roller.length){
+    const adlar=[...new Set(d.eksik_roller.map(x=>x.calistirici))].join(", ");
+    const dugmeler=kurulu.map(m=>e("button",{class:"pri",style:"margin-right:6px",text:"Rolleri "+m.gorunen+(m.ad==="codex"?"'e":"'a")+" geçir",title:"Yalnızca kurulu olmayan CLI'a bağlı roller değişir; diğer ayarlarınıza dokunulmaz",onclick:async()=>{
+      if(!confirm("Şu roller "+m.gorunen+" ile çalışacak şekilde değiştirilsin mi?\n\n"+d.eksik_roller.map(x=>"• "+x.rol+" ("+x.calistirici+")").join("\n")+"\n\nYalnızca kurulu olmayan CLI'a bağlı roller değişir."))return;
+      try{await api("/api/motorlar/rolleri-gecir",{method:"POST",body:{calistirici:m.ad}});await durumYukle()}catch(x){alert(x.message)}}}));
+    kutu("b-warn",e("b",{text:"Bu projenin rolleri kurulu olmayan bir CLI'a bağlı: "+adlar+". "})," Görev şu haliyle hata verir. Kurulu olanlar: "+kurulu.map(m=>m.gorunen).join(", ")+".",e("div",{style:"margin-top:6px"},...dugmeler,e("button",{text:"Roller ayarına git",onclick:()=>ayarAc("roller")})))}
+  else k.style.display="none"}
 (async()=>{if(!T){document.body.textContent="Token yok: arayüzü terminalde yazdırılan adresle açın.";return}await durumYukle();if(!S.klasor)klasorSecimiAc();else{await dosyalariYukle();await onizlemeKur()}olayAkisi()})();
 </script>
 </body>

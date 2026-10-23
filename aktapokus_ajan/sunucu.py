@@ -253,7 +253,7 @@ class Sunucu:
         if komut_oneki is None:
             cli = opencode_bul()
             if not cli:
-                raise SunucuHatasi("OpenCode CLI bulunamadi (PATH ya da AKTAPOKUS_OPENCODE).")
+                raise SunucuHatasi("OpenCode CLI bulunamadi (PATH ya da AKTAPOKUS_OPENCODE; kurulum: https://opencode.ai). OpenCode kullanmayacaksaniz Ayarlar > Roller'den kurulu bir CLI secin.")
             komut_oneki = [cli]
         self.komut_oneki = komut_oneki
         self.baslangic_klasoru = Path(baslangic_klasoru or Path.cwd())

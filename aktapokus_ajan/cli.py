@@ -21,7 +21,7 @@ from .config import (
 from .klasor import KlasorHatasi, guvenli_klasor
 from .pipeline import HatHatasi, calistir_hat, geri_al, son_kayit
 from .proje import GitGerekli, hazirla as proje_hazirla
-from .runners import Calistirici, CalistiriciHatasi, calistirici_olustur, hepsini_kapat, opencode_bul
+from .runners import Calistirici, CalistiriciHatasi, calistirici_olustur, claude_bul, codex_bul, hepsini_kapat, opencode_bul
 
 CIKIS_TAMAM, CIKIS_HATA, CIKIS_KULLANIM = 0, 1, 2
 
@@ -139,10 +139,12 @@ def komut_durum(args) -> int:
     print(f"aktapokus-ajan {__version__}")
     oc = opencode_bul()
     print(f"OpenCode CLI: {oc + '  ' + _surum_oku([oc, '--version']) if oc else 'bulunamadi'}")
-    import shutil
-
-    cl = shutil.which("claude")
+    cl = claude_bul()
     print(f"Claude Code CLI: {cl + '  ' + _surum_oku([cl, '--version']) if cl else 'bulunamadi (kurulu degil ya da PATH disinda)'}")
+    cx = codex_bul()  # liste doner: [calistirilabilir, (varsa betik)]
+    print(f"Codex CLI: {' '.join(cx) + '  ' + _surum_oku([*cx, '--version']) if cx else 'bulunamadi (kurulu degil ya da PATH disinda)'}")
+    if not (oc or cl or cx):
+        print("UYARI: hicbir ajan CLI'i bulunamadi. En az birini kurun: OpenCode (https://opencode.ai), Claude Code (npm install -g @anthropic-ai/claude-code) ya da Codex (npm install -g @openai/codex).")
     if getattr(args, "arac", False):
         return CIKIS_TAMAM
     try:

@@ -63,7 +63,7 @@ if errorlevel 1 goto :denetim_hata
 
 echo.
 echo === Kurulum tamam. Siradaki adimlar ===
-echo 1^) OpenCode kurulu olmali ^(https://opencode.ai^) ve bir model ayarli olmali. Yukarida "OpenCode CLI: bulunamadi" yaziyorsa once onu kurun.
+echo 1^) En az bir ajan CLI kurulu olmali: OpenCode ^(https://opencode.ai^), Claude Code ^(npm install -g @anthropic-ai/claude-code^) veya Codex ^(npm install -g @openai/codex^). Yukarida uc CLI icin de "bulunamadi" yaziyorsa once birini kurun.
 echo 2^) Telegram icin: BotFather'dan BU bilgisayara ozel yeni bir bot olusturun; token'i
 echo    %USERPROFILE%\.aktapokus\telegram.token dosyasina tek satir olarak yazin ^(token'i kimseyle paylasmayin^).
 echo    Ayni token iki bilgisayarda ayni anda calismaz; her bilgisayar icin ayri bot acin.

@@ -30,7 +30,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import beceriler, ciktilar, clitanim, github, gityonet, guard, istatistik, mcptanim, projeler, snapshot, terminal
+from . import beceriler, ciktilar, clitanim, github, gityonet, guard, motorlar, istatistik, mcptanim, projeler, snapshot, terminal
 from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
 from .pipeline import HatHatasi, _kayit_klasoru, calistir_hat, son_kayit
@@ -669,6 +669,29 @@ class Uygulama:
     def github_issue_yorum(self, no: object, metin: object) -> dict:
         return self._github(lambda k: github.issue_yorum(k, no, metin))
 
+    # --- Motorlar (ajan CLI'lari): kurulu olanlar + bu projede kurulu olmayan CLI'a bagli roller; roller yalniz kullanici isteyince gecirilir ---
+    def motorlar(self) -> dict:
+        d = motorlar.durum()
+        sonuc: dict = {"motorlar": d, "kurulu_sayisi": sum(1 for m in d if m["kurulu"]), "tercih": motorlar.tercih(), "eksik_roller": [], "proje_var": self.klasor is not None}
+        if self.klasor is not None:
+            try:
+                sonuc["eksik_roller"] = motorlar.eksik_roller(self.ayar_oku())
+            except (OSError, ValueError):
+                pass
+        return sonuc
+
+    def motor_rolleri_gecir(self, calistirici: object) -> dict:
+        if not isinstance(calistirici, str):
+            raise UygulamaHatasi("calistirici metin olmali")
+        try:
+            yeni, degisen = motorlar.rolleri_gecir(self.ayar_oku(), calistirici)
+        except ValueError as hata:
+            raise UygulamaHatasi(str(hata)) from None
+        if not degisen:
+            raise UygulamaHatasi("Gecirilecek rol yok: tum roller kurulu CLI'lara bagli", 409)
+        self.ayar_yaz(yeni)  # dogrular; gorev surerken reddeder (409)
+        return {"degisen": degisen, "calistirici": calistirici}
+
     # --- MCP sunuculari ve beceriler: tanimlar YALNIZ bu yerel, belirtecli arayuzden yazilir (Telegram'dan degil): ikisi de bu bilgisayarda
     # program/talimat calistirmak demektir. Ortam/baslik DEGERLERI arayuze geri verilmez. ---
     def mcp_listele(self) -> dict:
@@ -1243,6 +1266,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                     return self._gonder(200, app.telegram_islem("durum", {}))
                 if yol == "/api/mcp-sunuculari":
                     return self._gonder(200, app.mcp_listele())
+                if yol == "/api/motorlar":
+                    return self._gonder(200, app.motorlar())
                 if yol == "/api/git/gecmis":
                     return self._gonder(200, app.git_gecmis(q.get("adet", "50")))
                 if yol == "/api/git/commit":
@@ -1310,6 +1335,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                     return self._gonder(200, app.github_klonla(g.get("depo"), g.get("klasor"), g.get("ad")))
                 if yol == "/api/github/commit":
                     return self._gonder(200, app.github_commit(g.get("mesaj"), g.get("yalniz_hazir")))
+                if yol == "/api/motorlar/rolleri-gecir":
+                    return self._gonder(200, app.motor_rolleri_gecir(g.get("calistirici")))
                 if yol == "/api/git/hazirla":
                     return self._gonder(200, app.git_hazirla(g.get("yollar")))
                 if yol == "/api/git/hazirdan-cikar":
