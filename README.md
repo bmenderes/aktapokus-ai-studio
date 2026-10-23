@@ -107,6 +107,12 @@ Yazı kutusunun altındaki rol akışı çipine ve sol listedeki rollere tıklam
 
 **Doğrulanan (gerçek Edge, Windows 11):** pencere açıldı (başlık "Aktapokus", `--app`, ayrı profil), `CloseMainWindow` ile kapatılınca pythonw, Edge, kilit ve OpenCode süreci kalmadı, son klasör kaydedildi; gerçek masaüstü kısayoluyla ve **tarayıcı devri (bayat pencere açıkken ikinci başlatma)** durumunda da aynısı. **Doğrulanmayan:** pencerenin görsel düzeni (ekran görüntüsü alınamadı), ikinci tıklamada çıkan "zaten açık" kutusu (yalnız testle), Chrome yolu, tarayıcı güncellemesinin `--app` davranışını değiştirmesi, Windows başlangıcında otomatik açılma (yapılmadı).
 
+## MCP sunucuları ve Beceriler (Ayarlar > MCP sunucuları / Beceriler)
+
+**MCP:** bir kez tanımlayın (yerel program ya da uzak HTTP adresi), hangi projelerde açılacağını işaretleyin (varsayılan: hiçbirinde). Görev çalışırken sunucu o projenin CLI'larına kendiliğinden aktarılır: OpenCode'a API ile (çalışma anına özel, dosyaya yazılmaz), Claude Code'a `--mcp-config` geçici dosyasıyla, Codex'e `-c mcp_servers…` geçersiz kılmalarıyla. **Kendi CLI yapılandırmanıza dokunulmaz.** Gerçek `sahte MCP` ile üç CLI'da da araç çağrısı doğrulandı. Güvenlik: MCP sunucusu bilgisayarınızda program çalıştırır ve proje klasör korumasının dışındadır; tanımlar yalnız yerel arayüzden yazılır (Telegram'dan değil); anahtar/başlık değerleri arayüze geri verilmez (`~/.aktapokus/mcp.json`, yalnız sizin kullanıcınız). Bir projede açık olmayan sunucu, daha önce eklenmişse OpenCode'dan kaldırılır; sizin kendi `opencode.json` sunucularınıza dokunulmaz. "Dene" düğmesi sunucuyu seçili projede geçici başlatıp bağlanıp bağlanmadığını gösterir.
+
+**Beceriler:** `~/.agents/skills/<kimlik>/SKILL.md` dosyaları (OpenCode okur). Arayüzden oluşturur/düzenler/silersiniz; başka yerlerden (örn. `~/.claude/skills`) bulunanlar listelenir ama değiştirilmez. Silme, klasörde başka dosya (scripts vb.) varsa reddedilir. Not: OpenCode ilk listelemede birkaç saniye geç yanıt verebilir.
+
 ## Terminal (⌨ Terminal, Alt+3)
 
 Kenar çubuğundaki **⌨ Terminal** düğmesi tam sayfa bir PowerShell terminali açar (en çok 3 sekme + Telegram günlüğü sekmesi). Proje klasöründe başlar; komut çalıştırma, paket kurma dahil **tam erişimlidir**. Güvenlik: yalnız yerel, belirteçli ve Host/Origin denetimli arayüzden erişilir; Telegram'dan erişilemez. Ekran xterm.js (MIT, `web/vendor/`), kabuk bağlantısı bağımlılıksız ConPTY (ctypes) ile yapılır; arayüz kapanınca (zorla kapansa bile) kabuk ve alt süreçleri de kapanır. Yalnız Windows 10 (1809+) / 11.

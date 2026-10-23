@@ -30,7 +30,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import ciktilar, clitanim, guard, istatistik, projeler, snapshot, terminal
+from . import beceriler, ciktilar, clitanim, guard, istatistik, mcptanim, projeler, snapshot, terminal
 from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
 from .pipeline import HatHatasi, _kayit_klasoru, calistir_hat, son_kayit
@@ -503,6 +503,130 @@ class Uygulama:
             raise UygulamaHatasi(str(hata)) from None
         raise UygulamaHatasi("Bilinmeyen Telegram işlemi", 404)
 
+    # --- MCP sunuculari ve beceriler: tanimlar YALNIZ bu yerel, belirtecli arayuzden yazilir (Telegram'dan degil): ikisi de bu bilgisayarda
+    # program/talimat calistirmak demektir. Ortam/baslik DEGERLERI arayuze geri verilmez. ---
+    def mcp_listele(self) -> dict:
+        return {
+            "sunucular": mcptanim.listele(),
+            "projeler": [{"id": p["id"], "ad": p["ad"], "yol": p["yol"], "var": p["var"]} for p in projeler.listele()],
+            "secili": self.secili_kimlik,
+        }
+
+    def mcp_kaydet(self, veri: object) -> dict:
+        try:
+            return mcptanim.kaydet(veri).sozluk()
+        except mcptanim.McpHatasi as hata:
+            raise UygulamaHatasi(str(hata)) from None
+
+    def mcp_sil(self, ad: object) -> dict:
+        if not isinstance(ad, str) or not mcptanim.sil(ad):
+            raise UygulamaHatasi("Boyle bir MCP sunucusu yok", 404)
+        return {"tamam": True}
+
+    def mcp_proje(self, ad: object, proje: object, acik: object) -> dict:
+        if not isinstance(proje, str) or proje not in {p["id"] for p in projeler.listele()}:
+            raise UygulamaHatasi("Boyle bir proje yok", 404)
+        try:
+            return mcptanim.proje_ayarla(str(ad), proje, bool(acik)).sozluk()
+        except mcptanim.McpHatasi as hata:
+            raise UygulamaHatasi(str(hata), 404 if "yok" in str(hata) else 400) from None
+
+    def mcp_dene(self, ad: object) -> dict:
+        """Sunucuyu SECILI projede gecici olarak OpenCode'a baglamayi dener (komutu calistirir), durumu verir, sonra kaldirir."""
+        t = mcptanim.yukle().get(ad) if isinstance(ad, str) else None
+        if t is None:
+            raise UygulamaHatasi("Boyle bir MCP sunucusu yok", 404)
+        klasor = self._oturum().klasor
+        gecici = ("dene-" + t.ad)[:31]
+        try:
+            ist = self._saglayici_istemcisi()
+            ist.mcp_ekle(klasor, gecici, mcptanim.opencode_ayari(t))
+        except Exception as hata:
+            gizli = [*t.ortam.values(), *t.basliklar.values()]
+            mesaj = str(hata)
+            for g in gizli:
+                if g:
+                    mesaj = mesaj.replace(g, "***")
+            return {"durum": "failed", "hata": mesaj[:200]}
+        durum: dict = {}
+        try:
+            bitis = time.monotonic() + 30
+            while time.monotonic() < bitis:
+                durum = ist.mcp_liste(klasor).get(gecici) or {}
+                if durum.get("status") not in (None, "pending"):
+                    break
+                time.sleep(0.3)
+        except Exception as hata:
+            return {"durum": "failed", "hata": f"Durum okunamadi: {type(hata).__name__}"}
+        finally:
+            try:
+                ist.mcp_sil(klasor, gecici)
+            except Exception:
+                pass
+        return {"durum": durum.get("status") or "pending", "hata": str(durum.get("error") or "")[:200] or None}
+
+    def beceri_listele(self) -> dict:
+        """OpenCode'un gordugu tum beceriler (kaynak etiketiyle) + yalniz Aktapokus klasorundekilerin duzenlenebilir oldugu isareti."""
+        yerel = {b.kimlik: b for b in beceriler.listele()}
+        gorunen: list[dict] = []
+        uyari = None
+        try:
+            ist = self._saglayici_istemcisi()
+            gorunen = ist.beceriler(self.klasor or Path.home())
+        except Exception as hata:
+            uyari = f"OpenCode'a ulasilamadi ({type(hata).__name__}); yalniz Aktapokus becerileri gosteriliyor."
+        kok_yolu = str(beceriler.kok().resolve()).lower().replace("/", "\\")
+        ev = str(Path.home().resolve()).lower().replace("/", "\\")
+        cikti, gorulen = [], set()
+        for g in gorunen:
+            ham = str(g["yol"])
+            if not ham.startswith("/builtin"):
+                try:
+                    ham = str(Path(ham).resolve())  # OpenCode 8.3 kisa ad (BARIS~1.MEN) verebilir: karsilastirmadan once gercek yola cevir
+                except (OSError, RuntimeError):
+                    pass
+            yol = ham.replace("/", "\\")
+            dusuk = yol.lower()
+            duzenlenebilir = g["kimlik"] in yerel and dusuk.startswith(kok_yolu)
+            if g["yol"].startswith("/builtin"):
+                kaynak = "OpenCode (yerlesik)"
+            elif dusuk.startswith(kok_yolu):
+                kaynak = "Aktapokus"
+            elif dusuk.startswith(ev + "\\.claude\\skills"):
+                kaynak = "Claude (~/.claude/skills)"
+            elif dusuk.startswith(ev):
+                kaynak = "Kullanici (" + yol[len(ev) :].lstrip("\\")[:60] + ")"
+            else:
+                kaynak = "Proje"
+            gorulen.add(g["kimlik"])
+            cikti.append({**g, "kaynak": kaynak, "duzenlenebilir": duzenlenebilir})
+        for kimlik, b in yerel.items():  # OpenCode henuz gormediyse (ya da ulasilamadiysa) yine de goster
+            if kimlik not in gorulen:
+                cikti.append({"kimlik": kimlik, "ad": b.ad, "aciklama": b.aciklama, "yol": str(beceriler.kok() / kimlik / "SKILL.md"), "otomatik": b.otomatik, "kaynak": "Aktapokus", "duzenlenebilir": True})
+        return {"beceriler": cikti, "kok": str(beceriler.kok()), "uyari": uyari}
+
+    def beceri_oku(self, kimlik: object) -> dict:
+        try:
+            b = beceriler.oku(kimlik)
+        except beceriler.BeceriHatasi as hata:
+            raise UygulamaHatasi(str(hata), 404 if "bulunamadi" in str(hata) else 400) from None
+        return {**b.ozet(), "govde": b.govde}
+
+    def beceri_kaydet(self, veri: object) -> dict:
+        if not isinstance(veri, dict):
+            raise UygulamaHatasi("Govde bir nesne olmali")
+        try:
+            return beceriler.olustur(veri.get("kimlik"), veri.get("ad"), veri.get("aciklama"), veri.get("govde"), veri.get("otomatik", True)).ozet()
+        except beceriler.BeceriHatasi as hata:
+            raise UygulamaHatasi(str(hata)) from None
+
+    def beceri_sil(self, kimlik: object) -> dict:
+        try:
+            beceriler.sil(kimlik)
+        except beceriler.BeceriHatasi as hata:
+            raise UygulamaHatasi(str(hata), 404 if "bulunamadi" in str(hata) else 409 if "baska dosyalar" in str(hata) else 400) from None
+        return {"tamam": True}
+
     # --- Terminal (ConPTY PowerShell): TAM ERISIMLI; yalniz yerel, belirtecli, Host/Origin denetimli arayuzden. Telegram erisemez. ---
     AZAMI_TERMINAL = 3
     AZAMI_GIRDI = 65536  # tek istekte en cok 64 KB girdi (yapistirma)
@@ -735,6 +859,7 @@ class Uygulama:
 
         def uret(ad: str) -> Calistirici:
             r = self.calistirici_uret(ad)
+            r.mcp = tuple(mcptanim.proje_icin(oturum.kimlik))  # bu projede kullanicinin etkinlestirdigi MCP sunuculari (CLI'lara aktarilir)
             oturum.aktif_calistirici = r
             if hasattr(r, "ilerleme"):
                 r.ilerleme = lambda e: yayinla({**e, "tur": "canli", "alt": e.get("tur")})
@@ -950,6 +1075,13 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                     return self._gonder(200, app.istatistik(q.get("kapsam", "proje")))
                 if yol == "/api/telegram":
                     return self._gonder(200, app.telegram_islem("durum", {}))
+                if yol == "/api/mcp-sunuculari":
+                    return self._gonder(200, app.mcp_listele())
+                if yol == "/api/beceriler":
+                    return self._gonder(200, app.beceri_listele())
+                m = re.match(r"^/api/beceriler/([A-Za-z0-9-]{1,64})$", yol)
+                if m:
+                    return self._gonder(200, app.beceri_oku(m.group(1)))
                 if yol == "/api/terminal":
                     return self._gonder(200, app.terminal_durum())
                 m = re.match(r"^/api/terminal/([0-9a-f]+)/akis$", yol)
@@ -988,6 +1120,18 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                     return self._gonder(200, app.saglayici_baglan(g.get("saglayici"), g.get("anahtar"), g.get("etiket")))
                 if yol == "/api/saglayicilar/kaldir":
                     return self._gonder(200, app.saglayici_kaldir(g.get("baglanti")))
+                if yol == "/api/mcp-sunuculari":
+                    return self._gonder(200, app.mcp_kaydet(g))
+                if yol == "/api/mcp-sunuculari/sil":
+                    return self._gonder(200, app.mcp_sil(g.get("ad")))
+                if yol == "/api/mcp-sunuculari/proje":
+                    return self._gonder(200, app.mcp_proje(g.get("ad"), g.get("proje"), g.get("acik")))
+                if yol == "/api/mcp-sunuculari/dene":
+                    return self._gonder(200, app.mcp_dene(g.get("ad")))
+                if yol == "/api/beceriler":
+                    return self._gonder(200, app.beceri_kaydet(g))
+                if yol == "/api/beceriler/sil":
+                    return self._gonder(200, app.beceri_sil(g.get("kimlik")))
                 if yol == "/api/terminal/ac":
                     return self._gonder(200, app.terminal_ac(g.get("satir", 24), g.get("sutun", 80)))
                 m = re.match(r"^/api/terminal/([0-9a-f]+)/(girdi|boyut|kapat)$", yol)

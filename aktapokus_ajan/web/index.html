@@ -326,7 +326,7 @@ async function istatistikYukle(hedef){const p=hedef||S.istHedef||$("#ayarIcerik"
   p.append(e("div",{class:"mut3",style:"margin-top:10px;white-space:normal",text:"Not: abonelik kotanızın (Claude Pro, ChatGPT/Codex) kalan miktarı CLI'lardan güvenilir okunamıyor; burada yalnızca harcanan token ve limite takılma anı görünür."}))}
 function kapsamSecici(){const b=(ad,v)=>e("button",{class:S.istKapsam===v?"pri":"",text:ad,onclick:()=>{S.istKapsam=v;istatistikYukle()}});return e("div",{class:"row"},b("Bu proje","proje"),b("Tüm projeler","tum"),e("button",{text:"Yenile",onclick:()=>istatistikYukle()}))}
 /* ---- AYARLAR: sol menulu tam sayfa (OpenCode Desktop gibi). Bolumler: Genel, Saglayicilar, Modeller, CLI'lar, Roller, Kullanim, Hakkinda ---- */
-const AYAR_BOLUMLERI=[["genel","Genel"],["saglayicilar","Sağlayıcılar"],["modeller","Modeller"],["clilar","CLI'lar"],["roller","Roller"],["telegram","Telegram"],["kullanim","Kullanım"],["hakkinda","Hakkında"]];
+const AYAR_BOLUMLERI=[["genel","Genel"],["saglayicilar","Sağlayıcılar"],["modeller","Modeller"],["clilar","CLI'lar"],["mcp","MCP sunucuları"],["beceriler","Beceriler"],["roller","Roller"],["telegram","Telegram"],["kullanim","Kullanım"],["hakkinda","Hakkında"]];
 function ayarAc(id){$("#ayarlar").classList.add("on");ayarGit(id||S.ayarBolum||"genel")}
 function ayarKapat(){$("#ayarlar").classList.remove("on")}
 async function clilarYukle(){S.clilar=(await api("/api/clilar")).clilar;return S.clilar}
@@ -340,6 +340,8 @@ async function ayarGit(id){if(S.telegramZ){clearInterval(S.telegramZ);S.telegram
     else if(id==="saglayicilar"){baslik("Sağlayıcılar","Model sağlayıcılarına API anahtarınızla bağlanın. Anahtar yalnızca bu bilgisayardaki OpenCode'a iletilir.");h.append(modelBolumu())}
     else if(id==="modeller"){baslik("Modeller","Bağlı sağlayıcıların ve kurulu CLI'ların modelleri. Bir modeli role atayın ya da deneyin.");await modellerBolumu(h)}
     else if(id==="clilar"){baslik("CLI'lar","Modelleri çalıştıran programlar. Yeni bir CLI'ı kod yazmadan tanımlayarak ekleyebilirsiniz.");await clilarYukle();h.append(cliBolumu())}
+    else if(id==="mcp"){baslik("MCP sunucuları","Modellere ek araç ve bilgi veren sunucular. Bir kez tanımlayın, hangi projelerde açılacağını seçin; OpenCode, Claude Code ve Codex'e kendiliğinden aktarılır.");await mcpBolumu(h)}
+    else if(id==="beceriler"){baslik("Beceriler","Modelin gerektiğinde yüklediği talimat paketleri. Sizin oluşturduklarınız ~/.agents/skills klasöründe durur; başka yerlerden bulunanlar yalnızca gösterilir.");await beceriBolumu(h)}
     else if(id==="roller"){baslik("Roller","Görevin hangi rollerden, hangi sırayla ve hangi araç + modelle geçeceği.");await clilarYukle();h.append(await rolBolumu());if(!S.canliModeller)canliModelleriYukle()}
     else if(id==="telegram"){baslik("Telegram","Telefondan görev başlatma, onay ve takip. Bot bu uygulamayla aynı süreçte çalışır: telefon ve arayüz aynı proje ve görevleri görür.");await telegramBolumu(h)}
     else if(id==="kullanim"){baslik("Kullanım","Token harcaması, hatalar ve model değiştirme önerileri.");const k=e("div");h.append(k);S.istHedef=k;await istatistikYukle(k)}
@@ -770,6 +772,69 @@ async function terminalAc(){$("#terminalSayfa").classList.add("on");trmMesaj("")
 function terminalKapat(){$("#terminalSayfa").classList.remove("on");if(TRM.tgZ){clearInterval(TRM.tgZ);TRM.tgZ=null}}
 $("#terminalDugme").onclick=()=>$("#terminalSayfa").classList.contains("on")?terminalKapat():terminalAc();
 document.addEventListener("keydown",ev=>{if(ev.altKey&&ev.key==="3"){ev.preventDefault();$("#terminalDugme").click()}});
+/* ---- Ayarlar > MCP sunucuları ve Beceriler ---- */
+function mcpOzet(s){return s.tur==="remote"?s.url:s.komut.join(" ")}
+async function mcpBolumu(h){const kap=e("div");h.append(kap);let d=await api("/api/mcp-sunuculari");
+  const ciz=()=>{kap.textContent="";
+    kap.append(e("div",{class:"badge b-warn",style:"display:block;white-space:normal;margin-bottom:6px",text:"Bir MCP sunucusu bilgisayarınızda bir program çalıştırır ve proje klasör korumasının dışındadır. Yalnızca güvendiğiniz sunucuları ekleyin; hiçbir projede varsayılan olarak açık değildir. Anahtarlar yalnızca bu bilgisayarda saklanır ve bir daha gösterilmez."}));
+    if(!d.sunucular.length)kap.append(e("div",{class:"mut3",text:"Henüz MCP sunucusu yok."}));
+    for(const s of d.sunucular){const sonuc=e("div",{class:"mut3",style:"margin-top:4px"});
+      const dene=e("button",{text:"Dene",title:"Seçili projede sunucuyu geçici olarak başlatıp bağlanıp bağlanmadığına bakar",onclick:async()=>{dene.disabled=true;sonuc.className="mut3";sonuc.textContent="deneniyor…";try{const r=await api("/api/mcp-sunuculari/dene",{method:"POST",body:{ad:s.ad}});sonuc.className="badge "+(r.durum==="connected"?"b-ok":"b-err");sonuc.style.whiteSpace="normal";sonuc.textContent=r.durum==="connected"?"bağlandı":(r.durum+(r.hata?": "+r.hata:""))}catch(x){sonuc.className="badge b-err";sonuc.textContent=x.message}dene.disabled=false}});
+      const acik=new Set(s.projeler);const proje=e("details",{style:"margin-top:4px"});const ozet=e("summary",{class:"mut"});
+      const ozetYaz=()=>{ozet.textContent="Açık olduğu projeler: "+(acik.size?acik.size:"hiçbiri")};ozetYaz();proje.append(ozet);
+      for(const p of d.projeler){const kutu=e("input",{type:"checkbox"});kutu.checked=acik.has(p.id);
+        kutu.onchange=async()=>{kutu.disabled=true;try{await api("/api/mcp-sunuculari/proje",{method:"POST",body:{ad:s.ad,proje:p.id,acik:kutu.checked}});if(kutu.checked)acik.add(p.id);else acik.delete(p.id);s.projeler=[...acik];ozetYaz()}catch(x){kutu.checked=!kutu.checked;alert(x.message)}kutu.disabled=false};
+        proje.append(e("label",{class:"row",style:"gap:6px;margin:2px 0",title:p.yol},kutu,e("span",{text:p.ad}),p.id===d.secili?e("span",{class:"mut3",text:"(seçili)"}):null))}
+      if(!d.projeler.length)proje.append(e("div",{class:"mut3",text:"Kayıtlı proje yok; önce bir proje klasörü seçin."}));
+      kap.append(e("div",{class:"card"},e("div",{class:"row",style:"justify-content:space-between"},e("span",{class:"row"},e("b",{text:s.ad}),e("span",{class:"badge",text:s.tur==="remote"?"uzak (HTTP)":"yerel"})),e("span",{class:"row"},dene,e("button",{text:"Düzenle",onclick:()=>mcpFormu(kap,s,async()=>{d=await api("/api/mcp-sunuculari");ciz()})}),e("button",{text:"Sil",onclick:async()=>{if(!confirm(s.ad+" sunucusu silinsin mi? (Projelerdeki açık durumu da kalkar.)"))return;try{await api("/api/mcp-sunuculari/sil",{method:"POST",body:{ad:s.ad}});d=await api("/api/mcp-sunuculari");ciz()}catch(x){alert(x.message)}}}))),
+        e("div",{class:"mut3 mono",style:"word-break:break-all",text:mcpOzet(s)}),s.aciklama?e("div",{class:"mut3",text:s.aciklama}):null,
+        Object.keys(s.ortam||{}).length?e("div",{class:"mut3",text:"ortam: "+Object.keys(s.ortam).join(", ")+" (değerler gizli)"}):null,Object.keys(s.basliklar||{}).length?e("div",{class:"mut3",text:"başlıklar: "+Object.keys(s.basliklar).join(", ")+" (değerler gizli)"}):null,proje,sonuc))}
+    kap.append(e("button",{class:"pri",style:"margin-top:6px",text:"+ MCP sunucusu ekle",onclick:()=>mcpFormu(kap,null,async()=>{d=await api("/api/mcp-sunuculari");ciz()})}))};
+  ciz()}
+function mcpFormu(kap,t,bitti){const eski=$("#mcpForm");if(eski)eski.remove();const duzenle=!!t;t=t||{tur:"local",komut:[],ortam:{},basliklar:{}};const k=e("div",{class:"card",id:"mcpForm"});
+  const al=(etiket,ad,deger,ipucu,cok)=>{const g=cok?e("textarea",{rows:"3",style:"width:100%"}):e("input",{style:"width:100%"});g.value=deger==null?"":deger;if(ipucu)g.placeholder=ipucu;g.dataset.a=ad;return e("label",{class:"mut",style:"display:block;margin-top:5px"},etiket,g)};
+  const tur=e("select",{style:"width:100%"});tur.dataset.a="tur";for(const [v,y] of [["local","Yerel program (stdio)"],["remote","Uzak adres (HTTP)"]]){const o=e("option",{value:v,text:y});if(v===t.tur)o.selected=true;tur.append(o)}
+  const yerel=e("div"),uzak=e("div");
+  yerel.append(al("Komut (her satıra bir parça; ilk satır program: npx, node, python ya da tam yol)","komut",(t.komut||[]).join("\n"),"npx\n-y\n@modelcontextprotocol/server-everything",true),
+    al("Ortam değişkenleri (her satıra ANAHTAR=değer; kayıtlı değer •••• görünür, değiştirmezseniz korunur)","ortam",Object.entries(t.ortam||{}).map(([a,b])=>a+"="+b).join("\n"),"API_KEY=...",true));
+  uzak.append(al("Adres (http ya da https ile başlayan tam adres)","url",t.url,"htt"+"ps://ornek.com/mcp"),al("Başlıklar (her satıra Ad: değer; kayıtlı değer •••• görünür)","basliklar",Object.entries(t.basliklar||{}).map(([a,b])=>a+": "+b).join("\n"),"Authorization: Bearer ...",true));
+  const goster=()=>{yerel.style.display=tur.value==="local"?"":"none";uzak.style.display=tur.value==="remote"?"":"none"};tur.onchange=goster;
+  const adGiris=al("Ad (küçük harf, örn. dosya-arama)","ad",t.ad,"dosya-arama");if(duzenle)adGiris.querySelector("input").readOnly=true;
+  k.append(e("b",{text:duzenle?(t.ad+" sunucusunu düzenle"):"Yeni MCP sunucusu"}),adGiris,e("label",{class:"mut",style:"display:block;margin-top:5px"},"Tür",tur),yerel,uzak,al("Açıklama","aciklama",t.aciklama));goster();
+  const hata=e("div",{class:"badge b-err",style:"display:none;margin-top:5px;white-space:normal"});
+  const v=a=>k.querySelector('[data-a="'+a+'"]').value;
+  const satirlar=a=>v(a).split("\n").map(x=>x.trim()).filter(Boolean);
+  const kaydet=e("button",{class:"pri",text:"Kaydet",onclick:async()=>{hata.style.display="none";const ort={},bas={};
+    for(const l of satirlar("ortam")){const i=l.indexOf("=");if(i<1){hata.textContent="Ortam satırı ANAHTAR=değer biçiminde olmalı: "+l.split("=")[0];hata.style.display="";return}ort[l.slice(0,i).trim()]=l.slice(i+1)}
+    for(const l of satirlar("basliklar")){const i=l.indexOf(":");if(i<1){hata.textContent="Başlık satırı Ad: değer biçiminde olmalı: "+l.split(":")[0];hata.style.display="";return}bas[l.slice(0,i).trim()]=l.slice(i+1).trim()}
+    const govde={ad:v("ad").trim(),tur:v("tur"),aciklama:v("aciklama").trim()};if(govde.tur==="local"){govde.komut=satirlar("komut");govde.ortam=ort}else{govde.url=v("url").trim();govde.basliklar=bas}
+    try{await api("/api/mcp-sunuculari",{method:"POST",body:govde});await bitti()}catch(x){hata.textContent=x.message;hata.style.display=""}}});
+  k.append(e("div",{class:"row",style:"margin-top:6px"},kaydet,e("button",{text:"Vazgeç",onclick:()=>k.remove()})),hata);kap.append(k);k.scrollIntoView({block:"nearest"})}
+async function beceriBolumu(h){const kap=e("div");h.append(kap);
+  const yukle=async()=>{kap.textContent="";kap.append(e("div",{class:"mut3",text:"beceriler taranıyor…"}));let d;try{d=await api("/api/beceriler")}catch(x){kap.textContent="";kap.append(e("div",{class:"badge b-err",style:"white-space:normal",text:x.message}));return}
+    kap.textContent="";if(d.uyari)kap.append(e("div",{class:"badge b-warn",style:"display:block;white-space:normal;margin-bottom:6px",text:d.uyari}));
+    const ara=e("input",{placeholder:"Beceri ara…",style:"width:100%;margin-bottom:6px",autocomplete:"off"});const liste=e("div");kap.append(ara,liste);
+    const ciz=()=>{liste.textContent="";const q=katla(ara.value.trim());let n=0;
+      const sirali=[...d.beceriler].sort((a,b)=>(b.duzenlenebilir-a.duzenlenebilir)||String(a.kimlik).localeCompare(String(b.kimlik)));
+      for(const b of sirali){if(q&&!katla(b.kimlik+" "+(b.ad||"")+" "+b.aciklama).includes(q))continue;n++;
+        const dugme=b.duzenlenebilir?e("span",{class:"row"},e("button",{text:"Düzenle",onclick:async()=>{try{beceriFormu(kap,await api("/api/beceriler/"+encodeURIComponent(b.kimlik)),yukle)}catch(x){alert(x.message)}}}),e("button",{text:"Sil",onclick:async()=>{if(!confirm(b.kimlik+" becerisi silinsin mi?"))return;try{await api("/api/beceriler/sil",{method:"POST",body:{kimlik:b.kimlik}});await yukle()}catch(x){alert(x.message)}}})):null;
+        liste.append(e("div",{class:"card",title:b.yol},e("div",{class:"row",style:"justify-content:space-between"},e("span",{class:"row",style:"min-width:0"},e("b",{text:b.kimlik}),e("span",{class:"badge"+(b.duzenlenebilir?" b-acc":""),text:b.kaynak}),b.otomatik===false?e("span",{class:"badge b-warn",text:"modele sunulmaz"}):null),dugme),
+          e("div",{class:"mut3",style:"margin-top:2px",text:b.aciklama||"(açıklama yok: model bu beceriyi görmez)"})))}
+      if(!n)liste.append(e("div",{class:"mut3",text:q?"Eşleşen beceri yok.":"Henüz beceri yok."}))};
+    ara.oninput=ciz;ciz();
+    kap.append(e("button",{class:"pri",style:"margin-top:6px",text:"+ Beceri ekle",onclick:()=>beceriFormu(kap,null,yukle)}),e("div",{class:"mut3",style:"margin-top:6px",text:"Klasör: "+d.kok}))};
+  await yukle()}
+function beceriFormu(kap,b,bitti){const eski=$("#beceriForm");if(eski)eski.remove();const duzenle=!!b;b=b||{otomatik:true,govde:""};const k=e("div",{class:"card",id:"beceriForm"});
+  const al=(etiket,ad,deger,ipucu,cok)=>{const g=cok?e("textarea",{rows:String(cok),style:"width:100%"}):e("input",{style:"width:100%"});g.value=deger==null?"":deger;if(ipucu)g.placeholder=ipucu;g.dataset.a=ad;return e("label",{class:"mut",style:"display:block;margin-top:5px"},etiket,g)};
+  const kimlik=al("Kimlik (küçük harf ve tire, örn. sunum-hazirla)","kimlik",b.kimlik,"sunum-hazirla");if(duzenle)kimlik.querySelector("input").readOnly=true;
+  const otomatik=e("input",{type:"checkbox"});otomatik.checked=b.otomatik!==false;otomatik.dataset.a="otomatik";
+  k.append(e("b",{text:duzenle?(b.kimlik+" becerisini düzenle"):"Yeni beceri"}),kimlik,al("Görünen ad","ad",b.ad,"Sunum Hazırla"),
+    al("Açıklama (model bu cümleye bakarak becerinin ne zaman yükleneceğine karar verir)","aciklama",b.aciklama,"Kısa bir sunum taslağı çıkarmak istendiğinde kullan"),
+    e("label",{class:"row mut",style:"gap:6px;margin-top:5px"},otomatik,"Modele kendiliğinden sunulsun (kapalıysa yalnızca @kimlik ile çağrılır)"),
+    al("İçerik (modele verilecek talimatlar, Markdown)","govde",b.govde,"# Adımlar\n1. …",12));
+  const hata=e("div",{class:"badge b-err",style:"display:none;margin-top:5px;white-space:normal"});const v=a=>k.querySelector('[data-a="'+a+'"]').value;
+  const kaydet=e("button",{class:"pri",text:"Kaydet",onclick:async()=>{hata.style.display="none";try{await api("/api/beceriler",{method:"POST",body:{kimlik:v("kimlik").trim(),ad:v("ad").trim(),aciklama:v("aciklama").trim(),govde:v("govde"),otomatik:otomatik.checked}});await bitti()}catch(x){hata.textContent=x.message;hata.style.display=""}}});
+  k.append(e("div",{class:"row",style:"margin-top:6px"},kaydet,e("button",{text:"Vazgeç",onclick:()=>k.remove()})),hata);kap.append(k);k.scrollIntoView({block:"nearest"})}
 (async()=>{if(!T){document.body.textContent="Token yok: arayüzü terminalde yazdırılan adresle açın.";return}await durumYukle();if(!S.klasor)klasorSecimiAc();else{await dosyalariYukle();await onizlemeKur()}olayAkisi()})();
 </script>
 </body>

@@ -41,6 +41,7 @@ class CalistirmaSonucu:
 
 class Calistirici:
     ad = ""
+    mcp: tuple = ()  # bu calismada ETKIN MCP sunuculari (mcptanim.McpTanim); Uygulama her adimdan once projeye gore atar
 
     def calistir(
         self,
@@ -243,7 +244,7 @@ class ClaudeCodeCalistirici(Calistirici):
     def __init__(self, cli_yolu: str | None = None):
         self.cli_yolu = cli_yolu
 
-    def komut(self, ayar_dosyasi: str, model: str | None, onayli: bool) -> list[str]:
+    def komut(self, ayar_dosyasi: str, model: str | None, onayli: bool, mcp_dosyasi: str | None = None, mcp_adlari: tuple[str, ...] = ()) -> list[str]:
         cli = self.cli_yolu or claude_bul()
         if not cli:
             raise CalistiriciHatasi(
@@ -254,6 +255,9 @@ class ClaudeCodeCalistirici(Calistirici):
             komut += ["--model", model]
         if onayli:
             komut += ["--permission-mode", "acceptEdits"]
+        if mcp_dosyasi and mcp_adlari:
+            # Kullanicinin bu projede etkinlestirdigi sunucularin TUM araclari onaysiz (-p kipinde onay sorulamaz); baska MCP araci acilmaz
+            komut += ["--mcp-config", mcp_dosyasi, "--allowedTools", *[f"mcp__{ad}" for ad in mcp_adlari]]
         return komut
 
     @staticmethod
@@ -291,7 +295,13 @@ class ClaudeCodeCalistirici(Calistirici):
         with tempfile.TemporaryDirectory(prefix="aktapokus-claude-") as gecici:
             ayar = Path(gecici) / "ayar.json"
             ayar.write_text(json.dumps({"permissions": {"deny": CLAUDE_YASAK_KURALLARI}}), encoding="utf-8")
-            komut = self.komut(str(ayar), model, onayli)
+            mcp_dosyasi = None
+            if self.mcp:
+                from . import mcptanim
+
+                mcp_dosyasi = str(Path(gecici) / "mcp.json")
+                Path(mcp_dosyasi).write_text(json.dumps(mcptanim.claude_ayari(list(self.mcp))), encoding="utf-8")
+            komut = self.komut(str(ayar), model, onayli, mcp_dosyasi, tuple(t.ad for t in self.mcp))
             try:
                 islem = _stdinli_calistir(komut, istem, Path(klasor), zaman_asimi_sn)
             except subprocess.TimeoutExpired:
@@ -382,6 +392,10 @@ class CodexCalistirici(Calistirici):
         ]
         if model:
             komut += ["-m", model]
+        if self.mcp:
+            from . import mcptanim
+
+            komut += mcptanim.codex_gecersiz_kilmalari(list(self.mcp))  # kullanicinin config.toml'una dokunmadan, yalniz bu calisma
         komut.append("-")  # istem stdin'den
         return komut
 

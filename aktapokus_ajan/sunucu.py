@@ -138,6 +138,37 @@ class Istemci:
     def oturum_sil(self, sid: str) -> None:
         self._istek("DELETE", f"/api/session/{sid}")
 
+    # --- MCP sunuculari (OpenCode API'si; calisma anina ozel, dosyaya yazilmaz) ---
+    @staticmethod
+    def _konum(klasor: str | Path) -> str:
+        import urllib.parse
+
+        return "location[directory]=" + urllib.parse.quote(str(klasor), safe="")
+
+    def mcp_liste(self, klasor: str | Path) -> dict[str, dict]:
+        """{ad: durum} (durum: connected | pending | disabled | failed ...)."""
+        v = self._veri(self._istek("GET", "/api/mcp?" + self._konum(klasor))) or []
+        return {x["name"]: x.get("status") or {} for x in v if isinstance(x, dict) and "name" in x}
+
+    def mcp_ekle(self, klasor: str | Path, ad: str, config: dict) -> None:
+        self._istek("PUT", f"/api/experimental/mcp/{ad}?" + self._konum(klasor), {"config": config})
+
+    def mcp_sil(self, klasor: str | Path, ad: str) -> None:
+        self._istek("DELETE", f"/api/experimental/mcp/{ad}?" + self._konum(klasor))
+
+    def beceriler(self, klasor: str | Path, bekle_sn: float = 8.0) -> list[dict]:
+        """OpenCode'un bu klasor icin gordugu beceriler. Ilk cagri tarama bitmeden bos donebilir: liste durulana kadar yoklanir."""
+        yol = "/api/skill?" + self._konum(klasor)
+        onceki: list[str] | None = None
+        bitis = time.monotonic() + bekle_sn
+        while True:
+            v = self._veri(self._istek("GET", yol)) or []
+            kimlikler = sorted(str(x.get("id")) for x in v if isinstance(x, dict))
+            if (kimlikler == onceki and kimlikler) or time.monotonic() > bitis:
+                return [{"kimlik": x.get("id"), "ad": x.get("name"), "aciklama": x.get("description") or "", "yol": x.get("path") or "", "otomatik": x.get("autoinvoke", True)} for x in v if isinstance(x, dict)]
+            onceki = kimlikler
+            time.sleep(0.5)
+
     def aktif_oturumlar(self) -> list[str]:
         sonuc = []
         for x in self._veri(self._istek("GET", "/api/session/active")) or []:
@@ -303,6 +334,7 @@ class SunucuCalistirici(Calistirici):
         yoklama_sn: float = 0.5,
         paylasilan: bool = False,
     ):
+        self.mcp: tuple = ()
         self._aktif_sid: str | None = None  # bu ORNEGIN su an kosan oturumu (ornek koşu basina ayridir)
         self._paylasilan = paylasilan  # sunucu baska calistiricilarla ortak: kapat() sunucuyu KAPATMAZ (hepsini_kapat kapatir)
         self._sunucu = sunucu
@@ -363,11 +395,78 @@ class SunucuCalistirici(Calistirici):
         t.start()
         return t
 
+    # Sunucu sureci tum projeler icin ortak; 'bu proje icin su MCP uygulandi' bilgisi surec boyunca burada tutulur (config karmasi)
+    _mcp_uygulanan: dict[tuple[str, str], str] = {}
+    _mcp_kilit = threading.Lock()
+
+    def _mcp_uygula(self, istemci: Istemci, klasor: Path) -> list[dict]:
+        """Projede ETKIN sunuculari OpenCode'a tanitir, etkin olmayan (bizim kayitli) sunuculari kaldirir. Kullanicinin kendi
+        opencode.json'daki sunuculara dokunmaz. Donus: sorunlu sunucular [{ad, hata}] (degerler/anahtarlar yazilmaz)."""
+        from . import mcptanim
+
+        kayitli = set(mcptanim.yukle())
+        etkin = {t.ad: t for t in self.mcp}
+        if not kayitli and not etkin:
+            return []
+        sorunlar: list[dict] = []
+        try:
+            mevcut = istemci.mcp_liste(klasor)
+        except SunucuHatasi:
+            return [{"ad": "*", "hata": "MCP listesi alinamadi"}] if etkin else []
+        for ad in kayitli - set(etkin):
+            if ad in mevcut:
+                try:
+                    istemci.mcp_sil(klasor, ad)
+                except SunucuHatasi:
+                    sorunlar.append({"ad": ad, "hata": "kaldirilamadi"})
+                with self._mcp_kilit:
+                    self._mcp_uygulanan.pop((str(klasor), ad), None)
+        for ad, t in etkin.items():
+            ayar = mcptanim.opencode_ayari(t)
+            karma = json.dumps(ayar, sort_keys=True)
+            anahtar = (str(klasor), ad)
+            try:
+                if ad in mevcut and self._mcp_uygulanan.get(anahtar) == karma:
+                    continue
+                if ad in mevcut:
+                    istemci.mcp_sil(klasor, ad)
+                istemci.mcp_ekle(klasor, ad, ayar)
+                with self._mcp_kilit:
+                    self._mcp_uygulanan[anahtar] = karma
+            except SunucuHatasi as hata:
+                mesaj = str(hata)
+                for g in [*t.ortam.values(), *t.basliklar.values()]:
+                    if g:
+                        mesaj = mesaj.replace(g, "***")
+                sorunlar.append({"ad": ad, "hata": mesaj[:160]})
+        bitis = time.monotonic() + 30
+        bekleyen = [ad for ad in etkin if ad not in {s["ad"] for s in sorunlar}]
+        while bekleyen and time.monotonic() < bitis:
+            try:
+                durum = istemci.mcp_liste(klasor)
+            except SunucuHatasi:
+                break
+            bekleyen = [ad for ad in bekleyen if (durum.get(ad) or {}).get("status") in (None, "pending")]
+            if bekleyen:
+                time.sleep(0.3)
+        try:
+            son = istemci.mcp_liste(klasor)
+        except SunucuHatasi:
+            son = {}
+        for ad in etkin:
+            d = son.get(ad) or {}
+            if d.get("status") == "failed":
+                sorunlar.append({"ad": ad, "hata": str(d.get("error") or "baglanilamadi")[:160]})
+        return sorunlar
+
     def calistir(self, istem, klasor, model=None, agent=None, zaman_asimi_sn=900, onayli=True):
         baslangic = time.monotonic()
         try:
             _istemi_denetle(istem)
             istemci = self._al()
+            for sorun in self._mcp_uygula(istemci, Path(klasor)):
+                if self.ilerleme:
+                    self.ilerleme({"tur": "mcp-sorun", "ad": sorun["ad"], "hata": sorun["hata"]})
             sid = istemci.oturum_olustur(klasor, model=model, agent=agent, baslik="aktapokus")
         except Exception as hata:
             return CalistirmaSonucu(False, hata=f"{type(hata).__name__}: {hata}", sure_sn=time.monotonic() - baslangic)

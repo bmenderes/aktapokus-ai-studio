@@ -70,3 +70,10 @@ def telegram_yonetici_yalitimi(tmp_path_factory, monkeypatch):
 
     monkeypatch.setenv("AKTAPOKUS_ARAYUZ_AYAR", str(tmp_path_factory.mktemp("arayuzayar") / "arayuz-ayar.json"))
     monkeypatch.setattr(telegram_yonetici, "_varsayilan_token", lambda: None)
+
+
+@pytest.fixture(autouse=True)
+def mcp_ve_beceri_yalitimi(tmp_path_factory, monkeypatch):
+    """Hicbir test kullanicinin gercek ~/.aktapokus/mcp.json ya da ~/.agents/skills klasorunu okumasin/yazmasin."""
+    monkeypatch.setenv("AKTAPOKUS_MCP", str(tmp_path_factory.mktemp("mcp") / "mcp.json"))
+    monkeypatch.setenv("AKTAPOKUS_BECERILER", str(tmp_path_factory.mktemp("beceriler") / "skills"))
