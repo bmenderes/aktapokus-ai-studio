@@ -30,7 +30,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import beceriler, ciktilar, clitanim, github, guard, istatistik, mcptanim, projeler, snapshot, terminal
+from . import beceriler, ciktilar, clitanim, github, gityonet, guard, istatistik, mcptanim, projeler, snapshot, terminal
 from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
 from .pipeline import HatHatasi, _kayit_klasoru, calistir_hat, son_kayit
@@ -507,21 +507,25 @@ class Uygulama:
 
     # --- GitHub (gh + git): YAZAN her islem (klonla, commit, dal, push, PR, issue yorumu) YALNIZ bu yerel, belirtecli arayuzde kullanicinin
     # tikladigi dugmeden gelir (Telegram'dan degil). Kimlik: bilgisayardaki gh oturumu; token'a dokunulmaz. ---
-    def _github(self, islem, serbest_olmali: bool = False):
-        """GitHub/git islemini projenin kilidi altinda calistirir; github.GithubHatasi -> UygulamaHatasi. serbest_olmali: calisma agacini
-        degistiren islemler (commit/dal/push) gorev surerken reddedilir: anlik goruntu/geri alma tutarliligi bozulmasin."""
+    def _github(self, islem, serbest_olmali: bool = False, kilitle: bool | None = None):
+        """GitHub/git islemini calistirir; github.GithubHatasi -> UygulamaHatasi. serbest_olmali: calisma agacini degistiren islemler
+        (commit/dal/push/hazirla...) gorev surerken reddedilir (anlik goruntu/geri alma tutarliligi bozulmasin). kilitle (varsayilan: serbest_olmali):
+        YAZAN islemler projenin kilidi altinda tek tek calisir (ikincisi 409); OKUMALAR kilitsizdir (arayuz gecmis/dal/stash'i ayni anda ister)."""
         o = self._oturum()
         if serbest_olmali and o.kosu and o.kosu.durum in ("calisiyor", "karar-bekliyor"):
             raise UygulamaHatasi("Gorev surerken (ya da karar beklerken) commit/dal/push yapilamaz; once gorevi bitirin", 409)
-        kilit = self._github_kilitleri.setdefault(o.kimlik, threading.Lock())
-        if not kilit.acquire(blocking=False):
-            raise UygulamaHatasi("Bu projede baska bir GitHub islemi suruyor", 409)
+        kilit = None
+        if serbest_olmali if kilitle is None else kilitle:
+            kilit = self._github_kilitleri.setdefault(o.kimlik, threading.Lock())
+            if not kilit.acquire(blocking=False):
+                raise UygulamaHatasi("Bu projede baska bir GitHub islemi suruyor", 409)
         try:
             return islem(o.klasor)
         except github.GithubHatasi as hata:
             raise UygulamaHatasi(str(hata)) from None
         finally:
-            kilit.release()
+            if kilit is not None:
+                kilit.release()
 
     def github_durum(self) -> dict:
         return github.durum()
@@ -555,8 +559,88 @@ class Uygulama:
 
         return self._github(oku)
 
-    def github_commit(self, mesaj: object) -> dict:
-        return self._github(lambda k: github.commit(k, mesaj), serbest_olmali=True)
+    def github_commit(self, mesaj: object, yalniz_hazir: object = False) -> dict:
+        return self._github(lambda k: github.commit(k, mesaj, bool(yalniz_hazir)), serbest_olmali=True)
+
+    # --- Git istemcisi (GitHub Desktop benzeri; yalniz yerel git): gecmis, fark, hazirlama, dal, stash. Serbest komut satiri YOK. ---
+    def git_gecmis(self, adet: object = 50) -> dict:
+        try:
+            n = int(adet)
+        except (TypeError, ValueError):
+            raise UygulamaHatasi("adet sayi olmali") from None
+        return {"commitler": self._github(lambda k: gityonet.gecmis(k, n))}
+
+    def git_commit_ayrinti(self, sha: object) -> dict:
+        return self._github(lambda k: gityonet.commit_ayrinti(k, sha))
+
+    def git_fark(self, yol: object, sha: object = None, hazir: object = False) -> dict:
+        return self._github(lambda k: gityonet.fark(k, yol, sha or None, bool(hazir)))
+
+    def git_hazirla(self, yollar: object) -> dict:
+        return self._github(lambda k: gityonet.hazirla(k, yollar), serbest_olmali=True)
+
+    def git_hazirdan_cikar(self, yollar: object) -> dict:
+        return self._github(lambda k: gityonet.hazirdan_cikar(k, yollar), serbest_olmali=True)
+
+    def git_degisiklik_at(self, yollar: object) -> dict:
+        """KALICI: dosyalardaki degisikligi atar. Atmadan once otomatik anlik goruntu alinir (refs/aktapokus/...; gerekirse kurtarilabilir)."""
+        def at(k: Path) -> dict:
+            yedek = None
+            try:
+                yedek = snapshot.anlik_goruntu(k, "degisiklik-atmadan-once")
+            except snapshot.GitHatasi:
+                pass
+            return {**gityonet.degisikligi_at(k, yollar), "yedek": yedek}
+
+        return self._github(at, serbest_olmali=True)
+
+    def git_dallar(self) -> dict:
+        return self._github(lambda k: gityonet.dallar(k))
+
+    def git_dal_gec(self, ad: object) -> dict:
+        return self._github(lambda k: gityonet.dal_gec(k, ad), serbest_olmali=True)
+
+    def git_dal_sil(self, ad: object) -> dict:
+        return self._github(lambda k: gityonet.dal_sil(k, ad), serbest_olmali=True)
+
+    def git_birlestir(self, ad: object) -> dict:
+        return self._github(lambda k: gityonet.birlestir(k, ad), serbest_olmali=True)
+
+    def git_cek(self) -> dict:
+        return self._github(lambda k: gityonet.cek(k), kilitle=True)  # calisma agacina dokunmaz: gorev surerken de olur; ama ayni anda tek yazma
+
+    def git_pull(self) -> dict:
+        return self._github(lambda k: gityonet.pull(k), serbest_olmali=True)
+
+    def git_stashler(self) -> dict:
+        return {"stashler": self._github(lambda k: gityonet.stashler(k))}
+
+    def git_stash_kaydet(self, mesaj: object = "") -> dict:
+        return self._github(lambda k: gityonet.stash_kaydet(k, mesaj), serbest_olmali=True)
+
+    def git_stash_uygula(self, indeks: object, sil: object = False) -> dict:
+        return self._github(lambda k: gityonet.stash_uygula(k, indeks, bool(sil)), serbest_olmali=True)
+
+    def git_stash_sil(self, indeks: object) -> dict:
+        return self._github(lambda k: gityonet.stash_sil(k, indeks), serbest_olmali=True)
+
+    def git_commit_oneri(self) -> dict:
+        """Commit mesaji onerisi: son commit'ten beri KORUNAN Aktapokus gorevlerinden (yoksa degisen dosyalardan)."""
+        def oner(k: Path) -> dict:
+            zaman = gityonet.son_commit_zamani(k)
+            gorevler = []
+            for g in reversed(self._gecmis_oku(k, 50)):  # eskiden yeniye
+                try:
+                    t = time.mktime(time.strptime(str(g.get("zaman")), "%Y-%m-%d %H:%M:%S"))
+                except (ValueError, OverflowError):
+                    continue
+                if t > zaman and g.get("durum") in ("onaylandi", "degisiklik_yok") and g.get("degisen_sayisi"):
+                    gorevler.append(g.get("gorev") or "")
+            d = github.proje_durumu(k)
+            hazir = [x for x in d["degisen"] if len(x["durum"]) and x.get("hazir")]
+            return gityonet.oneri_mesaji(gorevler, hazir or d["degisen"])
+
+        return self._github(oner)
 
     def github_dal(self, ad: object) -> dict:
         return self._github(lambda k: github.dal_olustur(k, ad), serbest_olmali=True)
@@ -1159,6 +1243,18 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                     return self._gonder(200, app.telegram_islem("durum", {}))
                 if yol == "/api/mcp-sunuculari":
                     return self._gonder(200, app.mcp_listele())
+                if yol == "/api/git/gecmis":
+                    return self._gonder(200, app.git_gecmis(q.get("adet", "50")))
+                if yol == "/api/git/commit":
+                    return self._gonder(200, app.git_commit_ayrinti(q.get("sha")))
+                if yol == "/api/git/fark":
+                    return self._gonder(200, app.git_fark(q.get("yol"), q.get("sha"), q.get("hazir") == "1"))
+                if yol == "/api/git/dallar":
+                    return self._gonder(200, app.git_dallar())
+                if yol == "/api/git/stashler":
+                    return self._gonder(200, app.git_stashler())
+                if yol == "/api/git/commit-oneri":
+                    return self._gonder(200, app.git_commit_oneri())
                 if yol == "/api/github/durum":
                     return self._gonder(200, app.github_durum())
                 if yol == "/api/github/depolar":
@@ -1213,7 +1309,29 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                 if yol == "/api/github/klonla":
                     return self._gonder(200, app.github_klonla(g.get("depo"), g.get("klasor"), g.get("ad")))
                 if yol == "/api/github/commit":
-                    return self._gonder(200, app.github_commit(g.get("mesaj")))
+                    return self._gonder(200, app.github_commit(g.get("mesaj"), g.get("yalniz_hazir")))
+                if yol == "/api/git/hazirla":
+                    return self._gonder(200, app.git_hazirla(g.get("yollar")))
+                if yol == "/api/git/hazirdan-cikar":
+                    return self._gonder(200, app.git_hazirdan_cikar(g.get("yollar")))
+                if yol == "/api/git/degisiklik-at":
+                    return self._gonder(200, app.git_degisiklik_at(g.get("yollar")))
+                if yol == "/api/git/dal-gec":
+                    return self._gonder(200, app.git_dal_gec(g.get("ad")))
+                if yol == "/api/git/dal-sil":
+                    return self._gonder(200, app.git_dal_sil(g.get("ad")))
+                if yol == "/api/git/birlestir":
+                    return self._gonder(200, app.git_birlestir(g.get("ad")))
+                if yol == "/api/git/cek":
+                    return self._gonder(200, app.git_cek())
+                if yol == "/api/git/pull":
+                    return self._gonder(200, app.git_pull())
+                if yol == "/api/git/stash":
+                    return self._gonder(200, app.git_stash_kaydet(g.get("mesaj")))
+                if yol == "/api/git/stash-uygula":
+                    return self._gonder(200, app.git_stash_uygula(g.get("indeks"), g.get("sil")))
+                if yol == "/api/git/stash-sil":
+                    return self._gonder(200, app.git_stash_sil(g.get("indeks")))
                 if yol == "/api/github/dal":
                     return self._gonder(200, app.github_dal(g.get("ad")))
                 if yol == "/api/github/push":

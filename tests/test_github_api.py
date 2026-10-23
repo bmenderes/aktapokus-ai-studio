@@ -170,16 +170,22 @@ def test_gorev_surerken_commit_dal_push_reddedilir_pr_ve_issue_serbest(ortam):
         sv.kapat()
 
 
-def test_ayni_projede_es_zamanli_islem_409(api):
+def test_ayni_projede_es_zamanli_yazan_islem_409_okumalar_kilitsiz(api):
     app, _, istek, proje, _ = api
+    git(proje, "add", "-A")
+    git(proje, "commit", "-qm", "ilk")
+    (proje / "k.txt").write_text("k")
     kilit = app._github_kilitleri.setdefault(app.secili.kimlik, __import__("threading").Lock())
     assert kilit.acquire(blocking=False)
     try:
-        st, d = istek("GET", "/api/github/proje")
-        assert st == 409 and "baska bir GitHub islemi" in d["hata"]
+        for yol, govde in (("/api/github/commit", {"mesaj": "m"}), ("/api/github/push", {}), ("/api/github/dal", {"ad": "x"})):
+            st, d = istek("POST", yol, govde)
+            assert st == 409 and "baska bir GitHub islemi" in d["hata"], yol
+        assert istek("GET", "/api/github/proje")[0] == 200  # okuma kilitli degil: arayuz birkac bolumu ayni anda yukler
+        assert istek("GET", "/api/github/issueler")[0] == 200
     finally:
         kilit.release()
-    assert istek("GET", "/api/github/proje")[0] == 200
+    assert istek("POST", "/api/github/commit", {"mesaj": "m"})[0] == 200
 
 
 def test_pr_ac_ve_issue_yorumu(api):

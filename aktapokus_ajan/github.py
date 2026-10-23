@@ -56,7 +56,7 @@ def _temizle(metin: str) -> str:
 
 def _calistir(argv: list[str], klasor: Path | None = None, zaman_asimi: int = 60, girdi: str | None = None) -> tuple[int, str, str]:
     ortam = os.environ.copy()
-    ortam.update({"GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "never", "GH_PROMPT_DISABLED": "1", "GH_NO_UPDATE_NOTIFIER": "1", "NO_COLOR": "1", "GH_SPINNER_DISABLED": "1"})
+    ortam.update({"GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "never", "GH_PROMPT_DISABLED": "1", "GH_NO_UPDATE_NOTIFIER": "1", "NO_COLOR": "1", "GH_SPINNER_DISABLED": "1"})
     bayrak = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
         s = subprocess.run(
@@ -190,21 +190,22 @@ def proje_durumu(klasor: Path) -> dict:
     for xy, yol in _durum_listesi(klasor):
         if xy == "??" and _kendi_dosyasi_mi(yol):
             continue  # Aktapokus'un kendi izlenmeyen dosyalari (ayar/kayit/koruyucu) listede ve commit'te yok
-        degisen.append({"durum": xy.strip() or "?", "yol": yol, "gizli": gizli_yol_mu(yol)})
+        degisen.append({"durum": xy.strip() or "?", "yol": yol, "gizli": gizli_yol_mu(yol), "hazir": xy[:1] not in (" ", "?"), "calisma": xy[1:2] != " "})
     return {
         "dal": dal or None, "uzak": uzak, "onde": onde, "geride": geride, "upstream": onde is not None,
-        "degisen": degisen[:200], "degisen_sayisi": len(degisen), "gizli_sayisi": sum(1 for d in degisen if d["gizli"]),
+        "degisen": degisen[:200], "degisen_sayisi": len(degisen), "gizli_sayisi": sum(1 for d in degisen if d["gizli"]), "hazir_sayisi": sum(1 for d in degisen if d["hazir"]),
         "kimlik": {"ad": _git(klasor, "config", "user.name", kontrol=False).strip() or None, "eposta": _git(klasor, "config", "user.email", kontrol=False).strip() or None},
     }
 
 
-def commit(klasor: Path, mesaj: object) -> dict:
+def commit(klasor: Path, mesaj: object, yalniz_hazir: bool = False) -> dict:
+    """yalniz_hazir=False: degisen (gizli olmayan) tum dosyalari hazirlayip commit eder. True: yalniz ZATEN hazirlanmis (staged) dosyalari commit eder."""
     if not isinstance(mesaj, str) or not mesaj.strip() or len(mesaj) > AZAMI_MESAJ or "\x00" in mesaj:
         raise GithubHatasi(f"Commit mesaji bos olmayan metin olmali (en cok {AZAMI_MESAJ} karakter)")
     if not _git(klasor, "config", "user.email", kontrol=False).strip() or not _git(klasor, "config", "user.name", kontrol=False).strip():
         raise GithubHatasi("git kimligi tanimli degil. Bir terminalde: git config --global user.name \"Adiniz\" ve git config --global user.email \"eposta\"")
     secilen, atlanan = [], []
-    for xy, yol in _durum_listesi(klasor):
+    for xy, yol in ([] if yalniz_hazir else _durum_listesi(klasor)):
         if xy == "??" and _kendi_dosyasi_mi(yol):
             continue
         (atlanan if gizli_yol_mu(yol) else secilen).append(yol)
@@ -212,6 +213,8 @@ def commit(klasor: Path, mesaj: object) -> dict:
     hazir_gizli = [y for y in hazir if gizli_yol_mu(y)]
     if hazir_gizli:
         raise GithubHatasi(f"Hazirlanmis (staged) gizli gorunen dosya var, commit yapilmadi: {', '.join(hazir_gizli[:3])}. Once `git reset -- <dosya>` ile cikarin.")
+    if yalniz_hazir and not hazir:
+        raise GithubHatasi("Commit icin once dosyalari secin (hazirlayin); hazirlanmis dosya yok")
     if not secilen and not hazir:
         raise GithubHatasi("Commit edilecek degisiklik yok" + (f" (gizli gorunen {len(atlanan)} dosya atlandi)" if atlanan else ""))
     if secilen:

@@ -168,7 +168,7 @@ body.suruklenir iframe{pointer-events:none}
   </div>
   <div class="bolucu" id="bolucuSag" title="Sürükleyin: genişliği değiştirin · çift tıklayın: sıfırla"></div>
   <div id="sag">
-    <div id="sekmeler"><button class="sekme on" data-p="p-onizleme">Önizleme</button><button class="sekme" data-p="p-degisiklik">Değişiklikler</button><button class="sekme" data-p="p-ciktilar">Çıktılar</button><button class="sekme" data-p="p-github">GitHub</button><button class="sekme" data-p="p-belgeler">Belgeler</button><button class="sekme" data-p="p-dosyalar">Dosyalar</button><button class="sekme" data-p="p-gunluk">Günlük</button></div>
+    <div id="sekmeler"><button class="sekme on" data-p="p-onizleme">Önizleme</button><button class="sekme" data-p="p-degisiklik">Değişiklikler</button><button class="sekme" data-p="p-ciktilar">Çıktılar</button><button class="sekme" data-p="p-git">Git</button><button class="sekme" data-p="p-github">GitHub</button><button class="sekme" data-p="p-belgeler">Belgeler</button><button class="sekme" data-p="p-dosyalar">Dosyalar</button><button class="sekme" data-p="p-gunluk">Günlük</button></div>
     <div id="p-onizleme" class="panel on">
       <div class="row"><span id="onizUrl" class="mono mut" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span><label class="row mut"><input type="checkbox" id="canliOnizleme" checked> canlı</label><button id="yenile" title="Yenile">Yenile</button><button id="onizAyri" title="Önizlemeyi ayrı bir pencerede aç">↗ Ayrı pencere</button></div>
       <div class="row" style="margin-top:4px"><select id="onizTur"><option value="dosya">Proje dosyaları</option><option value="url">Yerel sunucu</option></select><input id="onizYol" style="flex:1" placeholder="/index.html" value="/"><button id="onizGit">Git</button></div>
@@ -177,6 +177,7 @@ body.suruklenir iframe{pointer-events:none}
     </div>
     <div id="p-degisiklik" class="panel"></div>
     <div id="p-ciktilar" class="panel"></div>
+    <div id="p-git" class="panel"></div>
     <div id="p-github" class="panel"></div>
     <div id="p-belgeler" class="panel"><div class="row"><select id="belgeSec" style="max-width:100%"></select><span class="mut3">işlenmiş Markdown</span></div><div id="belgeIcerik" class="md" style="margin-top:6px"></div></div>
     <div id="p-dosyalar" class="panel"><div id="agac" class="agac mono"></div><div id="dosyaGoster" style="margin-top:8px"></div></div>
@@ -211,7 +212,7 @@ function md(src){
     if(!l.trim()){i++;continue}
     let p=[];while(i<L.length&&L[i].trim()&&!/^(```|#{1,3}\s|\s*[-*]\s|\s*\d+\.\s|\s*>|\|)/.test(L[i]))p.push(L[i++]);if(!p.length){p.push(L[i++])}h+="<p>"+satir(p.join(" "))+"</p>"}
   return h}
-function sekme(id){document.querySelectorAll(".sekme").forEach(b=>b.classList.toggle("on",b.dataset.p===id));document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("on",p.id===id));if(id==="p-ciktilar")ciktilariYukle();if(id==="p-github")githubPaneliYukle();sagiAc()}
+function sekme(id){document.querySelectorAll(".sekme").forEach(b=>b.classList.toggle("on",b.dataset.p===id));document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("on",p.id===id));if(id==="p-ciktilar")ciktilariYukle();if(id==="p-git")gitPaneliYukle();if(id==="p-github")githubPaneliYukle();sagiAc()}
 document.querySelectorAll(".sekme").forEach(b=>b.onclick=()=>sekme(b.dataset.p));
 function akisaEkle(n){const a=$("#akis");const alta=a.scrollTop+a.clientHeight>=a.scrollHeight-40;a.append(n);if(alta)a.scrollTop=a.scrollHeight;return n}
 function gunluge(m){const g=$("#gunluk");g.append(e("div",{class:"mut",text:new Date().toLocaleTimeString("tr-TR")+"  "+m}))}
@@ -853,25 +854,6 @@ async function githubPaneliYukle(){const p=$("#p-github");p.textContent="";
   p.append(e("div",{class:"card"},e("div",{class:"row",style:"flex-wrap:wrap;gap:6px"},e("span",{class:"badge b-acc",text:"dal: "+dal}),uzakAd?e("span",{class:"badge",text:"origin: "+uzakAd,title:d.uzak.url}):e("span",{class:"badge b-warn",text:"origin tanımlı değil"}),d.upstream?e("span",{class:"badge",text:"↑"+d.onde+" ↓"+d.geride}):null),
     e("div",{class:"mut3",style:"margin-top:4px",text:"commit kimliği: "+(d.kimlik.ad||"(ad yok)")+" <"+(d.kimlik.eposta||"e-posta yok")+">"})));
   if(hesap.giris&&d.uzak.sahip&&hesap.hesap&&d.uzak.sahip.toLowerCase()!==hesap.hesap.toLowerCase())p.append(e("div",{class:"badge b-warn",style:"display:block;white-space:normal;margin:6px 0",text:"Bu depo '"+d.uzak.sahip+"' hesabına ait, giriş yapılı hesap '@"+hesap.hesap+"'. Push ya da PR yetki hatası verebilir."}));
-  /* değişiklikler + commit */
-  const degKart=e("div",{class:"card"});p.append(degKart);
-  degKart.append(e("b",{text:d.degisen_sayisi?(d.degisen_sayisi+" değişen dosya"):"Değişiklik yok"}));
-  const gizli=d.degisen.filter(x=>x.gizli);
-  for(const x of d.degisen.slice(0,40))degKart.append(e("div",{class:"row mono",style:"gap:6px;"+(x.gizli?"opacity:.6":"")},e("span",{style:"min-width:18px",text:x.durum}),e("span",{style:"min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:x.yol,title:x.yol}),x.gizli?e("span",{class:"badge b-warn",text:"commit'e girmez"}):null));
-  if(d.degisen_sayisi>40)degKart.append(e("div",{class:"mut3",text:"… "+(d.degisen_sayisi-40)+" dosya daha"}));
-  if(gizli.length)degKart.append(e("div",{class:"mut3",style:"margin-top:4px",text:"Gizli görünen "+gizli.length+" dosya (.env, anahtar vb.) commit'e alınmaz; silinmez."}));
-  const mesaj=e("textarea",{rows:"2",style:"width:100%;margin-top:6px",placeholder:"Commit mesajı"});
-  const commitBtn=e("button",{class:"pri",text:"Commit",disabled:!d.degisen_sayisi||gizli.length===d.degisen_sayisi,onclick:async()=>{const m=mesaj.value.trim();if(!m){ghMesaj(p,"Commit mesajı yazın","b-err");return}
-    const n=d.degisen_sayisi-gizli.length;if(!confirm(n+" dosya commit edilsin mi?\n\nMesaj: "+m+(gizli.length?"\n\n"+gizli.length+" gizli görünen dosya HARİÇ tutulacak.":"")))return;
-    commitBtn.disabled=true;try{const r=await api("/api/github/commit",{method:"POST",body:{mesaj:m}});await githubPaneliYukle();ghMesaj($("#p-github"),"Commit oluşturuldu: "+r.commit+" ("+r.dosya_sayisi+" dosya"+(r.atlanan_gizli.length?", "+r.atlanan_gizli.length+" gizli dosya atlandı":"")+")")}catch(x){commitBtn.disabled=false;ghMesaj(p,x.message,"b-err")}}});
-  degKart.append(mesaj,e("div",{class:"row",style:"margin-top:6px"},commitBtn));
-  /* dal + push */
-  const dalGiris=e("input",{placeholder:"yeni-dal-adi",style:"flex:1;min-width:0"});
-  const dalBtn=e("button",{text:"Dal oluştur ve geç",onclick:async()=>{const a=dalGiris.value.trim();if(!a)return;if(!confirm("'"+a+"' adlı yeni dal oluşturulup ona geçilsin mi?"))return;try{await api("/api/github/dal",{method:"POST",body:{ad:a}});await githubPaneliYukle()}catch(x){ghMesaj(p,x.message,"b-err")}}});
-  const pushBtn=e("button",{text:"Push",disabled:!d.dal||!uzakAd,title:d.upstream?"Dalı origin'e gönderir":"Dalı origin'e gönderir ve upstream kurar",onclick:async()=>{
-    if(!confirm("'"+dal+"' dalı '"+uzakAd+"' deposuna gönderilsin mi?"+(d.upstream?"\n("+d.onde+" yeni commit)":"\n(Bu dal origin'de yok; oluşturulacak.)")+"\n\nZorla push yapılmaz."))return;
-    pushBtn.disabled=true;try{const r=await api("/api/github/push",{method:"POST",body:{}});await githubPaneliYukle();ghMesaj($("#p-github"),"'"+r.dal+"' dalı gönderildi"+(r.yeni_upstream?" (yeni upstream kuruldu).":"."))}catch(x){pushBtn.disabled=false;ghMesaj(p,x.message,"b-err")}}});
-  p.append(e("div",{class:"card"},e("b",{text:"Dal ve gönderim"}),e("div",{class:"row",style:"margin-top:6px"},dalGiris,dalBtn),e("div",{class:"row",style:"margin-top:6px"},pushBtn)));
   /* pull request */
   const prKart=e("div",{class:"card"});p.append(prKart);prKart.append(e("b",{text:"Pull request"}));
   if(d.pr_hata)prKart.append(e("div",{class:"mut3",text:"PR durumu okunamadı: "+d.pr_hata}));
@@ -910,6 +892,86 @@ async function githubBolumu(h){const kap=e("div");h.append(kap);
     if(!n)liste.append(e("div",{class:"mut3",text:depolar?"Eşleşen depo yok.":""}))};
   const yukle=e("button",{text:"Depolarımı yükle",onclick:async()=>{yukle.disabled=true;liste.textContent="yükleniyor…";try{depolar=(await api("/api/github/depolar")).depolar;ciz()}catch(x){liste.textContent="";liste.append(e("div",{class:"badge b-err",style:"white-space:normal",text:x.message}))}yukle.disabled=false}});
   ara.oninput=ciz;k.append(e("label",{class:"mut",style:"display:block"},"Üst klasör",ust),e("div",{class:"row",style:"margin-top:6px"},yukle),ara,liste)}
+/* ---- Git sekmesi (GitHub Desktop benzeri): değişiklikler + dosya dosya hazırlama + commit, geçmiş, dallar, stash. Yalnız yerel git; butonlu. ---- */
+const tarihKisa=t=>String(t||"").replace("T"," ").slice(0,16);
+S.gitAcik=S.gitAcik||{degisiklik:true};
+function gitBolum(p,anahtar,baslik,ek){const d=e("details",{style:"margin:8px 0;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--panel)"});d.open=!!S.gitAcik[anahtar];
+  d.append(e("summary",{style:"cursor:pointer;font-weight:500"},baslik,ek||null));d.addEventListener("toggle",()=>{S.gitAcik[anahtar]=d.open});p.append(d);return d}
+async function gitFarkGoster(hedef,yol,sha,hazir){hedef.textContent="yükleniyor…";try{const r=await api("/api/git/fark?yol="+encodeURIComponent(yol)+(sha?"&sha="+sha:"")+(hazir?"&hazir=1":""));hedef.textContent="";hedef.append(e("div",{class:"mono mut3",text:yol}),yamaCiz(r.yama||"(fark yok)"))}catch(x){hedef.textContent="";hedef.append(e("div",{class:"badge b-err",style:"white-space:normal",text:x.message}))}}
+async function gitPaneliYukle(){const p=$("#p-git");p.textContent="";
+  if(!S.klasor){p.append(e("div",{class:"mut3",text:"Önce bir proje seçin."}));return}
+  p.append(e("div",{class:"mut3",text:"yükleniyor…"}));let d;
+  try{d=await api("/api/github/proje")}catch(x){p.textContent="";p.append(e("div",{class:"row",style:"justify-content:space-between"},e("b",{text:"Git"}),e("button",{text:"Yenile",onclick:gitPaneliYukle})),e("div",{class:"badge b-err",style:"display:block;white-space:normal;margin-top:6px",text:/git deposu degil/.test(x.message)?"Bu klasör bir git deposu değil (geri alma gölge yedekten çalışır, git gerekmez). Git yönetimi için klasörde git deposu gerekir; isterseniz Terminal'de `git init` çalıştırın.":x.message}));return}
+  p.textContent="";const dal=d.dal||"(dal yok)";const uzakAd=d.uzak.depo||d.uzak.url||"";
+  const yenile=async(mesaj)=>{await gitPaneliYukle();if(mesaj)ghMesaj($("#p-git"),mesaj)};
+  const islem=(btn,yol,govde,basari,onay)=>async()=>{if(onay&&!confirm(onay))return;btn.disabled=true;try{const r=await api(yol,{method:"POST",body:govde||{}});await yenile(typeof basari==="function"?basari(r):basari)}catch(x){btn.disabled=false;ghMesaj($("#p-git")||p,x.message,"b-err")}};
+  /* üst çubuk */
+  const cekB=e("button",{text:"Çek",title:"Uzak değişiklikleri indirir (çalışma ağacına dokunmaz)"});cekB.onclick=islem(cekB,"/api/git/cek",{},"Uzak değişiklikler indirildi.");
+  const pullB=e("button",{text:"Pull",title:"Yalnızca hızlı ileri sarma; birleştirme commit'i oluşturmaz"});pullB.onclick=islem(pullB,"/api/git/pull",{},r=>"Pull tamam. "+(r.cikti||"").split("\n").pop());
+  const pushB=e("button",{text:"Push",title:d.upstream?"Dalı origin'e gönderir":"Dalı origin'e gönderir ve upstream kurar"});pushB.disabled=!d.dal||!uzakAd;
+  pushB.onclick=islem(pushB,"/api/github/push",{},r=>"'"+r.dal+"' dalı gönderildi"+(r.yeni_upstream?" (yeni upstream kuruldu).":"."),"'"+dal+"' dalı '"+uzakAd+"' deposuna gönderilsin mi?"+(d.upstream?"\n("+d.onde+" yeni commit)":"\n(Bu dal origin'de yok; oluşturulacak.)")+"\n\nZorla push yapılmaz.");
+  p.append(e("div",{class:"row",style:"justify-content:space-between;flex-wrap:wrap;gap:6px"},e("span",{class:"row",style:"gap:6px"},e("b",{text:"Git"}),e("span",{class:"badge b-acc",text:"dal: "+dal}),d.upstream?e("span",{class:"badge",title:"↑ gönderilmemiş, ↓ uzakta olup sizde olmayan commit",text:"↑"+d.onde+" ↓"+d.geride}):null),e("span",{class:"row",style:"gap:4px"},cekB,pullB,pushB,e("button",{text:"Yenile",onclick:()=>yenile()}))));
+  if(!uzakAd)p.append(e("div",{class:"mut3",style:"margin-top:4px",text:"origin (uzak depo) tanımlı değil: Çek/Pull/Push için önce bir uzak depo ekleyin."}));
+  /* ---- Değişiklikler ---- */
+  const hazirN=()=>d.degisen.filter(x=>x.hazir).length;
+  const degB=gitBolum(p,"degisiklik","Değişiklikler ",e("span",{class:"badge",text:String(d.degisen_sayisi)}));
+  const liste=e("div");const farkYeri=e("div",{style:"margin-top:6px"});
+  const secimler=e("div",{class:"row",style:"gap:6px;margin:6px 0;flex-wrap:wrap"});const ozet=e("span",{class:"mut3"});
+  const tumB=e("button",{text:"Tümünü seç",onclick:async()=>{const y=d.degisen.filter(x=>!x.gizli&&!x.hazir).map(x=>x.yol);if(!y.length)return;try{await api("/api/git/hazirla",{method:"POST",body:{yollar:y.slice(0,500)}});await yenile()}catch(x){ghMesaj(p,x.message,"b-err")}}});
+  const hicB=e("button",{text:"Seçimi kaldır",onclick:async()=>{const y=d.degisen.filter(x=>x.hazir).map(x=>x.yol);if(!y.length)return;try{await api("/api/git/hazirdan-cikar",{method:"POST",body:{yollar:y.slice(0,500)}});await yenile()}catch(x){ghMesaj(p,x.message,"b-err")}}});
+  secimler.append(tumB,hicB,ozet);degB.append(secimler,liste,farkYeri);
+  if(!d.degisen.length)liste.append(e("div",{class:"mut3",text:"Değişiklik yok. Çalışma ağacı temiz."}));
+  const mesaj=e("textarea",{rows:"3",style:"width:100%;margin-top:6px",placeholder:"Commit mesajı (otomatik önerilir; istediğiniz gibi değiştirin)"});let elle=false;mesaj.oninput=()=>{elle=true};
+  const commitB=e("button",{class:"pri",text:"Commit"});
+  const durumYaz=()=>{const n=hazirN();ozet.textContent=n+" / "+d.degisen.filter(x=>!x.gizli).length+" dosya seçili";commitB.disabled=n===0;commitB.textContent=n?("Commit ("+n+" dosya)"):"Commit"};
+  const oneriGetir=async(zorla)=>{if(elle&&!zorla)return;try{const r=await api("/api/git/commit-oneri");if(zorla||!elle){mesaj.value=r.mesaj;elle=false;oneriEt.textContent=r.kaynak==="gorev"?"Öneri: Aktapokus görevlerinden ("+r.gorev_sayisi+")":"Öneri: değişen dosyalardan"}}catch(x){}};
+  const oneriEt=e("span",{class:"mut3"});
+  for(const x of d.degisen.slice(0,200)){const kutu=e("input",{type:"checkbox",title:x.gizli?"Gizli görünen dosya: commit'e alınamaz":"Commit'e dahil et (hazırla)"});kutu.checked=x.hazir;kutu.disabled=!!x.gizli;
+    kutu.onchange=async()=>{kutu.disabled=true;try{await api("/api/git/"+(kutu.checked?"hazirla":"hazirdan-cikar"),{method:"POST",body:{yollar:[x.yol]}});x.hazir=kutu.checked;x.calisma=!kutu.checked;durumYaz();oneriGetir(false)}catch(er){kutu.checked=!kutu.checked;ghMesaj(p,er.message,"b-err")}kutu.disabled=false};
+    const at=e("button",{class:"mini",text:"↩",title:"Bu dosyadaki değişikliği at (KALICI; atmadan önce otomatik yedek alınır)",style:x.gizli?"display:none":""});
+    at.onclick=async()=>{if(!confirm("'"+x.yol+"' dosyasındaki değişiklik KALICI olarak atılsın mı?\n\n"+(x.durum==="?"||x.durum==="??"?"Bu yeni (izlenmeyen) bir dosya: SİLİNİR.":"Dosya son commit haline döner.")+"\nAtmadan önce otomatik bir anlık yedek alınır."))return;try{const r=await api("/api/git/degisiklik-at",{method:"POST",body:{yollar:[x.yol]}});await yenile("Değişiklik atıldı"+(r.silinen?" (dosya silindi)":"")+"; yedek: "+(r.yedek||"yok").slice(0,10))}catch(er){ghMesaj(p,er.message,"b-err")}};
+    const yol=e("span",{class:"mono",style:"min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;flex:1"+(x.gizli?";opacity:.6":""),title:x.yol,text:x.yol});
+    if(!x.gizli)yol.onclick=()=>{liste.querySelectorAll(".git-sec").forEach(z=>z.style.background="");satir.style.background="var(--accbg)";gitFarkGoster(farkYeri,x.yol,null,x.hazir&&!x.calisma)};
+    const satir=e("div",{class:"row git-sec",style:"gap:6px;padding:2px 3px;border-radius:5px"},kutu,e("span",{class:"mono",style:"min-width:20px;color:var(--tx3)",text:x.durum}),yol,x.gizli?e("span",{class:"badge b-warn",text:"gizli"}):null,at);liste.append(satir)}
+  if(d.degisen_sayisi>200)liste.append(e("div",{class:"mut3",text:"… ilk 200 dosya gösteriliyor"}));
+  commitB.onclick=async()=>{const m=mesaj.value.trim();if(!m){ghMesaj(p,"Commit mesajı boş olamaz","b-err");return}commitB.disabled=true;
+    try{const r=await api("/api/github/commit",{method:"POST",body:{mesaj:m,yalniz_hazir:true}});await yenile("Commit oluşturuldu: "+r.commit+" ("+r.dosya_sayisi+" dosya)")}catch(x){durumYaz();ghMesaj(p,x.message,"b-err")}};
+  const rafB=e("button",{text:"Rafa kaldır",title:"İzlenen dosyalardaki değişiklikleri geçici olarak rafa alır (yeni/izlenmeyen dosyalar rafa alınmaz)"});
+  rafB.onclick=async()=>{const n=prompt("Rafa kaldırma notu (isteğe bağlı):","");if(n===null)return;rafB.disabled=true;try{await api("/api/git/stash",{method:"POST",body:{mesaj:n}});S.gitAcik.stash=true;await yenile("Değişiklikler rafa kaldırıldı.")}catch(x){rafB.disabled=false;ghMesaj(p,x.message,"b-err")}};
+  const yenOner=e("button",{class:"mini",text:"↻ öneriyi yenile",onclick:()=>{if(elle&&mesaj.value.trim()&&!confirm("Yazdığınız mesaj öneriyle değiştirilsin mi?"))return;oneriGetir(true)}});
+  degB.append(mesaj,e("div",{class:"row",style:"margin-top:4px;gap:6px;flex-wrap:wrap"},yenOner,oneriEt),e("div",{class:"row",style:"margin-top:6px"},commitB,rafB));durumYaz();if(d.degisen_sayisi)oneriGetir(false);
+  /* ---- Geçmiş ---- */
+  const gecB=gitBolum(p,"gecmis","Geçmiş");const gecListe=e("div");gecB.append(gecListe);let adet=30,gecYuklendi=false;
+  const gecYukle=async()=>{gecListe.textContent="yükleniyor…";try{const r=await api("/api/git/gecmis?adet="+adet);gecListe.textContent="";if(!r.commitler.length)gecListe.append(e("div",{class:"mut3",text:"Henüz commit yok."}));
+    for(const c of r.commitler){const ayr=e("div",{style:"display:none;margin:4px 0 4px 10px"});let yuklu=false;
+      const satir=e("div",{style:"padding:3px 4px;border-radius:5px;cursor:pointer",onclick:async()=>{ayr.style.display=ayr.style.display==="none"?"":"none";if(yuklu||ayr.style.display==="none")return;yuklu=true;ayr.textContent="yükleniyor…";
+        try{const a=await api("/api/git/commit?sha="+c.sha);ayr.textContent="";const fy=e("div",{style:"margin-top:4px"});if(a.mesaj.includes("\n"))ayr.append(e("pre",{class:"yama",style:"white-space:pre-wrap;max-height:140px",text:a.mesaj}));
+          ayr.append(e("div",{class:"mut3",text:a.dosya_sayisi+" dosya"}));for(const f of a.dosyalar){ayr.append(e("div",{class:"row mono",style:"gap:6px;cursor:pointer",onclick:()=>gitFarkGoster(fy,f.yol,c.sha,false)},e("span",{style:"min-width:16px;color:var(--tx3)",text:f.durum}),e("span",{text:f.yol})))}ayr.append(fy)}catch(x){ayr.textContent="";ayr.append(e("div",{class:"badge b-err",style:"white-space:normal",text:x.message}))}}},
+        e("div",{class:"row",style:"gap:6px"},e("span",{class:"mono mut3",text:c.kisa}),e("span",{style:"min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1",text:c.konu}),c.gonderilmedi?e("span",{class:"badge b-warn",title:"Henüz push edilmedi",text:"↑"}):null),e("div",{class:"mut3",text:c.yazar+" · "+tarihKisa(c.tarih)}));
+      gecListe.append(satir,ayr)}
+    if(r.commitler.length>=adet&&adet<300)gecListe.append(e("button",{class:"grup-daha",text:"Daha fazla göster",onclick:()=>{adet+=30;gecYukle()}}))}catch(x){gecListe.textContent="";gecListe.append(e("div",{class:"badge b-err",style:"white-space:normal",text:x.message}))}};
+  gecB.addEventListener("toggle",()=>{if(gecB.open&&!gecYuklendi){gecYuklendi=true;gecYukle()}});if(gecB.open){gecYuklendi=true;gecYukle()}
+  /* ---- Dallar ---- */
+  const dalB=gitBolum(p,"dallar","Dallar");const dalListe=e("div");dalB.append(dalListe);let dalYuklendi=false;
+  const dalYukle=async()=>{dalListe.textContent="yükleniyor…";try{const r=await api("/api/git/dallar");dalListe.textContent="";const aktif=(r.yerel.find(x=>x.aktif)||{}).ad;
+    const yeni=e("input",{placeholder:"yeni-dal-adi",style:"flex:1;min-width:0"});const yeniB=e("button",{text:"Oluştur ve geç",onclick:async()=>{const a=yeni.value.trim();if(!a)return;if(!confirm("'"+a+"' adlı yeni dal oluşturulup ona geçilsin mi?"))return;try{await api("/api/github/dal",{method:"POST",body:{ad:a}});await yenile("'"+a+"' dalı oluşturuldu.")}catch(x){ghMesaj(p,x.message,"b-err")}}});
+    dalListe.append(e("div",{class:"row",style:"gap:6px;margin-bottom:6px"},yeni,yeniB));
+    for(const b of r.yerel){const dugme=e("span",{class:"row",style:"gap:4px"});
+      if(!b.aktif){dugme.append(e("button",{text:"Geç",onclick:async()=>{try{await api("/api/git/dal-gec",{method:"POST",body:{ad:b.ad}});await yenile("'"+b.ad+"' dalına geçildi.")}catch(x){ghMesaj(p,x.message,"b-err")}}}),
+        e("button",{text:"Birleştir",title:"'"+b.ad+"' dalını '"+aktif+"' içine birleştirir",onclick:async()=>{if(!confirm("'"+b.ad+"' dalı '"+aktif+"' dalına birleştirilsin mi?\n\nÇakışma çıkarsa birleştirme otomatik geri alınır. Çalışma ağacı temiz olmalıdır."))return;try{const x=await api("/api/git/birlestir",{method:"POST",body:{ad:b.ad}});await yenile("'"+x.birlesen+"' dalı '"+x.icine+"' içine birleştirildi.")}catch(x){ghMesaj(p,x.message,"b-err")}}}),
+        e("button",{text:"Sil",title:"Yalnızca birleştirilmiş dallar silinir",onclick:async()=>{if(!confirm("'"+b.ad+"' dalı silinsin mi?\n\nBirleştirilmemiş commit varsa git silmeyi reddeder (veri kaybı olmaz)."))return;try{await api("/api/git/dal-sil",{method:"POST",body:{ad:b.ad}});await yenile("'"+b.ad+"' dalı silindi.")}catch(x){ghMesaj(p,x.message,"b-err")}}}))}
+      dalListe.append(e("div",{class:"row",style:"justify-content:space-between;gap:6px;padding:3px 0;border-top:1px solid var(--line)"},e("span",{style:"min-width:0"},e("div",{class:"row",style:"gap:6px"},e("b",{style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:b.ad}),b.aktif?e("span",{class:"badge b-ok",text:"aktif"}):null,b.takip?e("span",{class:"badge",text:b.takip}):null),e("div",{class:"mut3",style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:b.konu})),dugme))}
+    if(r.uzak_yalniz.length){dalListe.append(e("div",{class:"mut3",style:"margin-top:6px",text:"Yalnızca uzakta olan dallar:"}));for(const a of r.uzak_yalniz)dalListe.append(e("div",{class:"row",style:"justify-content:space-between;padding:2px 0"},e("span",{class:"mono",text:a}),e("button",{text:"Geç",title:"Yerel takip dalı oluşturup geçer",onclick:async()=>{try{await api("/api/git/dal-gec",{method:"POST",body:{ad:a}});await yenile("'"+a+"' dalına geçildi.")}catch(x){ghMesaj(p,x.message,"b-err")}}})))}
+  }catch(x){dalListe.textContent="";dalListe.append(e("div",{class:"badge b-err",style:"white-space:normal",text:x.message}))}};
+  dalB.addEventListener("toggle",()=>{if(dalB.open&&!dalYuklendi){dalYuklendi=true;dalYukle()}});if(dalB.open){dalYuklendi=true;dalYukle()}
+  /* ---- Stash ---- */
+  const stB=gitBolum(p,"stash","Raf (stash)");const stListe=e("div");stB.append(stListe);let stYuklendi=false;
+  const stYukle=async()=>{stListe.textContent="yükleniyor…";try{const r=await api("/api/git/stashler");stListe.textContent="";if(!r.stashler.length)stListe.append(e("div",{class:"mut3",text:"Rafta bir şey yok. Değişiklikler bölümündeki 'Rafa kaldır' ile geçici olarak kenara alabilirsiniz."}));
+    for(const t of r.stashler){const isl=(sil)=>async()=>{if(sil&&!confirm("Raf #"+t.indeks+" uygulanıp silinsin mi?\n\n"+t.mesaj))return;try{await api("/api/git/stash-uygula",{method:"POST",body:{indeks:t.indeks,sil}});await yenile("Raf #"+t.indeks+" uygulandı"+(sil?" ve silindi.":"."))}catch(x){ghMesaj(p,x.message,"b-err")}};
+      stListe.append(e("div",{class:"row",style:"justify-content:space-between;gap:6px;padding:3px 0;border-top:1px solid var(--line)"},e("span",{style:"min-width:0"},e("div",{style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:t.mesaj}),e("div",{class:"mut3",text:"#"+t.indeks+" · "+tarihKisa(t.tarih)})),
+        e("span",{class:"row",style:"gap:4px"},e("button",{text:"Uygula",title:"Değişiklikleri geri getirir, raf korunur",onclick:isl(false)}),e("button",{text:"Uygula ve sil",onclick:isl(true)}),e("button",{text:"Sil",onclick:async()=>{if(!confirm("Raf #"+t.indeks+" KALICI olarak silinsin mi?\n\n"+t.mesaj))return;try{await api("/api/git/stash-sil",{method:"POST",body:{indeks:t.indeks}});await yenile("Raf #"+t.indeks+" silindi.")}catch(x){ghMesaj(p,x.message,"b-err")}}}))))}
+  }catch(x){stListe.textContent="";stListe.append(e("div",{class:"badge b-err",style:"white-space:normal",text:x.message}))}};
+  stB.addEventListener("toggle",()=>{if(stB.open&&!stYuklendi){stYuklendi=true;stYukle()}});if(stB.open){stYuklendi=true;stYukle()}}
 (async()=>{if(!T){document.body.textContent="Token yok: arayüzü terminalde yazdırılan adresle açın.";return}await durumYukle();if(!S.klasor)klasorSecimiAc();else{await dosyalariYukle();await onizlemeKur()}olayAkisi()})();
 </script>
 </body>
