@@ -301,7 +301,10 @@ class SunucuCalistirici(Calistirici):
         ilerleme: Callable[[dict], None] | None = None,
         izin_karari: str = "reject",
         yoklama_sn: float = 0.5,
+        paylasilan: bool = False,
     ):
+        self._aktif_sid: str | None = None  # bu ORNEGIN su an kosan oturumu (ornek koşu basina ayridir)
+        self._paylasilan = paylasilan  # sunucu baska calistiricilarla ortak: kapat() sunucuyu KAPATMAZ (hepsini_kapat kapatir)
         self._sunucu = sunucu
         self._istemci = istemci
         self._sunucu_kilidi = threading.Lock()
@@ -318,7 +321,7 @@ class SunucuCalistirici(Calistirici):
         return self._sunucu.baslat()
 
     def kapat(self) -> None:
-        if self._sunucu is not None:
+        if self._sunucu is not None and not self._paylasilan:
             self._sunucu.kapat()
 
     def durdur(self) -> bool:

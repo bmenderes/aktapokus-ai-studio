@@ -116,3 +116,9 @@ Kullanıcı Claude masaüstü kenar çubuğunun ekran görüntüsünü gönderip
 ## 9. Düzeltme (2026-10-23, kullanıcı itirazı)
 
 Karar 2 **iptal**: eşzamanlı görev üst sınırı ve kuyruk **yok**. Claude Code/Codex/OpenCode da sınır koymuyor; yalnız sağlayıcının kendi limiti geçerli. Aynı klasörde tek görev kuralı yalnız geri alma (snapshot/fark) doğru kalsın diye sürer; farklı klasörler sınırsız paralel çalışır.
+
+## 10. Durum
+
+- **P1 bitti** (fc26972): `ProjeOturumu`, olaylara `proje` kimliği.
+- **P2 bitti:** `calistirici_olustur("opencode-sunucu")` artık çağrı başına ayrı örnek döner (yalnız OpenCode sunucu süreci ortak); iki proje aynı anda koşar, durdurma/canlı çıktı karışmaz. Koşu kendi oturumuna bağlıdır (ikinci adım seçili proje başkayken başlasa bile). `klasor_sec` koşu sürerken de serbest; koşan projeye dönünce oturum korunur. `/api/p/<proje>/...` ön eki ve `/api/oturumlar` (kenar çubuğu durumları) eklendi. Kuyruk/üst sınır yok (bkz. §9).
+- Sırada: **P3** arayüz (kenar çubuğu proje grupları), P4 Telegram, P5 cilalama.

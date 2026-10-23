@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import base64
+import contextvars
 import json
 import mimetypes
 import os
@@ -142,6 +143,10 @@ class Kosu:
     sonuc: object = None
 
 
+AKTIF_KOSU = ("plan", "calisiyor", "karar-bekliyor")
+_ISTEK_PROJESI: contextvars.ContextVar[str | None] = contextvars.ContextVar("aktapokus_istek_projesi", default=None)
+
+
 @dataclass
 class ProjeOturumu:
     """Bir proje klasorunun calisma durumu (coklu proje tasarimi P1). Kimlik = projeler.proje_kimligi(klasor). Gorevin kosusu, aktif
@@ -182,7 +187,30 @@ class Uygulama:
     # --- secili oturum (eski tek-proje alanlari ona yonlendirilir; gorev akisi oturumu AYRICA acikca tasir) ---
     @property
     def secili(self) -> ProjeOturumu | None:
-        return self.oturumlar.get(self.secili_kimlik) if self.secili_kimlik else None
+        """Istek /api/p/<kimlik>/... ile geldiyse o proje (iplige/istege ozel), yoksa arayuzde secili proje."""
+        kimlik = _ISTEK_PROJESI.get() or self.secili_kimlik
+        return self.oturumlar.get(kimlik) if kimlik else None
+
+    def proje_baglami(self, kimlik: str):
+        """`with app.proje_baglami(id):` icinde tum islemler (gorev, dosyalar, gecmis...) o projeye gider; secili projeyi DEGISTIRMEZ."""
+        if kimlik not in self.oturumlar:
+            raise UygulamaHatasi("Bu proje acik degil (once klasorunu secin)", 404)
+        class _Baglam:
+            def __enter__(self):
+                self.jeton = _ISTEK_PROJESI.set(kimlik)
+
+            def __exit__(self, *a):
+                _ISTEK_PROJESI.reset(self.jeton)
+
+        return _Baglam()
+
+    def oturum_durumlari(self) -> list[dict]:
+        """Kenar cubugu icin: acik her projenin canli durumu (gorev yoksa durum None)."""
+        sonuc = []
+        for o in list(self.oturumlar.values()):
+            k = o.kosu
+            sonuc.append({"proje": o.kimlik, "klasor": str(o.klasor), "ad": o.klasor.name or str(o.klasor), "durum": k.durum if k else None, "gorev": k.gorev[:200] if k else None, "secili": o.kimlik == self.secili_kimlik})
+        return sonuc
 
     def _oturum(self) -> ProjeOturumu:
         o = self.secili
@@ -232,16 +260,20 @@ class Uygulama:
         if not Path(str(yol)).expanduser().is_absolute():
             # Goreli yol, botun/arayuzun calistigi klasore gore cozulur: yanlis klasorde calisma riski (gercek denemede yasandi)
             raise UygulamaHatasi("Klasor yolu TAM olmali (ornek: C:\\Users\\adiniz\\Desktop\\proje); goreli yol belirsiz.", 400)
+        if _ISTEK_PROJESI.get():
+            raise UygulamaHatasi("Klasor secimi proje on ekiyle (/api/p/...) yapilamaz", 400)
         with self.kilit:
-            if self.kosu and self.kosu.durum in ("calisiyor", "karar-bekliyor"):
-                raise UygulamaHatasi("Bir gorev calisirken klasor degistirilemez", 409)
             try:
                 sonuc = proje_hazirla(yol, git_baslat=git_baslat)
             except GitGerekli:
                 raise UygulamaHatasi("git_gerekli", 428) from None
             except (KlasorHatasi, snapshot.GitHatasi, guard.KoruyucuHatasi) as hata:
                 raise UygulamaHatasi(str(hata)) from None
-            self.klasor = sonuc["klasor"]  # yeni (bos) oturum: kosu yok, son fark yok
+            mevcut = self.oturumlar.get(projeler.proje_kimligi(sonuc["klasor"]))
+            if mevcut and mevcut.kosu and mevcut.kosu.durum in AKTIF_KOSU:
+                self.secili_kimlik = mevcut.kimlik  # bu projenin gorevi suruyor: oturumu korunur, yalniz secilir
+            else:
+                self.klasor = sonuc["klasor"]  # yeni (bos) oturum: kosu yok, son fark yok
             try:
                 projeler.ekle_veya_guncelle(self.klasor)  # son projeler listesi (ortam cipi); hata klasor secimini engellemez
             except OSError:
@@ -843,7 +875,13 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                 return self._gonder(404, {"hata": "yok"})
             if not hmac.compare_digest(self.headers.get("X-Aktapokus-Token", ""), app.token):
                 return self._gonder(401, {"hata": "Token gerekli"})
+            baglam = None
             try:
+                m = re.match(r"^/api/p/([0-9a-f]{10})(/.*)$", yol)
+                if m:  # /api/p/<proje>/gorev ... = /api/gorev, ama secili projeden bagimsiz o projeye
+                    baglam = app.proje_baglami(m.group(1))
+                    baglam.__enter__()
+                    yol = "/api" + m.group(2)
                 self._api(yontem, yol, sorgu)
             except UygulamaHatasi as hata:
                 self._gonder(hata.kod, {"hata": str(hata)})
@@ -851,11 +889,16 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                 pass
             except Exception as hata:
                 self._gonder(500, {"hata": f"{type(hata).__name__}: {hata}"})
+            finally:
+                if baglam is not None:
+                    baglam.__exit__(None, None, None)
 
         def _api(self, yontem: str, yol: str, q: dict):
             if yontem == "GET":
                 if yol == "/api/durum":
                     return self._gonder(200, app.durum())
+                if yol == "/api/oturumlar":
+                    return self._gonder(200, {"oturumlar": app.oturum_durumlari()})
                 if yol == "/api/ayar":
                     return self._gonder(200, app.ayar_oku())
                 if yol == "/api/clilar":

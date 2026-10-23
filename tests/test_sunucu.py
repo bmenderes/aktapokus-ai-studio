@@ -258,12 +258,15 @@ def test_sunucu_cli_yoksa_anlamli_hata(monkeypatch):
 def test_fabrika_kalici_ornek_ve_hepsini_kapat(monkeypatch):
     assert "opencode-sunucu" in BILINEN_CALISTIRICILAR
     a = calistirici_olustur("opencode-sunucu")
-    assert calistirici_olustur("opencode-sunucu") is a
+    b = calistirici_olustur("opencode-sunucu")
+    assert a is not b and a._sunucu is b._sunucu  # calistirici cagri basina ayri; sunucu sureci ortak
     kapandi = []
-    monkeypatch.setattr(a, "kapat", lambda: kapandi.append(1))
+    monkeypatch.setattr(a._sunucu, "kapat", lambda: kapandi.append(1))
+    a.kapat()  # paylasilan sunucuyu kapatmaz
+    assert kapandi == []
     hepsini_kapat()
     assert kapandi == [1]
-    assert calistirici_olustur("opencode-sunucu") is not a  # kapatildiktan sonra yeni ornek
+    assert calistirici_olustur("opencode-sunucu")._sunucu is not a._sunucu  # kapatildiktan sonra yeni sunucu
 
 
 def test_hat_sunucu_calistiricisiyla(proje):
@@ -292,3 +295,36 @@ def test_hat_sunucu_modunda_koruyucu_sart(tmp_path):
 
     with pytest.raises(HatHatasi, match="Koruyucu"):  # sunucu modunda koruyucusuz klasor disi yazma SORUSUZ olur (gercek denemede goruldu)
         calistir_hat(k, "g", ayar_coz(veri), lambda ad: None, lambda q: True)
+
+
+def test_iki_calistirici_ayni_sunucuda_birbirinin_oturumunu_durdurmaz(tmp_path):
+    """P2: iki proje ayni OpenCode sunucusunu paylasir; bir calistiricinin durdur()'u YALNIZ kendi oturumunu durdurur ve
+    canli ilerleme olaylari yalniz kendi geri cagrisina gider."""
+    s = SahteSunucu(davranis="takili")
+    try:
+        a_ol, b_ol = [], []
+        a, b = calistirici(s, ilerleme=a_ol.append), calistirici(s, ilerleme=b_ol.append)
+        (tmp_path / "a").mkdir()
+        (tmp_path / "b").mkdir()
+        sonuclar = {}
+        ta = threading.Thread(target=lambda: sonuclar.__setitem__("a", a.calistir("a", tmp_path / "a", zaman_asimi_sn=20)), daemon=True)
+        tb = threading.Thread(target=lambda: sonuclar.__setitem__("b", b.calistir("b", tmp_path / "b", zaman_asimi_sn=20)), daemon=True)
+        ta.start()
+        tb.start()
+        for _ in range(100):
+            if a._aktif_sid and b._aktif_sid and all(s.durum.oturumlar[x._aktif_sid]["aktif"] for x in (a, b)):
+                break
+            time.sleep(0.05)
+        assert a._aktif_sid and b._aktif_sid and a._aktif_sid != b._aktif_sid
+        sid_a = a._aktif_sid
+        assert a.durdur() is True
+        ta.join(10)
+        assert not ta.is_alive() and tb.is_alive()  # B hala kosuyor
+        kesilenler = [c[1] for c in s.durum.cagrilar if c[0] == "INTERRUPT"]
+        assert kesilenler == [sid_a]  # yalniz A'nin oturumu kesildi
+        assert b.durdur() is True
+        tb.join(10)
+        assert not tb.is_alive()
+        assert not sonuclar["a"].ok and not sonuclar["b"].ok
+    finally:
+        s.kapat()

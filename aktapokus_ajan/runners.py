@@ -11,6 +11,7 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -413,16 +414,22 @@ class CodexCalistirici(Calistirici):
 
 
 CALISTIRICILAR = {"opencode": OpenCodeCalistirici, "claude": ClaudeCodeCalistirici, "codex": CodexCalistirici}
-_KALICI: dict[str, Calistirici] = {}  # kalici kaynak tutan calistiricilar (tek sunucu, cagrilar arasi acik)
+_KALICI: dict[str, object] = {}  # kalici kaynak (tek OpenCode sunucusu, cagrilar arasi acik); calistiriciler ise cagri basina AYRI ornektir
+_KALICI_KILIT = threading.Lock()
 
 
 def calistirici_olustur(ad: str) -> Calistirici:
     if ad == "opencode-sunucu":
         from .sunucu import SunucuCalistirici  # dairesel ice aktarmayi onlemek icin tembel
 
-        if ad not in _KALICI:
-            _KALICI[ad] = SunucuCalistirici()
-        return _KALICI[ad]
+        from .sunucu import Sunucu
+
+        with _KALICI_KILIT:
+            if ad not in _KALICI:
+                _KALICI[ad] = Sunucu()
+        # Her koşu kendi ornegini alir (ilerleme geri cagrisi ve 'aktif oturum' ORNEGE ozel): iki proje ayni anda kosarsa birbirinin
+        # canli ciktisini/durdurmasini karistirmaz. Yalniz sunucu sureci ortaktir.
+        return SunucuCalistirici(sunucu=_KALICI[ad], paylasilan=True)
     if ad in CALISTIRICILAR:
         return CALISTIRICILAR[ad]()
     from . import clitanim  # tanimla eklenen (ozel) CLI'lar; dairesel ice aktarmayi onlemek icin tembel
@@ -436,7 +443,10 @@ def calistirici_olustur(ad: str) -> Calistirici:
 def hepsini_kapat() -> None:
     """Kalici calistiricilari (acik sunucu surecleri) kapatir. Program cikisinda cagrilir."""
     while _KALICI:
-        _ad, c = _KALICI.popitem()
+        with _KALICI_KILIT:
+            if not _KALICI:
+                break
+            _ad, c = _KALICI.popitem()
         try:
             c.kapat()
         except Exception:

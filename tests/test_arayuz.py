@@ -204,14 +204,15 @@ def test_plan_reddi_ve_tekrar_gorev(kur):
     assert api("POST", "/api/gorev", {"gorev": "   "})[0] in (400, 409)
 
 
-def test_calisirken_klasor_ve_ayar_degisemez(kur):
+def test_calisirken_ayar_degisemez_ama_ayni_klasoru_yeniden_secmek_gorevi_sifirlamaz(kur):
     e = Engelli()
     app, sv, api, _ = kur(uret=lambda ad: e)
     klasor_sec(api, kur.proje)
     st, plan = api("POST", "/api/gorev", {"gorev": "g"})
     api("POST", f"/api/gorev/{plan['kosu']}/onayla", {})
     assert e.basladi.wait(5)
-    assert api("POST", "/api/klasor", {"yol": str(kur.proje)})[0] == 409
+    assert api("POST", "/api/klasor", {"yol": str(kur.proje)})[0] == 200  # P2: klasor secimi artik engellenmez ama kosan oturum korunur
+    assert app.kosu is not None and app.kosu.kimlik == plan["kosu"] and app.kosu.durum == "calisiyor"
     st, ayar = api("GET", "/api/ayar")
     assert api("PUT", "/api/ayar", ayar)[0] == 409
     e.serbest.set()
@@ -680,3 +681,112 @@ def test_ayni_klasor_yeniden_secilince_yeni_bos_oturum_olur(kur):
     assert app.kosu is not None
     klasor_sec(api, kur.proje)
     assert app.kosu is None and app.son_hat == {} and len(app.oturumlar) == 1
+
+
+# ---------- coklu proje P2: es zamanli projeler ----------
+def _iki_proje_calisan(kur, tmp_path):
+    """A ve B projelerinde ayni anda birer gorev baslatir; her gorevin kendi (ayri) calistirici ornegi vardir."""
+    from aktapokus_ajan import projeler
+
+    ornekler = []
+
+    def uret(ad):
+        e = Engelli()
+        ornekler.append(e)
+        return e
+
+    app, sv, api, _ = kur(uret=uret)
+    ikinci = _ikinci_proje(tmp_path)
+    klasor_sec(api, kur.proje)
+    a = projeler.proje_kimligi(kur.proje)
+    plan_a = api("POST", "/api/gorev", {"gorev": "a gorevi"})[1]
+    assert api("POST", f"/api/gorev/{plan_a['kosu']}/onayla", {})[0] == 200
+    assert bekle(lambda: len(ornekler) == 1 and ornekler[0].basladi.is_set())
+    st, _ = api("POST", "/api/klasor", {"yol": str(ikinci)})  # A kosarken B'ye gecmek artik serbest
+    assert st == 200
+    b = projeler.proje_kimligi(ikinci)
+    plan_b = api("POST", "/api/gorev", {"gorev": "b gorevi"})[1]
+    assert api("POST", f"/api/gorev/{plan_b['kosu']}/onayla", {})[0] == 200
+    assert bekle(lambda: len(ornekler) == 2 and ornekler[1].basladi.is_set())
+    return app, api, ornekler, (a, plan_a["kosu"]), (b, plan_b["kosu"])
+
+
+def test_iki_proje_ayni_anda_calisir_ve_durumlari_ayridir(kur, tmp_path):
+    app, api, ornekler, (a, ka), (b, kb) = _iki_proje_calisan(kur, tmp_path)
+    try:
+        d = {o["proje"]: o for o in api("GET", "/api/oturumlar")[1]["oturumlar"]}
+        assert d[a]["durum"] == "calisiyor" and d[b]["durum"] == "calisiyor"
+        assert d[a]["gorev"] == "a gorevi" and d[b]["gorev"] == "b gorevi" and d[b]["secili"] and not d[a]["secili"]
+        assert api("GET", f"/api/p/{a}/durum")[1]["kosu"]["gorev"] == "a gorevi"  # secili proje B iken A'nin durumu
+        assert api("GET", "/api/durum")[1]["kosu"]["gorev"] == "b gorevi"
+        assert api("GET", f"/api/p/{a}/durum")[1]["klasor"] != api("GET", f"/api/p/{b}/durum")[1]["klasor"]
+    finally:
+        for e in ornekler:
+            e.serbest.set()
+
+
+def test_bir_projeyi_durdurmak_digerini_durdurmaz(kur, tmp_path):
+    app, api, ornekler, (a, ka), (b, kb) = _iki_proje_calisan(kur, tmp_path)
+    try:
+        st, _ = api("POST", f"/api/p/{a}/gorev/{ka}/durdur", {})
+        assert st == 200
+        assert ornekler[0].durduruldu is True and ornekler[1].durduruldu is False  # yalniz A'nin calistiricisi durduruldu
+        assert bekle(lambda: app.oturumlar[a].kosu.durum in ("bitti", "karar-bekliyor"))
+        assert app.oturumlar[b].kosu.durum == "calisiyor"  # B hala kosuyor
+        st, _ = api("POST", f"/api/gorev/{kb}/durdur", {})  # B secili: onek olmadan da B'yi durdurur
+        assert st == 200 and ornekler[1].durduruldu is True
+    finally:
+        for e in ornekler:
+            e.serbest.set()
+
+
+def test_calisan_projeye_geri_donunce_oturum_korunur(kur, tmp_path):
+    app, api, ornekler, (a, ka), (b, kb) = _iki_proje_calisan(kur, tmp_path)
+    try:
+        st, _ = api("POST", "/api/klasor", {"yol": str(kur.proje)})
+        assert st == 200 and app.secili_kimlik == a
+        assert app.kosu is not None and app.kosu.kimlik == ka and app.kosu.durum == "calisiyor"  # sifirlanmadi
+    finally:
+        for e in ornekler:
+            e.serbest.set()
+
+
+def test_proje_oneki_bilinmeyen_projeye_404_ve_klasor_secemez(kur):
+    app, sv, api, _ = kur()
+    klasor_sec(api, kur.proje)
+    assert api("GET", "/api/p/0123456789/durum")[0] == 404
+    assert api("GET", "/api/p/ZZZ/durum")[0] == 404
+    from aktapokus_ajan import projeler
+
+    a = projeler.proje_kimligi(kur.proje)
+    assert api("POST", f"/api/p/{a}/klasor", {"yol": str(kur.proje)})[0] == 400
+    assert api("GET", f"/api/p/{a}/oturumlar")[0] == 200  # onek yalniz yolu yeniden yazar, belirtec denetimi yine gecerli
+    assert api("GET", f"/api/p/{a}/durum", token=None)[0] == 401
+
+
+def test_proje_baglami_secili_projeyi_degistirmez(kur, tmp_path):
+    from aktapokus_ajan import projeler
+
+    app, sv, api, _ = kur()
+    ikinci = _ikinci_proje(tmp_path)
+    klasor_sec(api, kur.proje)
+    klasor_sec(api, ikinci)
+    a = projeler.proje_kimligi(kur.proje)
+    with app.proje_baglami(a):
+        assert app.klasor == kur.proje
+    assert app.klasor == ikinci
+
+
+def test_projenin_sonraki_adimi_secili_proje_baskayken_basliyorsa_yine_kendi_oturumuna_baglanir(kur, tmp_path):
+    """A'nin ilk adimi B secili iken biter; ikinci adimin calistiricisi A'nin oturumuna yazilmali (durdur A'yi, B'yi degil durdurur)."""
+    app, api, ornekler, (a, ka), (b, kb) = _iki_proje_calisan(kur, tmp_path)
+    try:
+        ornekler[0].serbest.set()  # A'nin ilk adimi biter -> ikinci adim yeni calistirici ornegiyle baslar (secili proje: B)
+        assert bekle(lambda: len(ornekler) >= 3 and ornekler[2].basladi.is_set(), 15), f"ikinci adim baslamadi ({len(ornekler)} ornek)"
+        assert app.oturumlar[a].aktif_calistirici is ornekler[2]
+        assert app.oturumlar[b].aktif_calistirici is ornekler[1]
+        assert api("POST", f"/api/p/{a}/gorev/{ka}/durdur", {})[0] == 200
+        assert ornekler[2].durduruldu is True and ornekler[1].durduruldu is False
+    finally:
+        for e in ornekler:
+            e.serbest.set()
