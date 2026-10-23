@@ -204,6 +204,13 @@ class Uygulama:
 
         return _Baglam()
 
+    def kosu_projesi(self, kosu_kimligi: object) -> str | None:
+        """Gorev kimligine sahip projenin kimligi (Telegram dugmeleri: onay/karar hangi projenin gorevi icin gelirse gelsin dogru projeye gider)."""
+        for o in list(self.oturumlar.values()):
+            if o.kosu and o.kosu.kimlik == kosu_kimligi:
+                return o.kimlik
+        return None
+
     def oturum_durumlari(self) -> list[dict]:
         """Kenar cubugu icin: acik her projenin canli durumu (gorev yoksa durum None)."""
         sonuc = []
@@ -257,11 +264,16 @@ class Uygulama:
 
     # --- proje ---
     def klasor_sec(self, yol: str, git_baslat: bool = False) -> dict:
+        if _ISTEK_PROJESI.get():
+            raise UygulamaHatasi("Klasor secimi proje on ekiyle (/api/p/...) yapilamaz", 400)
+        return self.proje_ac(yol, git_baslat, sec=True)
+
+    def proje_ac(self, yol: str, git_baslat: bool = False, sec: bool = True) -> dict:
+        """Projeyi hazirlar ve oturumunu acar. sec=True: arayuzde secili proje olur. sec=False (Telegram): secili proje DEGISMEZ, bilgisayardaki
+        ekran baska projeye atlamaz; donen durum acilan projeninkidir."""
         if not Path(str(yol)).expanduser().is_absolute():
             # Goreli yol, botun/arayuzun calistigi klasore gore cozulur: yanlis klasorde calisma riski (gercek denemede yasandi)
             raise UygulamaHatasi("Klasor yolu TAM olmali (ornek: C:\\Users\\adiniz\\Desktop\\proje); goreli yol belirsiz.", 400)
-        if _ISTEK_PROJESI.get():
-            raise UygulamaHatasi("Klasor secimi proje on ekiyle (/api/p/...) yapilamaz", 400)
         with self.kilit:
             try:
                 sonuc = proje_hazirla(yol, git_baslat=git_baslat)
@@ -269,17 +281,19 @@ class Uygulama:
                 raise UygulamaHatasi("git_gerekli", 428) from None
             except (KlasorHatasi, snapshot.GitHatasi, guard.KoruyucuHatasi) as hata:
                 raise UygulamaHatasi(str(hata)) from None
-            mevcut = self.oturumlar.get(projeler.proje_kimligi(sonuc["klasor"]))
-            if mevcut and mevcut.kosu and mevcut.kosu.durum in AKTIF_KOSU:
-                self.secili_kimlik = mevcut.kimlik  # bu projenin gorevi suruyor: oturumu korunur, yalniz secilir
-            else:
-                self.klasor = sonuc["klasor"]  # yeni (bos) oturum: kosu yok, son fark yok
+            kimlik = projeler.proje_kimligi(sonuc["klasor"])
+            mevcut = self.oturumlar.get(kimlik)
+            if not (mevcut and mevcut.kosu and mevcut.kosu.durum in AKTIF_KOSU):  # gorevi suren oturum korunur; digerleri yeni (bos) oturum olur
+                self.oturumlar[kimlik] = ProjeOturumu(kimlik, Path(sonuc["klasor"]))
+            if sec:
+                self.secili_kimlik = kimlik
             try:
-                projeler.ekle_veya_guncelle(self.klasor)  # son projeler listesi (ortam cipi); hata klasor secimini engellemez
+                projeler.ekle_veya_guncelle(sonuc["klasor"])  # son projeler listesi (ortam cipi); hata klasor secimini engellemez
             except OSError:
                 pass
-            self._yayinla(self._oturum(), {"tur": "klasor", "klasor": str(self.klasor), "git": sonuc["git"], "koruyucu": sonuc["koruyucu"]})
-            return self.durum()
+            self._yayinla(self.oturumlar[kimlik], {"tur": "klasor", "klasor": str(sonuc["klasor"]), "git": sonuc["git"], "koruyucu": sonuc["koruyucu"]})
+            with self.proje_baglami(kimlik):
+                return self.durum()
 
     def _klasor(self) -> Path:
         if self.klasor is None:

@@ -14,6 +14,7 @@ Guvenlik:
 
 from __future__ import annotations
 
+import contextlib
 import hmac
 import html
 import io
@@ -30,6 +31,7 @@ import urllib.request
 from pathlib import Path
 from typing import Callable
 
+from . import projeler as proje_kayit
 from . import snapshot
 from .arayuz import Uygulama, UygulamaHatasi
 
@@ -44,8 +46,8 @@ TOKEN_ORTAMI = "AKTAPOKUS_TELEGRAM_TOKEN"
 AYAR_ORTAMI = "AKTAPOKUS_TELEGRAM_AYAR"
 YARDIM = (
     "Aktapokus botu\n"
-    "/durum  klasor, roller, calisan gorev\n"
-    "/projeler  proje klasorlerini dugme olarak goster, dokunup sec\n"
+    "/durum  aktif proje, roller, calisan gorev, diger projeler\n"
+    "/projeler  proje klasorlerini dugme olarak goster; dokunduğunuz bu sohbetin aktif projesi olur (bilgisayar ekranini degistirmez)\n"
     "/yeni <ad>  yeni proje klasoru olustur (git ve koruyucu kurulur)\n"
     "/kokler  izinli proje klasorleri (degistirmek icin bilgisayardan)\n"
     "/klasor <tam yol>  elle sec (yalniz izinli proje klasorlerinin altinda)\n"
@@ -112,6 +114,7 @@ class Bot:
         self.eslestirme: dict | None = None
         self.eslesince: Callable[[], None] | None = None
         self.proje_tablosu: list[Path] = []  # /projeler dugmelerinin (p:N, g:N) gosterdigi klasorler
+        self.aktif_proje: dict[int, str] = {}  # sohbet -> proje kimligi (bilgisayardaki secili projeden BAGIMSIZ; yeniden baslayinca sifirlanir)
         self.ilerleme: dict[str, dict] = {}  # kosu -> {chat: (mesaj_id, satirlar)}
         self._olay_kuyrugu: queue.Queue | None = None
 
@@ -144,6 +147,21 @@ class Bot:
         kod = secrets.token_hex(4)
         self.eslestirme = {"kod": kod, "bitis": time.monotonic() + ESLESTIRME_OMRU_SN, "yanlis": 0}
         return kod
+
+    # ---- sohbetin aktif projesi ----
+    def _proje_kimligi(self, chat: int) -> str | None:
+        """Sohbetin aktif projesi; secilmediyse bilgisayarda secili proje."""
+        kimlik = self.aktif_proje.get(chat) or self.app.secili_kimlik
+        return kimlik if kimlik in self.app.oturumlar else None
+
+    def _baglam(self, chat: int):
+        """`with self._baglam(chat):` icindeki uygulama islemleri sohbetin aktif projesine gider (bilgisayar ekranindaki secimi degistirmez)."""
+        kimlik = self._proje_kimligi(chat)
+        return self.app.proje_baglami(kimlik) if kimlik else contextlib.nullcontext()
+
+    def _proje_adi(self, kimlik: object) -> str:
+        o = self.app.oturumlar.get(kimlik) if isinstance(kimlik, str) else None
+        return o.klasor.name if o else ""
 
     # ---- gonderim ----
     def _gonder(self, chat: int, metin: str, klavye: list | None = None) -> int | None:
@@ -225,7 +243,7 @@ class Bot:
         if ad in ("/start", "/yardim", "/help"):
             return self._gonder(chat, YARDIM)
         if ad == "/durum":
-            return self._gonder(chat, self._durum_metni())
+            return self._gonder(chat, self._durum_metni(chat))
         if ad == "/projeler":
             return self._projeler(chat)
         if ad == "/yeni":
@@ -237,8 +255,9 @@ class Bot:
             if self.ayar["kokler"] and not self._kokte(Path(arg)):
                 return self._gonder(chat, "Bu klasor izinli proje klasorlerinin altinda degil (ya da gizli). /projeler ile secin.")
             try:
-                d = self.app.klasor_sec(arg, git_baslat=False)
-                return self._gonder(chat, f"Klasor: {d['klasor']}\nGit: {'hazir' if d.get('git') else 'yok'}  Koruyucu: {'etkin' if not d.get('koruyucu_eksik') else 'EKSIK'}")
+                d = self.app.proje_ac(arg, git_baslat=False, sec=False)
+                self.aktif_proje[chat] = proje_kayit.proje_kimligi(d["klasor"])
+                return self._gonder(chat, f"Klasor: {d['klasor']}\nGit: {'hazir' if d.get('git') else 'yok'}  Koruyucu: {'etkin' if not d.get('koruyucu_eksik') else 'EKSIK'}\nBu sohbetin aktif projesi.")
             except UygulamaHatasi as hata:
                 if str(hata) == "git_gerekli":
                     return self._gonder(chat, "Bu klasor git deposu degil. Geri alma icin gerekli; bilgisayarda 'aktapokus ac <klasor> --git-baslat' calistirin (Telegram'dan git init yapilmaz).")
@@ -246,14 +265,15 @@ class Bot:
         if ad == "/gorev":
             return self._gorev(chat, arg)
         if ad == "/durdur":
-            k = self.app.kosu
-            if not k:
-                return self._gonder(chat, "Calisan gorev yok.")
-            try:
-                self.app.durdur(k.kimlik)
-                return self._gonder(chat, "Durduruluyor...")
-            except UygulamaHatasi as hata:
-                return self._gonder(chat, str(hata))
+            with self._baglam(chat):
+                k = self.app.kosu
+                if not k:
+                    return self._gonder(chat, "Calisan gorev yok." + self._digerleri(chat))
+                try:
+                    self.app.durdur(k.kimlik)
+                    return self._gonder(chat, f"Durduruluyor ({self._proje_adi(self._proje_kimligi(chat))})...")
+                except UygulamaHatasi as hata:
+                    return self._gonder(chat, str(hata))
         if ad == "/gizlilik":
             if arg.lower() in ("acik", "kapali"):
                 self.ayar["icerik_gonder"] = arg.lower() == "acik"
@@ -310,7 +330,7 @@ class Bot:
         if git and self._ust_depo_var(yol):
             return self._gonder(chat, f"{yol.name} baska bir git deposunun icinde; ic ice depo olusturulmaz. Bilgisayarda hazirlayin.")
         try:
-            d = self.app.klasor_sec(str(yol), git_baslat=git)
+            d = self.app.proje_ac(str(yol), git_baslat=git, sec=False)
         except UygulamaHatasi as hata:
             if str(hata) != "git_gerekli":
                 return self._gonder(chat, f"Klasor secilemedi: {hata}")
@@ -320,7 +340,8 @@ class Bot:
             if i is None:
                 return self._gonder(chat, f"{yol.name} git deposu degil. /projeler ile secip 'Git baslat' dugmesini kullanin.")
             return self._gonder(chat, f"{yol.name} git deposu degil. Geri alma icin git gerekir. Bu klasorde git baslatilsin mi? (yalniz bu klasore 'git init' yapilir)", [[{"text": "Git baslat", "callback_data": f"g:{i}"}]])
-        self._gonder(chat, f"Klasor secildi: {yol.name}\nGit: {'hazir' if d.get('git') else 'yok'}  Koruyucu: {'etkin' if not d.get('koruyucu_eksik') else 'EKSIK'}\nGorev icin /gorev <metin> yazin.")
+        self.aktif_proje[chat] = proje_kayit.proje_kimligi(d["klasor"])
+        self._gonder(chat, f"Klasor secildi: {yol.name} (bu sohbetin aktif projesi)\nGit: {'hazir' if d.get('git') else 'yok'}  Koruyucu: {'etkin' if not d.get('koruyucu_eksik') else 'EKSIK'}\nGorev icin /gorev <metin> yazin.")
 
     def _yeni(self, chat: int, ad: str) -> None:
         if not self._kokler():
@@ -343,32 +364,41 @@ class Bot:
         if not metin.strip():
             return self._gonder(chat, "Gorev metni bos. Ornek: /gorev ana sayfadaki basligi degistir")
         try:
-            self.app.gorev_olustur(metin)  # plan olayi bildirim akisindan gelir (onay dugmeleriyle)
+            with self._baglam(chat):
+                self.app.gorev_olustur(metin)  # plan olayi bildirim akisindan gelir (onay dugmeleriyle)
         except UygulamaHatasi as hata:
             self._gonder(chat, f"Gorev olusturulamadi: {hata}")
 
-    def _durum_metni(self) -> str:
-        d = self.app.durum()
+    def _digerleri(self, chat: int) -> str:
+        """Sohbetin aktif projesi disinda su an calisan/onay bekleyen projeler (telefondan hangisi aktif oldugu karismasin)."""
+        aktif = self._proje_kimligi(chat)
+        diger = [f"  {o['ad']}: {o['durum']}" for o in self.app.oturum_durumlari() if o["durum"] and o["proje"] != aktif]
+        return ("\nDiger projeler:\n" + "\n".join(diger)) if diger else ""
+
+    def _durum_metni(self, chat: int) -> str:
+        with self._baglam(chat):
+            d = self.app.durum()
         if not d.get("klasor"):
             return "Klasor secilmedi. /klasor <yol>"
-        satirlar = [f"Klasor: {d['klasor']}", f"Git: {'hazir' if d.get('git') else 'yok'}  Koruyucu: {'etkin' if not d.get('koruyucu_eksik') else 'EKSIK'}"]
+        satirlar = [f"Aktif proje: {Path(d['klasor']).name}", f"Klasor: {d['klasor']}", f"Git: {'hazir' if d.get('git') else 'yok'}  Koruyucu: {'etkin' if not d.get('koruyucu_eksik') else 'EKSIK'}"]
         a = d.get("ayar") or {}
         if a.get("akis"):
             satirlar.append("Roller: " + ", ".join(f"{ad} ({a['roller'][ad]['model'] or 'varsayilan'})" for ad in a["akis"]))
         k = d.get("kosu")
         satirlar.append(f"Gorev: {k['durum']}" if k else "Gorev: yok")
-        return "\n".join(satirlar)
+        return "\n".join(satirlar) + self._digerleri(chat)
 
     def _fark(self, chat: int, dosya: str) -> None:
         if not self.ayar["icerik_gonder"]:
             return self._gonder(chat, "Dosya icerigi gonderimi kapali (/gizlilik acik ile acabilirsiniz). Fark icin arayuze ya da bilgisayara bakin.")
-        h = self.app.son_hat
-        if not h or not dosya:
-            return self._gonder(chat, "Kullanim: /fark <dosya>  (son gorevin degisen dosyalarindan biri)")
-        try:
-            yama = self.app.fark(h["once"], h["sonra"], dosya)["yama"]
-        except UygulamaHatasi as hata:
-            return self._gonder(chat, f"Fark alinamadi: {hata}")
+        with self._baglam(chat):
+            h = self.app.son_hat
+            if not h or not dosya:
+                return self._gonder(chat, "Kullanim: /fark <dosya>  (son gorevin degisen dosyalarindan biri)")
+            try:
+                yama = self.app.fark(h["once"], h["sonra"], dosya)["yama"]
+            except UygulamaHatasi as hata:
+                return self._gonder(chat, f"Fark alinamadi: {hata}")
         self._gonder(chat, yama or "(fark yok)")
 
     def _dugme(self, cb: dict) -> None:
@@ -392,10 +422,12 @@ class Bot:
 
         try:
             if len(parcalar) == 2 and parcalar[0] == "o":
-                self.app.onayla(parcalar[1])
+                with self._kosu_baglami(parcalar[1]):
+                    self.app.onayla(parcalar[1])
                 yanit("Onaylandi, calisiyor")
             elif len(parcalar) == 2 and parcalar[0] == "r":
-                self.app.reddet(parcalar[1])
+                with self._kosu_baglami(parcalar[1]):
+                    self.app.reddet(parcalar[1])
                 yanit("Reddedildi")
             elif len(parcalar) == 2 and parcalar[0] in ("p", "g") and parcalar[1].isdigit():
                 i = int(parcalar[1])
@@ -405,7 +437,8 @@ class Bot:
                 yanit("Tamam")
                 self._proje_sec(chat["id"], yol, git=parcalar[0] == "g")
             elif len(parcalar) == 3 and parcalar[0] == "k" and parcalar[2] in ("0", "1"):
-                self.app.karar_ver(parcalar[1], parcalar[2] == "1")
+                with self._kosu_baglami(parcalar[1]):
+                    self.app.karar_ver(parcalar[1], parcalar[2] == "1")
                 yanit("Korunuyor" if parcalar[2] == "1" else "Geri aliniyor")
             else:
                 return yanit("Gecersiz dugme")
@@ -414,19 +447,31 @@ class Bot:
             yanit("Bu gorev artik gecerli degil")
             klavyeyi_kaldir()
 
+    def _kosu_baglami(self, kosu: str):
+        """Dugmedeki gorev kimligine sahip projenin baglami (sohbetin aktif projesinden bagimsiz: baska projenin plani da onaylanabilir)."""
+        kimlik = self.app.kosu_projesi(kosu)
+        if kimlik is None:
+            raise UygulamaHatasi("Gorev bulunamadi", 404)
+        return self.app.proje_baglami(kimlik)
+
     # ---- uygulama olaylari -> Telegram ----
+    def _etiket(self, o: dict) -> str:
+        ad = self._proje_adi(o.get("proje"))
+        return f"[{ad}] " if ad and len(self.app.oturumlar) > 1 else ""
+
     def olay_isle(self, o: dict) -> None:
         t, k = o.get("tur"), o.get("kosu")
+        et = self._etiket(o)
         if t in ("plan", "adim-basladi", "adim-bitti", "dogrulama", "duzeltme", "fark", "bitti"):  # bilgisayar tarafinda de ilerleme gorunsun
             self.log(f"[{time.strftime('%H:%M:%S')}] {t}" + "".join(f" {o[a]}" for a in ("rol", "sonuc", "durum") if o.get(a)))
         if t == "plan":
             adimlar = "\n".join(f"  {a['rol']}: {a['calistirici']} / {a['model'] or 'varsayilan model'}" for a in o["adimlar"])
             self._herkese(
-                f"Plan\nGorev: {o['gorev']}\n{adimlar}\nButce: {o['butce']} token, en cok {o['azami_duzeltme']} duzeltme, yalniz secili klasor",
+                f"{et}Plan\nGorev: {o['gorev']}\n{adimlar}\nButce: {o['butce']} token, en cok {o['azami_duzeltme']} duzeltme, yalniz secili klasor",
                 [[{"text": "Onayla", "callback_data": f"o:{k}"}, {"text": "Reddet", "callback_data": f"r:{k}"}]],
             )
         elif t == "adim-basladi":
-            self._ilerleme_yaz(k, f"{o['rol']} ({o['model'] or o['calistirici']}) calisiyor...")
+            self._ilerleme_yaz(k, f"{et}{o['rol']} ({o['model'] or o['calistirici']}) calisiyor...")
         elif t == "adim-bitti":
             self._ilerleme_yaz(k, f"{o['rol']}: {'tamam' if o['ok'] else 'HATA: ' + str(o.get('hata'))} - {o['sure_sn']} sn, {o['token_girdi'] + o['token_cikti']} token")
         elif t == "dogrulama":
@@ -438,11 +483,11 @@ class Bot:
             satirlar = [f"{d} {y}" for y, d in dosyalar[:20]] + ([f"... {len(dosyalar) - 20} dosya daha"] if len(dosyalar) > 20 else [])
             uyari = f"\nUYARI: {o['durum']}" if o.get("durum") != "tamam" else ""
             ek = "\n(Icerik gonderimi kapali; /fark <dosya> icin /gizlilik acik)" if not self.ayar["icerik_gonder"] else "\n/fark <dosya> ile degisikligi gorebilirsiniz."
-            self._herkese(f"{len(dosyalar)} dosya degisti:\n" + "\n".join(satirlar) + uyari + ek,
+            self._herkese(f"{et}{len(dosyalar)} dosya degisti:\n" + "\n".join(satirlar) + uyari + ek,
                           [[{"text": "Korunsun", "callback_data": f"k:{k}:1"}, {"text": "Geri al", "callback_data": f"k:{k}:0"}]])
         elif t == "bitti":
             self.ilerleme.pop(k, None)
-            self._herkese(f"Bitti: {o['durum']}" + (f"\n{o['mesaj']}" if o.get("mesaj") else "") + (f"\nToplam {o['token_toplam']} token" if o.get("token_toplam") else ""))
+            self._herkese(f"{et}Bitti: {o['durum']}" + (f"\n{o['mesaj']}" if o.get("mesaj") else "") + (f"\nToplam {o['token_toplam']} token" if o.get("token_toplam") else ""))
 
     def _olay_dongusu(self) -> None:
         assert self._olay_kuyrugu is not None

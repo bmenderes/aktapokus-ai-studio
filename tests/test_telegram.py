@@ -68,9 +68,15 @@ def son_klavye(fake, onek):
     return None, {}
 
 
+def aktif_klasor(bot):
+    """Telegram sohbetinin (UID) aktif proje klasoru; bilgisayardaki secili projeden BAGIMSIZDIR."""
+    o = bot.app.oturumlar.get(bot.aktif_proje.get(UID))
+    return o.klasor if o else None
+
+
 def tam_kosu_baslat(bot, fake, app, proje, gorev="yeni.txt ekle"):
     fake.mesaj(UID, f"/klasor {proje}")
-    assert bekle(lambda: app.klasor is not None)
+    assert bekle(lambda: aktif_klasor(bot) is not None)
     fake.mesaj(UID, f"/gorev {gorev}")
     assert bekle(lambda: son_klavye(fake, "o:")[0] is not None)
     return son_klavye(fake, "o:")[1]["Onayla"].split(":")[1]
@@ -186,7 +192,7 @@ def test_plan_reddi_ve_bayat_dugme(kur):
 def test_duz_metin_gorev_sayilir_ve_bos_gorev_reddedilir(kur):
     bot, fake, app, _ = kur()
     fake.mesaj(UID, f"/klasor {kur.proje}")
-    assert bekle(lambda: app.klasor is not None)
+    assert bekle(lambda: aktif_klasor(bot) is not None)
     fake.mesaj(UID, "/gorev")
     assert bekle(lambda: any("bos" in m for m in fake.metinler()))
     fake.mesaj(UID, "ana sayfadaki basligi degistir")  # komut onekisiz
@@ -214,7 +220,7 @@ def test_goreli_klasor_yolu_reddedilir(kur, tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     fake.mesaj(UID, "/klasor goreli-proje")
     assert bekle(lambda: any("TAM olmali" in m for m in fake.metinler()))
-    assert app.klasor is None and not (tmp_path / "goreli-proje" / ".aktapokus").exists()
+    assert aktif_klasor(bot) is None and not (tmp_path / "goreli-proje" / ".aktapokus").exists()
     fake.mesaj(UID, "/klasor ../baska")
     assert bekle(lambda: sum("TAM olmali" in m for m in fake.metinler()) >= 2)
 
@@ -269,13 +275,13 @@ def test_projeye_dokununca_secilir_gitsizde_git_baslat_sorulur(kur, tmp_path):
     assert bekle(lambda: any(v.get("reply_markup") for v in fake.gonderilen("sendMessage")))
     d = dugmeler_of(fake.gonderilen("sendMessage")[-1])
     fake.dugme(UID, d["hazir"])
-    assert bekle(lambda: app.klasor == (k1 / "hazir").resolve())
+    assert bekle(lambda: aktif_klasor(bot) == (k1 / "hazir").resolve())
     assert bekle(lambda: any("Klasor secildi: hazir" in m for m in fake.metinler()))
     fake.dugme(UID, d["gitsiz (git yok)"])
     assert bekle(lambda: son_klavye(fake, "g:")[0] is not None)
-    assert not (k1 / "gitsiz" / ".git").exists() and app.klasor == (k1 / "hazir").resolve()  # onay verilmeden git init yok
+    assert not (k1 / "gitsiz" / ".git").exists() and aktif_klasor(bot) == (k1 / "hazir").resolve()  # onay verilmeden git init yok
     fake.dugme(UID, son_klavye(fake, "g:")[1]["Git baslat"])
-    assert bekle(lambda: (k1 / "gitsiz" / ".git").exists() and app.klasor == (k1 / "gitsiz").resolve())
+    assert bekle(lambda: (k1 / "gitsiz" / ".git").exists() and aktif_klasor(bot) == (k1 / "gitsiz").resolve())
     assert (k1 / "gitsiz" / ".opencode" / "opencode.json").exists()  # koruyucu da kuruldu
 
 
@@ -303,16 +309,16 @@ def test_klasor_komutu_koklerle_sinirlanir(kur, tmp_path):
     for yol in (disari, k1, k1 / "aktapokus-ajan", k1 / ".gizli", str(k1 / "hazir") + "\\..\\..\\disarida", k2 / "ikinci"):
         fake.mesaj(UID, f"/klasor {yol}")
     assert bekle(lambda: sum("izinli proje klasorlerinin altinda degil" in m for m in fake.metinler()) >= 6)
-    assert app.klasor is None
+    assert aktif_klasor(bot) is None
     fake.mesaj(UID, f"/klasor {k1 / 'hazir'}")  # izinli
-    assert bekle(lambda: app.klasor == (k1 / "hazir").resolve())
+    assert bekle(lambda: aktif_klasor(bot) == (k1 / "hazir").resolve())
 
 
 def test_yeni_proje_olusturur_git_ve_koruyucu_kurar(kur, tmp_path):
     k1, k2, k3 = kok_kur(tmp_path)
     bot, fake, app, _ = kur(kokler=(k1, k2))
     fake.mesaj(UID, "/yeni blog-1")
-    assert bekle(lambda: app.klasor == (k1 / "blog-1").resolve())
+    assert bekle(lambda: aktif_klasor(bot) == (k1 / "blog-1").resolve())
     assert (k1 / "blog-1" / ".git").exists() and (k1 / "blog-1" / ".opencode" / "opencode.json").exists()
     assert not (k2 / "blog-1").exists()  # yalniz ILK kokte
     fake.mesaj(UID, "/yeni blog-1")
@@ -350,11 +356,11 @@ def test_eskimis_ve_yetkisiz_proje_dugmeleri(kur, tmp_path):
     bot.proje_tablosu = [k1 / "hazir"]
     fake.dugme(99, "p:0")  # yetkisiz kullanici
     time.sleep(1.2)
-    assert app.klasor is None
+    assert aktif_klasor(bot) is None
     bot.proje_tablosu = [tmp_path]  # tablo koklerin disina isaret etse bile secilemez
     fake.dugme(UID, "p:0")
     assert bekle(lambda: sum("Liste eskimis" in v.get("text", "") for v in fake.gonderilen("answerCallbackQuery")) >= 3)
-    assert app.klasor is None
+    assert aktif_klasor(bot) is None
 
 
 def test_kokler_komutu_ve_kok_ekle(kur, tmp_path, monkeypatch):
@@ -379,7 +385,7 @@ def test_klasor_git_degilse_telegramdan_git_init_yapilmaz(kur, tmp_path):
     k.mkdir()
     fake.mesaj(UID, f"/klasor {k}")
     assert bekle(lambda: any("aktapokus ac" in m for m in fake.metinler()))
-    assert not (k / ".git").exists() and app.klasor is None
+    assert not (k / ".git").exists() and aktif_klasor(bot) is None
     fake.mesaj(UID, "/klasor C:/yok/boyle/bir/yer")
     assert bekle(lambda: any("Klasor secilemedi" in m for m in fake.metinler()))
 
@@ -433,7 +439,7 @@ def test_token_hatalarda_sizmaz():
 def test_uzun_metin_kesilir(kur):
     bot, fake, app, _ = kur()
     fake.mesaj(UID, f"/klasor {kur.proje}")
-    assert bekle(lambda: app.klasor is not None)
+    assert bekle(lambda: aktif_klasor(bot) is not None)
     fake.mesaj(UID, "/gorev " + "x" * 10_000)
     assert bekle(lambda: son_klavye(fake, "o:")[0] is not None)
     assert len(son_klavye(fake, "o:")[0]["text"]) <= 3500
@@ -616,3 +622,79 @@ def test_token_yoksa_komut_yonerge_verir(monkeypatch, tmp_path, capsys):
     assert tg.token_oku() == TOKEN
     monkeypatch.setenv(tg.TOKEN_ORTAMI, "ortam:token")
     assert tg.token_oku() == "ortam:token"  # ortam degiskeni dosyadan oncelikli
+
+
+# ---------- coklu proje P4: sohbet basina aktif proje ----------
+def _iki_proje(kur, tmp_path):
+    from aktapokus_ajan import projeler
+    from test_arayuz import _ikinci_proje
+
+    b = _ikinci_proje(tmp_path)
+    return b, projeler.proje_kimligi(kur.proje), projeler.proje_kimligi(b)
+
+
+def test_telegram_klasor_bilgisayardaki_secili_projeyi_degistirmez(kur, tmp_path):
+    bot, fake, app, _ = kur()
+    b, a_id, b_id = _iki_proje(kur, tmp_path)
+    app.klasor_sec(str(kur.proje))  # bilgisayar ekrani: A
+    fake.mesaj(UID, f"/klasor {b}")
+    assert bekle(lambda: UID in bot.aktif_proje)
+    assert bot.aktif_proje[UID] == b_id and app.secili_kimlik == a_id  # ekran A'da kaldi
+    assert aktif_klasor(bot) == b.resolve()
+
+
+def test_gorev_sohbetin_aktif_projesine_gider_plan_proje_adiyla_gelir(kur, tmp_path):
+    bot, fake, app, _ = kur()
+    b, a_id, b_id = _iki_proje(kur, tmp_path)
+    app.klasor_sec(str(kur.proje))
+    fake.mesaj(UID, f"/klasor {b}")
+    assert bekle(lambda: UID in bot.aktif_proje)
+    fake.mesaj(UID, "/gorev b projesinde is")
+    assert bekle(lambda: son_klavye(fake, "o:")[0] is not None)
+    assert app.oturumlar[b_id].kosu and app.oturumlar[b_id].kosu.gorev == "b projesinde is"
+    assert app.oturumlar[a_id].kosu is None  # bilgisayarda secili A'ya hicbir sey gitmedi
+    assert any(m.startswith(f"[{b.name}] Plan") for m in fake.metinler())
+
+
+def test_baska_projenin_onay_dugmesi_aktif_proje_B_iken_de_calisir(kur, tmp_path):
+    bot, fake, app, _ = kur()
+    b, a_id, b_id = _iki_proje(kur, tmp_path)
+    app.klasor_sec(str(kur.proje))
+    fake.mesaj(UID, f"/klasor {b}")
+    assert bekle(lambda: UID in bot.aktif_proje)
+    app.gorev_olustur("a gorevi")  # bilgisayardan, A'da
+    assert bekle(lambda: son_klavye(fake, "o:")[0] is not None)
+    kosu_a = app.oturumlar[a_id].kosu.kimlik
+    fake.dugme(UID, "o:" + kosu_a)
+    assert bekle(lambda: app.oturumlar[a_id].kosu.durum in ("calisiyor", "karar-bekliyor", "bitti"))
+    assert app.oturumlar[b_id].kosu is None
+    if app.oturumlar[a_id].kosu.durum == "karar-bekliyor":
+        fake.dugme(UID, f"k:{kosu_a}:0")
+        assert bekle(lambda: app.oturumlar[a_id].kosu.durum == "bitti")
+
+
+def test_durum_ve_durdur_diger_calisan_projeleri_gosterir(kur, tmp_path):
+    ornekler = []
+
+    def uret(ad):
+        e = Engelli()
+        ornekler.append(e)
+        return e
+
+    bot, fake, app, _ = kur(uret=uret)
+    b, a_id, b_id = _iki_proje(kur, tmp_path)
+    try:
+        app.klasor_sec(str(kur.proje))
+        plan = app.gorev_olustur("uzun a gorevi")
+        app.onayla(plan["kosu"])
+        assert bekle(lambda: ornekler and ornekler[0].basladi.is_set())
+        fake.mesaj(UID, f"/klasor {b}")
+        assert bekle(lambda: UID in bot.aktif_proje)
+        fake.mesaj(UID, "/durum")
+        assert bekle(lambda: any(f"Aktif proje: {b.name}" in m and kur.proje.name in m and "calisiyor" in m for m in fake.metinler()))
+        fake.mesaj(UID, "/durdur")
+        assert bekle(lambda: any("Calisan gorev yok" in m and kur.proje.name in m for m in fake.metinler()))
+        assert ornekler[0].durduruldu is False  # B'de gorev yok: A'ya dokunulmadi
+    finally:
+        for e in ornekler:
+            e.serbest.set()
