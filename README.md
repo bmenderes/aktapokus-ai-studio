@@ -188,3 +188,9 @@ Sınırlar (dürüstçe): **gerçek Telegram ile denenmedi** (token bende olmama
 ```bat
 python -m pytest
 ```
+
+## Lisans
+
+[MIT](LICENSE). Pakete dahil üçüncü taraf dosyalar (xterm.js, Inter yazı tipi) ve sürdüğü araçlar hakkında bilgi: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Bu proje OpenCode, Anthropic, OpenAI ya da GitHub ile bağlantılı değildir.
+
+**Önemli güvenlik notu:** Aktapokus-ajan, ajan CLI'larını **bu bilgisayarda** çalıştırır; terminal sekmesi, MCP sunucuları ve özel CLI tanımları bilgisayarınızda program çalıştırmak demektir. Arayüz yalnızca `127.0.0.1`'e bağlanır ve her istek rastgele bir belirteç ister; yine de yalnızca güvendiğiniz sunucu/CLI/depoları ekleyin ve arayüz adresini kimseyle paylaşmayın. Yazılım "olduğu gibi" sunulur (bkz. LICENSE).

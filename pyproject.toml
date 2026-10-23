@@ -5,13 +5,20 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "aktapokus-ajan"
 version = "0.1.0"
-description = "OpenCode (ve Claude Code) motorlarini rol/model bazli suren, onay ve geri alma katmani"
+description = "OpenCode, Claude Code ve Codex gibi kod ajani CLI'larini rol/model bazli suren; onay, geri alma, coklu proje, MCP, Telegram ve Git yonetimi katmani"
+readme = "README.md"
+license = { text = "MIT" }
 requires-python = ">=3.10"
+classifiers = ["License :: OSI Approved :: MIT License", "Operating System :: Microsoft :: Windows", "Programming Language :: Python :: 3"]
 dependencies = []
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
 qr = ["segno>=1.6"]  # Telegram eslestirme QR kodu (istege bagli)
+
+[project.urls]
+Homepage = "https://github.com/bmenderes/aktapokus-ajan"
+Repository = "https://github.com/bmenderes/aktapokus-ajan"
 
 [project.scripts]
 aktapokus = "aktapokus_ajan.cli:main_giris"
