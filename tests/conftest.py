@@ -1,0 +1,63 @@
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from aktapokus_ajan import guard, snapshot
+from aktapokus_ajan.runners import Calistirici, CalistirmaSonucu
+
+
+@pytest.fixture
+def proje(tmp_path):
+    """Gecici, git deposu olan bir proje klasoru (guvenli_klasor gecer: tmp_path ev dizininin altinda degil)."""
+    klasor = tmp_path / "proje"
+    klasor.mkdir()
+    subprocess.run(["git", "-C", str(klasor), "init", "-q"], check=True)
+    (klasor / "a.txt").write_text("bir\n", encoding="utf-8")
+    (klasor / "b.txt").write_text("iki\n", encoding="utf-8")
+    guard.kur(klasor)  # OpenCode rolleri icin koruyucu zorunlu
+    return klasor
+
+
+class SahteCalistirici(Calistirici):
+    """Senaryo: rol adi -> islev(klasor, istem, cagri_no) -> CalistirmaSonucu. Rol, istemdeki 'ROLUN: <ad>.' satirindan okunur."""
+
+    ad = "sahte"
+
+    def __init__(self, senaryo):
+        self.senaryo = senaryo
+        self.cagrilar = []
+
+    def calistir(self, istem, klasor, model=None, agent=None, zaman_asimi_sn=900, onayli=True):
+        rol = istem.split("ROLUN: ", 1)[1].split(".", 1)[0]
+        self.cagrilar.append((rol, model, istem))
+        return self.senaryo[rol](Path(klasor), istem, len([c for c in self.cagrilar if c[0] == rol]))
+
+
+def sonuc(metin="tamam", girdi=10, cikti=5, ok=True, hata=None):
+    return CalistirmaSonucu(ok=ok, metin=metin, token_girdi=girdi, token_cikti=cikti, hata=hata)
+
+
+@pytest.fixture(autouse=True)
+def tarayici_acilmaz(monkeypatch):
+    """HICBIR test gercek tarayici acmamali. (Gercek hata: segno kurulunca telegram_calistir testleri her kosuda kullanicinin
+    tarayicisinda eslestirme/QR sayfasi acti.) Cagrilar listeye yazilir; testler isterse dogrulayabilir."""
+    import webbrowser
+
+    acilan = []
+    monkeypatch.setattr(webbrowser, "open", lambda url, *a, **k: acilan.append(url) or False)
+    monkeypatch.setattr(webbrowser, "open_new", lambda url: acilan.append(url) or False)
+    monkeypatch.setattr(webbrowser, "open_new_tab", lambda url: acilan.append(url) or False)
+    return acilan
+
+
+@pytest.fixture(autouse=True)
+def cli_kayit_yalitimi(tmp_path_factory, monkeypatch):
+    """Hicbir test kullanicinin gercek ~/.aktapokus/clilar.json dosyasini okumasin ya da yazmasin."""
+    monkeypatch.setenv("AKTAPOKUS_CLILAR", str(tmp_path_factory.mktemp("clilar") / "clilar.json"))
+
+
+@pytest.fixture(autouse=True)
+def proje_kayit_yalitimi(tmp_path_factory, monkeypatch):
+    """Hicbir test kullanicinin gercek ~/.aktapokus/projeler.json dosyasini okumasin ya da yazmasin."""
+    monkeypatch.setenv("AKTAPOKUS_PROJELER", str(tmp_path_factory.mktemp("projeler") / "projeler.json"))
