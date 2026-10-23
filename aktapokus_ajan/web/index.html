@@ -69,6 +69,20 @@ pre.yama{background:var(--panel2);border-radius:6px;padding:6px;overflow:auto;ma
 body{position:relative}
 #ayarlar{display:none;position:absolute;left:0;right:0;bottom:0;top:38px;background:var(--bg);z-index:20;grid-template-columns:210px minmax(0,1fr)}
 #ayarlar.on{display:grid}
+#terminalSayfa{display:none;position:absolute;left:0;right:0;bottom:0;top:38px;background:#1e1e1e;z-index:21;flex-direction:column}
+#terminalSayfa.on{display:flex}
+#trmUst{display:flex;align-items:center;gap:4px;padding:4px 8px;background:var(--panel2);border-bottom:1px solid var(--line);flex-wrap:wrap}
+#trmUst .sekme{display:inline-flex;align-items:center;gap:6px;padding:2px 4px 2px 9px;border:1px solid var(--line2);border-radius:6px;background:var(--panel);cursor:pointer}
+#trmUst .sekme.on{background:var(--accbg);border-color:var(--acc);color:var(--acc)}
+#trmUst .sekme.bitti{opacity:.6;text-decoration:line-through}
+#trmUst .sekme .x{border:none;background:none;padding:0 4px;color:inherit;cursor:pointer}
+#trmGovde{flex:1;min-height:0;position:relative}
+#trmGovde .trm{position:absolute;inset:0;padding:4px 0 0 6px;display:none}
+#trmGovde .trm.on{display:block}
+#trmTelegram{position:absolute;inset:0;overflow:auto;padding:10px 14px;background:var(--bg);display:none}
+#trmTelegram.on{display:block}
+#trmMesaj{position:absolute;inset:0;display:none;align-items:center;justify-content:center;color:#ddd;padding:20px;text-align:center}
+#trmMesaj.on{display:flex}
 #ayarMenu{background:var(--panel2);border-right:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:2px;overflow:auto}
 #ayarMenu button{text-align:left;border:none;background:none;padding:6px 10px;border-radius:6px;color:var(--tx2)}
 #ayarMenu button:hover{background:var(--panel)}
@@ -133,7 +147,7 @@ body.suruklenir iframe{pointer-events:none}
     <button id="yeniGorev" class="pri" style="width:100%">+ Yeni görev</button>
     <div class="sec">Görevler</div><div id="gecmis" class="mut3">-</div>
     <div class="sec">Klon</div><div id="klon" class="mut">-</div>
-    <div style="margin-top:auto;padding-top:10px"><button id="ayarDugme" style="width:100%" title="Sağlayıcılar, modeller, roller, CLI'lar, kullanım">⚙ Ayarlar</button></div>
+    <div style="margin-top:auto;padding-top:10px;display:flex;flex-direction:column;gap:4px"><button id="terminalDugme" style="width:100%" title="PowerShell terminali ve Telegram günlüğü (Alt+3)">⌨ Terminal</button><button id="ayarDugme" style="width:100%" title="Sağlayıcılar, modeller, roller, CLI'lar, kullanım">⚙ Ayarlar</button></div>
   </div>
   <div class="bolucu" id="bolucuSol" title="Sürükleyin: genişliği değiştirin · çift tıklayın: sıfırla"></div>
   <div id="orta">
@@ -164,6 +178,7 @@ body.suruklenir iframe{pointer-events:none}
   <div class="row mut"><span id="tokenYazi">token 0</span><span style="width:70px;height:4px;background:var(--panel2);border-radius:2px;display:inline-block"><span id="tokenCubuk" style="display:block;height:4px;width:0;background:var(--tx2);border-radius:2px"></span></span><span id="baglanti" class="badge">bağlanıyor</span></div>
 </div>
 <div id="ayarlar"><div id="ayarMenu"></div><div id="ayarIcerik"></div></div>
+<div id="terminalSayfa"><div id="trmUst"></div><div id="trmGovde"><div id="trmTelegram"></div><div id="trmMesaj"></div></div></div>
 <script>
 "use strict";
 const $=s=>document.querySelector(s);
@@ -664,6 +679,53 @@ async function klasorSecimiAc(){if($("#klasorSec"))return;
 async function onizlemeKur(){try{const r=await api("/api/onizleme");onizTaban=r.url;onizGoster()}catch(x){}}
 async function olayAkisi(){let bekle=500;for(;;){try{const r=await fetch("/api/olaylar?son="+S.son,{headers:{"X-Aktapokus-Token":T}});if(!r.ok)throw new Error("HTTP "+r.status);$("#baglanti").textContent="canlı";$("#baglanti").className="badge b-ok";bekle=500;const rd=r.body.getReader();const dec=new TextDecoder();let tam="";for(;;){const {done,value}=await rd.read();if(done)break;tam+=dec.decode(value,{stream:true});let i;while((i=tam.indexOf("\n\n"))>=0){const blok=tam.slice(0,i);tam=tam.slice(i+2);const d=blok.split("\n").filter(x=>x.startsWith("data:")).map(x=>x.slice(5).trim()).join("");if(d){try{olayIsle(JSON.parse(d))}catch(x){console.error(x)}}}}}catch(x){}
     $("#baglanti").textContent="bağlantı yok";$("#baglanti").className="badge b-err";await new Promise(r=>setTimeout(r,bekle));bekle=Math.min(bekle*2,8000)}}
+/* ---- Terminal sayfası: PowerShell (ConPTY) + Telegram günlüğü. xterm.js ilk açılışta yüklenir. ---- */
+const TRM={t:{},aktif:null,xt:null,tg:false,tgZ:null};
+function xtYukle(){if(TRM.xt)return TRM.xt;TRM.xt=new Promise((ok,hata)=>{const l=document.createElement("link");l.rel="stylesheet";l.href="/vendor/xterm.css";document.head.append(l);const a=document.createElement("script");a.src="/vendor/xterm.js";a.onerror=()=>hata(new Error("xterm.js yüklenemedi"));a.onload=()=>{const b=document.createElement("script");b.src="/vendor/addon-fit.js";b.onerror=a.onerror;b.onload=ok;document.head.append(b)};document.head.append(a)});TRM.xt.catch(()=>{TRM.xt=null});return TRM.xt}
+function trmMesaj(m){const k=$("#trmMesaj");k.textContent=m||"";k.classList.toggle("on",!!m)}
+function trmB64(u8){let s="";for(let i=0;i<u8.length;i+=8192)s+=String.fromCharCode.apply(null,u8.subarray(i,i+8192));return btoa(s)}
+function trmSekmeler(){const u=$("#trmUst");u.textContent="";let n=0;
+  for(const id in TRM.t){const t=TRM.t[id];n++;u.append(e("span",{class:"sekme"+(TRM.aktif===id?" on":"")+(t.bitti?" bitti":""),onclick:()=>trmSec(id)},"PowerShell "+n,e("button",{class:"x",title:"Terminali kapat",text:"✕",onclick:ev=>{ev.stopPropagation();trmKapat(id)}})))}
+  u.append(e("button",{text:"+ Yeni",title:"Yeni terminal (en çok 3)",onclick:()=>trmYeni().catch(x=>alert(x.message))}));
+  u.append(e("span",{class:"sekme"+(TRM.aktif==="tg"?" on":""),onclick:()=>trmSec("tg")},"Telegram günlüğü"));
+  u.append(e("span",{style:"flex:1"}),e("span",{class:"mut",id:"trmKlasor"}),e("button",{text:"Kapat",title:"Sayfayı gizle (terminaller arka planda çalışmaya devam eder)",onclick:terminalKapat}))}
+function trmSec(id){TRM.aktif=id;for(const k in TRM.t)TRM.t[k].kutu.classList.toggle("on",k===id);$("#trmTelegram").classList.toggle("on",id==="tg");
+  if(TRM.tgZ){clearInterval(TRM.tgZ);TRM.tgZ=null}
+  if(id==="tg"){trmTelegramCiz();TRM.tgZ=setInterval(()=>{if(TRM.aktif==="tg"&&$("#terminalSayfa").classList.contains("on")&&!document.activeElement.matches("#trmTelegram *"))trmTelegramCiz()},2500)}
+  else if(TRM.t[id]){setTimeout(()=>{trmSigdir(id);TRM.t[id].term.focus()},0)}
+  trmSekmeler()}
+async function trmTelegramCiz(){const k=$("#trmTelegram");let d;try{d=await api("/api/telegram")}catch(x){k.textContent="Telegram durumu okunamadı: "+x.message;return}
+  k.textContent="";k.append(e("div",{class:"row",style:"gap:8px;margin-bottom:8px"},e("b",{text:"Telegram botu: "+(d.calisiyor?"çalışıyor":"durdu")}),e("button",{text:d.calisiyor?"Durdur":"Başlat",onclick:async()=>{try{await api("/api/telegram/"+(d.calisiyor?"durdur":"baslat"),{method:"POST",body:{}})}catch(x){alert(x.message)}trmTelegramCiz()}}),e("span",{class:"mut",text:"Açılışta otomatik başlatma: Ayarlar > Telegram"})),
+  e("pre",{class:"yama",style:"max-height:none",text:(d.log&&d.log.length)?d.log.join("\n"):"(henüz kayıt yok)"}))}
+function trmSigdir(id){const t=TRM.t[id];if(!t||!t.kutu.offsetWidth||!t.kutu.offsetHeight)return;try{t.fit.fit()}catch(x){return}
+  if(t.term.rows!==t.satir||t.term.cols!==t.sutun){t.satir=t.term.rows;t.sutun=t.term.cols;api("/api/terminal/"+id+"/boyut",{method:"POST",body:{satir:t.satir,sutun:t.sutun}}).catch(()=>{})}}
+function trmBagla(id,bilgi){const kutu=e("div",{class:"trm"});$("#trmGovde").append(kutu);
+  const term=new Terminal({fontFamily:'Consolas,"Cascadia Mono",monospace',fontSize:13,cursorBlink:true,scrollback:5000,theme:{background:"#1e1e1e"}});const fit=new FitAddon.FitAddon();term.loadAddon(fit);term.open(kutu);
+  const t={term,fit,kutu,satir:bilgi.satir||0,sutun:bilgi.sutun||0,son:0,bitti:false,kapali:false,tampon:[],gonderiyor:false};TRM.t[id]=t;
+  const gonder=async()=>{if(t.gonderiyor)return;t.gonderiyor=true;try{while(t.tampon.length){const u=t.tampon.join("");t.tampon=[];const b=trmB64(new TextEncoder().encode(u));try{await api("/api/terminal/"+id+"/girdi",{method:"POST",body:{b}})}catch(x){if(x.kod===404||x.kod===410)return}}}finally{t.gonderiyor=false}};
+  term.onData(v=>{t.tampon.push(v);gonder()});
+  new ResizeObserver(()=>{clearTimeout(t.rz);t.rz=setTimeout(()=>trmSigdir(id),80)}).observe(kutu);
+  (async()=>{let bekle=300;while(!t.kapali&&!t.bitti){try{const r=await fetch("/api/terminal/"+id+"/akis?son="+t.son,{headers:{"X-Aktapokus-Token":T}});if(r.status===404){t.bitti=true;break}if(!r.ok)throw new Error("HTTP "+r.status);bekle=300;const rd=r.body.getReader();const dec=new TextDecoder();let tam="";
+      for(;;){const {done,value}=await rd.read();if(done)break;tam+=dec.decode(value,{stream:true});let i;while((i=tam.indexOf("\n\n"))>=0){const blok=tam.slice(0,i);tam=tam.slice(i+2);const d=blok.split("\n").filter(x=>x.startsWith("data:")).map(x=>x.slice(5).trim()).join("");if(!d)continue;let o;try{o=JSON.parse(d)}catch(x){continue}
+        if(o.bitti){t.bitti=true;term.write("\r\n\x1b[90m[Süreç sona erdi. Sekmeyi kapatıp yeni bir terminal açabilirsiniz.]\x1b[0m\r\n");trmSekmeler();return}
+        t.son=o.s;term.write(Uint8Array.from(atob(o.b),c=>c.charCodeAt(0)))}}}catch(x){}
+    if(t.kapali||t.bitti)break;await new Promise(r=>setTimeout(r,bekle));bekle=Math.min(bekle*2,5000)}})();
+  return t}
+async function trmYeni(){await xtYukle();const kutu=$("#trmGovde");const g=Math.max(2,Math.floor((kutu.clientHeight||400)/17)),w=Math.max(20,Math.floor((kutu.clientWidth||800)/8));
+  const d=await api("/api/terminal/ac",{method:"POST",body:{satir:g,sutun:w}});trmBagla(d.id,d);trmSec(d.id)}
+async function trmKapat(id){const t=TRM.t[id];if(!t)return;t.kapali=true;try{await api("/api/terminal/"+id+"/kapat",{method:"POST",body:{}})}catch(x){}
+  try{t.term.dispose()}catch(x){}t.kutu.remove();delete TRM.t[id];const kalan=Object.keys(TRM.t);trmSec(kalan.length?kalan[0]:"tg")}
+async function terminalAc(){$("#terminalSayfa").classList.add("on");trmMesaj("");
+  try{await xtYukle()}catch(x){trmMesaj("Terminal ekranı yüklenemedi: "+x.message);trmSekmeler();return}
+  let d;try{d=await api("/api/terminal")}catch(x){trmMesaj(x.message);trmSekmeler();return}
+  const kl=$("#trmKlasor");if(kl)kl.textContent=d.klasor||"";
+  if(!d.destek||!d.calisiyor){trmMesaj(d.destek?"Bu ortamda terminal (ConPTY) çalışmıyor.":"Terminal yalnızca Windows 10 (1809+) / Windows 11'de desteklenir.");TRM.aktif="tg";trmSekmeler();return}
+  for(const o of d.acik)if(!TRM.t[o.id])trmBagla(o.id,o);
+  const ids=Object.keys(TRM.t);if(!ids.length){try{await trmYeni()}catch(x){trmMesaj(x.message)}}else trmSec(TRM.aktif&&TRM.t[TRM.aktif]?TRM.aktif:ids[0]);
+  const k2=$("#trmKlasor");if(k2)k2.textContent=d.klasor||""}
+function terminalKapat(){$("#terminalSayfa").classList.remove("on");if(TRM.tgZ){clearInterval(TRM.tgZ);TRM.tgZ=null}}
+$("#terminalDugme").onclick=()=>$("#terminalSayfa").classList.contains("on")?terminalKapat():terminalAc();
+document.addEventListener("keydown",ev=>{if(ev.altKey&&ev.key==="3"){ev.preventDefault();$("#terminalDugme").click()}});
 (async()=>{if(!T){document.body.textContent="Token yok: arayüzü terminalde yazdırılan adresle açın.";return}await durumYukle();if(!S.klasor)klasorSecimiAc();else{await dosyalariYukle();await onizlemeKur()}olayAkisi()})();
 </script>
 </body>

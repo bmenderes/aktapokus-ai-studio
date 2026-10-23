@@ -20,7 +20,7 @@ aktapokus = "aktapokus_ajan.cli:main_giris"
 packages = ["aktapokus_ajan"]
 
 [tool.setuptools.package-data]
-aktapokus_ajan = ["web/*.html", "web/*.ico"]
+aktapokus_ajan = ["web/*.html", "web/*.ico", "web/vendor/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

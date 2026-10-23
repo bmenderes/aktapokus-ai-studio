@@ -27,6 +27,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
+from . import winjob
 from .runners import Calistirici, CalistirmaSonucu, _alt_surec_ortami, _istemi_denetle, opencode_bul
 
 
@@ -208,40 +209,10 @@ def _agaci_oldur(islem: subprocess.Popen) -> None:
 
 
 def _is_nesnesine_bagla(islem: subprocess.Popen):
-    """Windows: alt sureci, bu surec olunce (hatta zorla kapatilirsa) OS tarafindan oldurulen bir 'job' nesnesine baglar.
-    Gercek denemede arayuz zorla kapatilinca OpenCode sunucusu yetim kaldi. Basarisizsa None (en iyi caba)."""
+    """Windows: alt sureci, bu surec olunce (hatta zorla kapatilirsa) OS tarafindan oldurulen bir 'job' nesnesine baglar (bkz. winjob.py)."""
     if os.name != "nt":
         return None
-    try:
-        import ctypes
-        from ctypes import wintypes
-
-        class TEMEL(ctypes.Structure):
-            _fields_ = [("a", ctypes.c_int64), ("b", ctypes.c_int64), ("LimitFlags", wintypes.DWORD), ("c", ctypes.c_size_t), ("d", ctypes.c_size_t),
-                        ("e", wintypes.DWORD), ("f", ctypes.c_size_t), ("g", wintypes.DWORD), ("h", wintypes.DWORD)]
-
-        class IO(ctypes.Structure):
-            _fields_ = [(n, ctypes.c_uint64) for n in "abcdef"]
-
-        class GENIS(ctypes.Structure):
-            _fields_ = [("Temel", TEMEL), ("Io", IO), ("a", ctypes.c_size_t), ("b", ctypes.c_size_t), ("c", ctypes.c_size_t), ("d", ctypes.c_size_t)]
-
-        k = ctypes.WinDLL("kernel32", use_last_error=True)
-        k.CreateJobObjectW.restype = wintypes.HANDLE
-        k.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
-        k.SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD]
-        is_ = k.CreateJobObjectW(None, None)
-        if not is_:
-            return None
-        bilgi = GENIS()
-        bilgi.Temel.LimitFlags = 0x2000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-        if not k.SetInformationJobObject(is_, 9, ctypes.byref(bilgi), ctypes.sizeof(bilgi)):
-            return None
-        if not k.AssignProcessToJobObject(is_, int(islem._handle)):
-            return None
-        return is_  # tutamac acik kaldigi surece (bu surec yasarken) alt surec yasar
-    except Exception:
-        return None
+    return winjob.bagla(int(islem._handle))
 
 
 class Sunucu:

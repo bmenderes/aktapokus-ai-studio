@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import base64
 import json
 import mimetypes
 import os
@@ -28,7 +29,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import ciktilar, clitanim, guard, istatistik, projeler, snapshot
+from . import ciktilar, clitanim, guard, istatistik, projeler, snapshot, terminal
 from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
 from .pipeline import HatHatasi, _kayit_klasoru, calistir_hat, son_kayit
@@ -157,6 +158,8 @@ class Uygulama:
         self.calistirici_uret = calistirici_uret
         self._saglayici_istemci_uret = saglayici_istemci_uret
         self.telegram = None  # TelegramYoneticisi: ilk kullanimda olusur (Ayarlar > Telegram)
+        self.terminaller: dict[str, terminal.Terminal] = {}
+        self._terminal_kilit = threading.Lock()
         self.token = token or secrets.token_urlsafe(24)
         self.bus = OlayAkisi()
         self.klasor: Path | None = None
@@ -395,6 +398,85 @@ class Uygulama:
             raise UygulamaHatasi(str(hata)) from None
         raise UygulamaHatasi("Bilinmeyen Telegram işlemi", 404)
 
+    # --- Terminal (ConPTY PowerShell): TAM ERISIMLI; yalniz yerel, belirtecli, Host/Origin denetimli arayuzden. Telegram erisemez. ---
+    AZAMI_TERMINAL = 3
+    AZAMI_GIRDI = 65536  # tek istekte en cok 64 KB girdi (yapistirma)
+
+    def terminal_durum(self) -> dict:
+        with self._terminal_kilit:
+            acik = [{"id": i, "pid": t.pid, "canli": t.canli, "satir": t.satir, "sutun": t.sutun} for i, t in self.terminaller.items()]
+        return {"destek": terminal.destekleniyor(), "calisiyor": terminal.kontrol(), "acik": acik, "azami": self.AZAMI_TERMINAL, "klasor": str(self.klasor) if self.klasor else str(Path.home())}
+
+    def terminal_ac(self, satir: object = 24, sutun: object = 80) -> dict:
+        if not terminal.destekleniyor():
+            raise UygulamaHatasi("Terminal yalnızca Windows 10 (1809+) / Windows 11'de desteklenir.", 501)
+        if not terminal.kontrol():
+            raise UygulamaHatasi("Bu ortamda terminal (ConPTY) çalışmıyor; kabuk sahte konsola bağlanamadı.", 501)
+        try:
+            satir, sutun = int(satir), int(sutun)
+        except (TypeError, ValueError):
+            raise UygulamaHatasi("satir/sutun sayi olmali") from None
+        with self._terminal_kilit:
+            for i in [i for i, t in self.terminaller.items() if not t.canli]:  # bitmis (exit) terminalleri temizle
+                self.terminaller.pop(i).kapat()
+            if len(self.terminaller) >= self.AZAMI_TERMINAL:
+                raise UygulamaHatasi(f"En çok {self.AZAMI_TERMINAL} terminal açılabilir; birini kapatın.", 409)
+            try:
+                t = terminal.Terminal(klasor=self.klasor or Path.home(), satir=satir, sutun=sutun)
+            except terminal.TerminalHatasi as hata:
+                raise UygulamaHatasi(str(hata), 500) from None
+            kimlik = secrets.token_hex(4)
+            self.terminaller[kimlik] = t
+        return {"id": kimlik, "pid": t.pid, "satir": t.satir, "sutun": t.sutun}
+
+    def terminal_al(self, kimlik: object) -> "terminal.Terminal":
+        with self._terminal_kilit:
+            t = self.terminaller.get(kimlik) if isinstance(kimlik, str) else None
+        if t is None:
+            raise UygulamaHatasi("Böyle bir terminal yok", 404)
+        return t
+
+    def terminal_girdi(self, kimlik: object, b64: object) -> dict:
+        t = self.terminal_al(kimlik)
+        if not isinstance(b64, str) or len(b64) > self.AZAMI_GIRDI * 2:
+            raise UygulamaHatasi("Girdi geçersiz ya da çok büyük (en çok 64 KB)", 413)
+        try:
+            veri = base64.b64decode(b64, validate=True)
+        except (ValueError, TypeError):
+            raise UygulamaHatasi("Girdi base64 değil") from None
+        if len(veri) > self.AZAMI_GIRDI:
+            raise UygulamaHatasi("Girdi çok büyük (en çok 64 KB)", 413)
+        try:
+            t.yaz(veri)
+        except terminal.TerminalHatasi as hata:
+            raise UygulamaHatasi(str(hata), 410) from None
+        return {"tamam": True, "canli": t.canli}
+
+    def terminal_boyut(self, kimlik: object, satir: object, sutun: object) -> dict:
+        t = self.terminal_al(kimlik)
+        try:
+            t.boyutla(int(satir), int(sutun))
+        except (TypeError, ValueError):
+            raise UygulamaHatasi("satir/sutun sayi olmali") from None
+        return {"satir": t.satir, "sutun": t.sutun}
+
+    def terminal_kapat(self, kimlik: object) -> dict:
+        with self._terminal_kilit:
+            t = self.terminaller.pop(kimlik, None) if isinstance(kimlik, str) else None
+        if t is None:
+            raise UygulamaHatasi("Böyle bir terminal yok", 404)
+        t.kapat()
+        return {"tamam": True}
+
+    def terminalleri_kapat(self) -> None:
+        with self._terminal_kilit:
+            tumu, self.terminaller = list(self.terminaller.values()), {}
+        for t in tumu:
+            try:
+                t.kapat()
+            except Exception:
+                pass
+
     # --- ciktilar (Outputs): projede gorevlerle olusan/degisen dosyalarin birlesik listesi (yalniz okur) ---
     def ciktilar(self) -> dict:
         klasor = self._klasor()
@@ -623,6 +705,17 @@ class Uygulama:
         return {"tamam": True}
 
 
+def _origin_gecerli(origin: str | None, portlar: set[int]) -> bool:
+    """Tarayicilar durum degistiren (POST/PUT) isteklere Origin ekler. Yoksa (curl, testler, ayni-kokenli bazi istekler) kabul; varsa YALNIZ
+    bu sunucunun kendi adresi kabul edilir ('null' ve baska siteler reddedilir): baska bir sitenin sayfasi terminale/ayarlara istek atamaz."""
+    if origin is None:
+        return True
+    return any(origin == f"http://{ad}:{port}" for ad in ("127.0.0.1", "localhost") for port in portlar)
+
+
+VENDOR_DOSYALARI = {"xterm.js": "application/javascript; charset=utf-8", "xterm.css": "text/css; charset=utf-8", "addon-fit.js": "application/javascript; charset=utf-8"}
+
+
 def _host_gecerli(host: str | None, portlar: set[int]) -> bool:
     if not host:
         return False
@@ -664,8 +757,16 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
         def _yol(self, yontem: str):
             if not _host_gecerli(self.headers.get("Host"), {sunucu.port}):
                 return self._gonder(403, {"hata": "Gecersiz Host"})
+            if yontem in ("POST", "PUT", "DELETE") and not _origin_gecerli(self.headers.get("Origin"), {sunucu.port}):
+                return self._gonder(403, {"hata": "Gecersiz Origin"})
             u = urllib.parse.urlsplit(self.path)
             yol, sorgu = u.path, {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
+            if yontem in ("GET", "HEAD") and yol.startswith("/vendor/"):  # uclu taraf terminal ekrani (xterm.js); yalniz izin listesi, belirtec gerekmez (statik)
+                ad = yol[len("/vendor/"):]
+                dosya = WEB / "vendor" / ad
+                if ad in VENDOR_DOSYALARI and dosya.is_file():
+                    return self._gonder(200, dosya.read_bytes(), VENDOR_DOSYALARI[ad])
+                return self._gonder(404, {"hata": "yok"})
             if yontem in ("GET", "HEAD") and yol in ("/", "/index.html"):
                 dosya = WEB / "index.html"
                 if not dosya.is_file():
@@ -702,6 +803,11 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                     return self._gonder(200, app.istatistik(q.get("kapsam", "proje")))
                 if yol == "/api/telegram":
                     return self._gonder(200, app.telegram_islem("durum", {}))
+                if yol == "/api/terminal":
+                    return self._gonder(200, app.terminal_durum())
+                m = re.match(r"^/api/terminal/([0-9a-f]+)/akis$", yol)
+                if m:
+                    return self._terminal_akis(m.group(1), int(q.get("son", "0") or 0))
                 if yol == "/api/ciktilar":
                     return self._gonder(200, app.ciktilar())
                 if yol == "/api/gecmis":
@@ -734,6 +840,16 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                     return self._gonder(200, app.saglayici_baglan(g.get("saglayici"), g.get("anahtar"), g.get("etiket")))
                 if yol == "/api/saglayicilar/kaldir":
                     return self._gonder(200, app.saglayici_kaldir(g.get("baglanti")))
+                if yol == "/api/terminal/ac":
+                    return self._gonder(200, app.terminal_ac(g.get("satir", 24), g.get("sutun", 80)))
+                m = re.match(r"^/api/terminal/([0-9a-f]+)/(girdi|boyut|kapat)$", yol)
+                if m:
+                    kimlik, islem = m.groups()
+                    if islem == "girdi":
+                        return self._gonder(200, app.terminal_girdi(kimlik, g.get("b")))
+                    if islem == "boyut":
+                        return self._gonder(200, app.terminal_boyut(kimlik, g.get("satir"), g.get("sutun")))
+                    return self._gonder(200, app.terminal_kapat(kimlik))
                 m = re.match(r"^/api/telegram/(baslat|durdur|eslestir|otomatik|kok|kok-sil)$", yol)
                 if m:
                     return self._gonder(200, app.telegram_islem(m.group(1), g))
@@ -785,6 +901,30 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                 pass
             finally:
                 app.bus.ayril(q)
+
+        def _terminal_akis(self, kimlik: str, son: int):
+            t = app.terminal_al(kimlik)  # yoksa 404 (UygulamaHatasi _yol'da yakalanir)
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            self.close_connection = True
+            try:
+                while not sunucu.kapaniyor.is_set():
+                    parcalar, bitti = t.bekle(son, 10.0)
+                    for sira, veri in parcalar:
+                        son = sira
+                        self.wfile.write(("data: " + json.dumps({"s": sira, "b": base64.b64encode(veri).decode("ascii")}) + "\n\n").encode())
+                    if bitti:
+                        self.wfile.write(b'data: {"bitti": true}\n\n')
+                        self.wfile.flush()
+                        break
+                    if not parcalar:
+                        self.wfile.write(b": ping\n\n")
+                    self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError, OSError):
+                pass
 
         def do_GET(self):
             self._yol("GET")
@@ -875,6 +1015,7 @@ class ArayuzSunucusu:
 
     def kapat(self) -> None:
         self.kapaniyor.set()
+        self.app.terminalleri_kapat()  # terminal surecleri arayuzle birlikte kapanir
         for s in (self.http, self.onizleme_http):
             try:
                 s.shutdown()

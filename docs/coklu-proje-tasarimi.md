@@ -84,11 +84,22 @@ ProjeOturumu (eski Uygulama durumunun proje basina hali)
 - Mutasyon: her kural (kota, izolasyon, kimlik tekilliği) kaldırılınca test düşmeli.
 - Gerçek tarayıcıda: iki proje arası geçiş, arka plandaki görevin bildirimi.
 
+## 6b. Kullanıcı kararı: kenar çubuğu Claude'unki gibi proje grupları (2026-10-23)
+
+Kullanıcı Claude masaüstü kenar çubuğunun ekran görüntüsünü gönderip "buradaki gibi bir sürü ayrı proje oluşturabilmek isterim" dedi. Hedef düzen:
+
+- **Proje grupları**, her grubun başlığında **`+`** (o projede yeni görev başlat) ve açılıp kapanan ok; grubun altında görevleri, uzunsa **"Daha fazla göster"**.
+- **Canlı durum noktası** görev satırında (örn. sarı = onay/karar bekliyor ya da okunmamış sonuç, gri = bitti, mavi = çalışıyor).
+- Altta **"Son görevler" (Recents)**: tüm projelerden en yeni görevler.
+- Üstte **"+ Yeni"** (yeni proje ya da yeni görev) ve arama kutusu (görev/proje ara).
+- Bir sürü proje: sınır yok (kayıt defteri şimdilik en çok 60 projeyi tutuyor; bu sınır kaldırılabilir/artırılabilir).
+- Gruplamanın anlamı henüz netleşmedi: grup = **bir proje klasörü** (altındaki görevler o projenin oturumları) mu, yoksa projeleri **etiketle gruplama** (örn. "Aktapokus" altında birkaç klasör) mı? Öneri: grup = proje klasörü, ayrıca isteğe bağlı üst grup etiketi.
+
 ## 7. Açık kararlar (sizin onayınız gerekiyor)
 
 1. **Proje başına 1 görev** kuralı (önerilen) uygun mu? Yoksa aynı projede de paralel görev (worktree ile) şimdiden istenir mi?
 2. **Eşzamanlı görev üst sınırı** varsayılan **3** olsun mu? (RAM/token kaygınıza göre)
 3. **Proje listesi:** yalnız sizin eklediğiniz projeler (önerilen) mi, yoksa Telegram kök klasörlerindeki projeler otomatik mi listelensin?
-4. **Gruplama:** sol kenarda Claude'daki gibi **proje grupları** (üst grup adı: örn. "Aktapokus", "Smart Merge") istenir mi, yoksa düz proje listesi ve her projenin görevleri yeterli mi?
+4. ~~Gruplama~~ **Karar verildi:** Claude'daki gibi proje grupları (bkz. 6b). Kalan soru: grup = tek proje klasörü mü, yoksa birkaç klasörü bir araya getiren üst grup etiketi de olsun mu?
 5. **Arka plandaki projenin bildirimi:** görev biterken/onay beklerken sol kenarda rozet + (uygulama pencere dışındaysa) Windows bildirimi istenir mi?
 6. **Sırayla yapılacak aşamalar** (P1→P5) uygun mu, yoksa önce yalnız P1+P2 (altyapı) yapılıp arayüz sonra mı?
