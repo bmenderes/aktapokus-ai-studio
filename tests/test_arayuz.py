@@ -616,3 +616,67 @@ def test_ayarlar_telegram_bolumu_sayfada_var():
     html = (Path(__file__).parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
     assert '["telegram","Telegram"]' in html and "function telegramBolumu" in html and "/api/telegram" in html
     assert "clearInterval(S.telegramZ)" in html  # bolumden cikinca yoklama durur (arka planda bosuna istek atmaz)
+
+
+# ---------- coklu proje P1: oturumlar ----------
+def _ikinci_proje(tmp_path):
+    k = tmp_path / "ikinci"
+    k.mkdir()
+    subprocess.run(["git", "-C", str(k), "init", "-q"], check=True)
+    (k / "x.txt").write_text("x\n", encoding="utf-8")
+    subprocess.run(["git", "-C", str(k), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(k), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "ilk"], check=True)
+    return k
+
+
+def test_olaylar_proje_kimligiyle_etiketlenir(kur):
+    from aktapokus_ajan import projeler
+
+    app, sv, api, _ = kur()
+    tam_kosu(app, api, kur.proje)
+    kimlik = projeler.proje_kimligi(kur.proje)
+    _, olaylar = app.bus.abone_ol(0)
+    assert olaylar and all(o.get("proje") == kimlik for o in olaylar), [o for o in olaylar if o.get("proje") != kimlik]
+
+
+def test_kosu_baslatildigi_projeye_bagli_kalir_secili_proje_degisse_bile(kur, tmp_path):
+    from aktapokus_ajan import projeler
+
+    serbest, basladi = threading.Event(), threading.Event()
+
+    def bekleyen(k, i, n):
+        basladi.set()
+        serbest.wait(15)
+        (k / "a_yeni.txt").write_text("a\n", encoding="utf-8")
+        return sonuc("yazildi")
+
+    app, sv, api, _ = kur({"kodcu": bekleyen, "test": BASARILI})
+    ikinci = _ikinci_proje(tmp_path)
+    klasor_sec(api, kur.proje)
+    a_kimlik = projeler.proje_kimligi(kur.proje)
+    plan = api("POST", "/api/gorev", {"gorev": "a gorevi"})[1]
+    assert api("POST", f"/api/gorev/{plan['kosu']}/onayla", {})[0] == 200
+    assert basladi.wait(10)
+    a_oturum = app.secili
+    app.klasor = ikinci  # secili proje B'ye gecti (P2'de arayuz bunu kosu surerken yapabilecek)
+    assert app.secili is not a_oturum and app.kosu is None
+    serbest.set()
+    assert bekle(lambda: a_oturum.kosu.durum == "karar-bekliyor")
+    a_oturum.kosu.karar = True  # farki koru (secili proje B oldugu icin API karari B'ye giderdi; A'nin kosusuna dogrudan verilir)
+    a_oturum.kosu.karar_olayi.set()
+    assert bekle(lambda: a_oturum.kosu.durum == "bitti")
+    assert bekle(lambda: a_oturum.aktif_calistirici is None)  # kosunun 'finally' blogu da bitti
+    assert a_oturum.son_hat and app.secili.son_hat == {} and app.secili.kosu is None  # B'ye hicbir sey sizmadi
+    _, olaylar = app.bus.abone_ol(0)
+    gorev_olaylari = [o for o in olaylar if o.get("kosu") == plan["kosu"]]
+    assert gorev_olaylari and all(o["proje"] == a_kimlik for o in gorev_olaylari)
+    api_a = a_oturum.klasor
+    assert (api_a / "a_yeni.txt").exists() and not (ikinci / "a_yeni.txt").exists()  # dosya dogru klasore yazildi
+
+
+def test_ayni_klasor_yeniden_secilince_yeni_bos_oturum_olur(kur):
+    app, sv, api, _ = kur()
+    tam_kosu(app, api, kur.proje)
+    assert app.kosu is not None
+    klasor_sec(api, kur.proje)
+    assert app.kosu is None and app.son_hat == {} and len(app.oturumlar) == 1

@@ -142,6 +142,19 @@ class Kosu:
     sonuc: object = None
 
 
+@dataclass
+class ProjeOturumu:
+    """Bir proje klasorunun calisma durumu (coklu proje tasarimi P1). Kimlik = projeler.proje_kimligi(klasor). Gorevin kosusu, aktif
+    calistirici ve son fark BU nesnede durur; Uygulama yalniz 'secili' oturumu gosterir. Kosu iplikleri kendi oturumuna baglidir:
+    secili proje degisse de baska projeye yazmaz."""
+
+    kimlik: str
+    klasor: Path
+    kosu: Kosu | None = None
+    aktif_calistirici: Calistirici | None = None
+    son_hat: dict = field(default_factory=dict)
+
+
 class UygulamaHatasi(Exception):
     def __init__(self, mesaj: str, kod: int = 400):
         super().__init__(mesaj)
@@ -162,11 +175,57 @@ class Uygulama:
         self._terminal_kilit = threading.Lock()
         self.token = token or secrets.token_urlsafe(24)
         self.bus = OlayAkisi()
-        self.klasor: Path | None = None
-        self.kosu: Kosu | None = None
+        self.oturumlar: dict[str, ProjeOturumu] = {}
+        self.secili_kimlik: str | None = None
         self.kilit = threading.RLock()
-        self.aktif_calistirici: Calistirici | None = None
-        self.son_hat: dict = {}
+
+    # --- secili oturum (eski tek-proje alanlari ona yonlendirilir; gorev akisi oturumu AYRICA acikca tasir) ---
+    @property
+    def secili(self) -> ProjeOturumu | None:
+        return self.oturumlar.get(self.secili_kimlik) if self.secili_kimlik else None
+
+    def _oturum(self) -> ProjeOturumu:
+        o = self.secili
+        if o is None:
+            raise UygulamaHatasi("Once bir klasor secin", 409)
+        return o
+
+    @property
+    def klasor(self) -> Path | None:
+        o = self.secili
+        return o.klasor if o else None
+
+    @klasor.setter
+    def klasor(self, yol: Path | None) -> None:
+        if yol is None:
+            self.secili_kimlik = None
+            return
+        kimlik = projeler.proje_kimligi(yol)
+        self.oturumlar[kimlik] = ProjeOturumu(kimlik, Path(yol))
+        self.secili_kimlik = kimlik
+
+    @property
+    def kosu(self) -> Kosu | None:
+        o = self.secili
+        return o.kosu if o else None
+
+    @kosu.setter
+    def kosu(self, deger: Kosu | None) -> None:
+        self._oturum().kosu = deger
+
+    @property
+    def aktif_calistirici(self) -> Calistirici | None:
+        o = self.secili
+        return o.aktif_calistirici if o else None
+
+    @property
+    def son_hat(self) -> dict:
+        o = self.secili
+        return o.son_hat if o else {}
+
+    def _yayinla(self, oturum: ProjeOturumu, olay: dict) -> dict:
+        """Olay akisina proje kimligiyle etiketli yayinlar (arayuz birden cok projenin olaylarini ayirt edebilsin)."""
+        return self.bus.yayinla({**olay, "proje": oturum.kimlik})
 
     # --- proje ---
     def klasor_sec(self, yol: str, git_baslat: bool = False) -> dict:
@@ -182,12 +241,12 @@ class Uygulama:
                 raise UygulamaHatasi("git_gerekli", 428) from None
             except (KlasorHatasi, snapshot.GitHatasi, guard.KoruyucuHatasi) as hata:
                 raise UygulamaHatasi(str(hata)) from None
-            self.klasor, self.kosu, self.son_hat = sonuc["klasor"], None, {}
+            self.klasor = sonuc["klasor"]  # yeni (bos) oturum: kosu yok, son fark yok
             try:
                 projeler.ekle_veya_guncelle(self.klasor)  # son projeler listesi (ortam cipi); hata klasor secimini engellemez
             except OSError:
                 pass
-            self.bus.yayinla({"tur": "klasor", "klasor": str(self.klasor), "git": sonuc["git"], "koruyucu": sonuc["koruyucu"]})
+            self._yayinla(self._oturum(), {"tur": "klasor", "klasor": str(self.klasor), "git": sonuc["git"], "koruyucu": sonuc["koruyucu"]})
             return self.durum()
 
     def _klasor(self) -> Path:
@@ -540,22 +599,23 @@ class Uygulama:
         if not isinstance(gorev, str) or not gorev.strip():
             raise UygulamaHatasi("Gorev bos olamaz")
         with self.kilit:
-            if self.kosu and self.kosu.durum in ("plan", "calisiyor", "karar-bekliyor"):
+            oturum = self._oturum()
+            if oturum.kosu and oturum.kosu.durum in ("plan", "calisiyor", "karar-bekliyor"):
                 raise UygulamaHatasi("Zaten bir gorev var (onay/calisma/karar bekliyor)", 409)
             try:
                 ayar = ayar_yukle(klasor)
             except AyarHatasi as hata:
                 raise UygulamaHatasi(str(hata)) from None
-            self.kosu = Kosu(kimlik=secrets.token_hex(4), gorev=gorev.strip())
+            oturum.kosu = Kosu(kimlik=secrets.token_hex(4), gorev=gorev.strip())
             plan = {
                 "tur": "plan",
-                "kosu": self.kosu.kimlik,
-                "gorev": self.kosu.gorev,
+                "kosu": oturum.kosu.kimlik,
+                "gorev": oturum.kosu.gorev,
                 "adimlar": [{"rol": r.ad, "calistirici": r.calistirici, "model": r.model, "dogrulama": r.dogrulama} for r in ayar.rol_sirasi()],
                 "butce": ayar.butce_token,
                 "azami_duzeltme": ayar.azami_duzeltme,
             }
-            self.bus.yayinla(plan)
+            self._yayinla(oturum, plan)
             return plan
 
     def _kosu(self, kimlik: str, durumlar: tuple[str, ...]) -> Kosu:
@@ -569,13 +629,14 @@ class Uygulama:
         with self.kilit:
             kosu = self._kosu(kimlik, ("plan",))
             kosu.durum = "calisiyor"
-        threading.Thread(target=self._kos, args=(kosu,), daemon=True).start()
+            oturum = self._oturum()
+        threading.Thread(target=self._kos, args=(oturum, kosu), daemon=True).start()
 
     def reddet(self, kimlik: str) -> None:
         with self.kilit:
             kosu = self._kosu(kimlik, ("plan",))
             kosu.durum = "reddedildi"
-        self.bus.yayinla({"tur": "bitti", "durum": "reddedildi", "mesaj": "Plan onaylanmadi; hicbir sey calistirilmadi.", "kosu": kimlik})
+        self._yayinla(self._oturum(), {"tur": "bitti", "durum": "reddedildi", "mesaj": "Plan onaylanmadi; hicbir sey calistirilmadi.", "kosu": kimlik})
 
     def karar_ver(self, kimlik: str, korunsun: bool) -> None:
         with self.kilit:
@@ -586,52 +647,53 @@ class Uygulama:
     def durdur(self, kimlik: str) -> bool:
         with self.kilit:
             kosu = self._kosu(kimlik, ("calisiyor", "karar-bekliyor"))
+            oturum = self._oturum()
         kosu.iptal.set()
         if kosu.durum == "karar-bekliyor":
             kosu.karar = False  # fark karari beklerken durdurma = geri al
             kosu.karar_olayi.set()
-        self.bus.yayinla({"tur": "durduruluyor", "kosu": kimlik})
-        r = self.aktif_calistirici
+        self._yayinla(oturum, {"tur": "durduruluyor", "kosu": kimlik})
+        r = oturum.aktif_calistirici
         return bool(r and r.durdur())
 
-    def _canli(self, e: dict) -> None:
-        self.bus.yayinla({**e, "tur": "canli", "alt": e.get("tur")})
+    def _kos(self, oturum: ProjeOturumu, kosu: Kosu) -> None:
+        klasor = oturum.klasor
 
-    def _kos(self, kosu: Kosu) -> None:
-        klasor = self._klasor()
+        def yayinla(e: dict) -> None:
+            self._yayinla(oturum, e)
 
         def uret(ad: str) -> Calistirici:
             r = self.calistirici_uret(ad)
-            self.aktif_calistirici = r
+            oturum.aktif_calistirici = r
             if hasattr(r, "ilerleme"):
-                r.ilerleme = self._canli
+                r.ilerleme = lambda e: yayinla({**e, "tur": "canli", "alt": e.get("tur")})
             return r
 
         def onay(_soru: str) -> bool:
             kosu.durum = "karar-bekliyor"
-            self.bus.yayinla({"tur": "karar-bekleniyor", "kosu": kosu.kimlik})
+            yayinla({"tur": "karar-bekleniyor", "kosu": kosu.kimlik})
             kosu.karar_olayi.wait()
             kosu.durum = "calisiyor"
             return kosu.karar
 
         def olay(e: dict) -> None:
             if e.get("tur") == "fark":  # karar beklerken de (Telegram /fark, arayuz dosya agaci) degisiklikler gorulebilsin
-                self.son_hat = {"once": e["once"], "sonra": e["sonra"], "degisen": e["degisen"], "durum": e.get("durum")}
+                oturum.son_hat = {"once": e["once"], "sonra": e["sonra"], "degisen": e["degisen"], "durum": e.get("durum")}
             if e.get("tur") == "bitti":
                 kosu.durum = "bitti"  # istemci 'bitti' olayini gorunce /api/durum'u okuyacak: onceden guncel olmali
-            self.bus.yayinla({**e, "kosu": kosu.kimlik})
+            yayinla({**e, "kosu": kosu.kimlik})
 
         try:
             ayar = ayar_yukle(klasor)
-            kosu.sonuc = calistir_hat(klasor, kosu.gorev, ayar, uret, onay, bildir=lambda m: self.bus.yayinla({"tur": "gunluk", "mesaj": m}), olay=olay, iptal=kosu.iptal)
-            self.son_hat = {"once": kosu.sonuc.once, "sonra": kosu.sonuc.sonra, "degisen": kosu.sonuc.degisen, "durum": kosu.sonuc.durum}
+            kosu.sonuc = calistir_hat(klasor, kosu.gorev, ayar, uret, onay, bildir=lambda m: yayinla({"tur": "gunluk", "mesaj": m}), olay=olay, iptal=kosu.iptal)
+            oturum.son_hat = {"once": kosu.sonuc.once, "sonra": kosu.sonuc.sonra, "degisen": kosu.sonuc.degisen, "durum": kosu.sonuc.durum}
         except (HatHatasi, KlasorHatasi, AyarHatasi, snapshot.GitHatasi, CalistiriciHatasi) as hata:
-            self.bus.yayinla({"tur": "bitti", "durum": "hata", "mesaj": str(hata), "kosu": kosu.kimlik})
+            yayinla({"tur": "bitti", "durum": "hata", "mesaj": str(hata), "kosu": kosu.kimlik})
         except Exception as hata:  # arayuz sunucusu hicbir hatayla dusmesin
-            self.bus.yayinla({"tur": "bitti", "durum": "hata", "mesaj": f"Beklenmeyen hata: {type(hata).__name__}: {hata}", "kosu": kosu.kimlik})
+            yayinla({"tur": "bitti", "durum": "hata", "mesaj": f"Beklenmeyen hata: {type(hata).__name__}: {hata}", "kosu": kosu.kimlik})
         finally:
             kosu.durum = "bitti"
-            r, self.aktif_calistirici = self.aktif_calistirici, None
+            r, oturum.aktif_calistirici = oturum.aktif_calistirici, None
             if r is not None and hasattr(r, "ilerleme"):
                 r.ilerleme = None
 
