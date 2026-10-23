@@ -55,17 +55,13 @@ def komut_ac(args, girdi) -> int:
         return CIKIS_HATA
     try:
         sonuc = proje_hazirla(klasor, git_baslat=args.git_baslat)
-    except GitGerekli:
-        print(
-            f"{klasor} bir git deposu degil. Geri alma git'e dayanir.\n"
-            f"Baslatmak icin: aktapokus ac \"{klasor}\" --git-baslat (yalnizca bu klasorde 'git init' yapar)"
-        )
-        return CIKIS_KULLANIM
     except (snapshot.GitHatasi, guard.KoruyucuHatasi) as hata:
         print(f"HATA: {hata}")
         return CIKIS_HATA
     if sonuc["git"] == "baslatildi":
         print("git deposu baslatildi.")
+    elif sonuc["git"] == "golge":
+        print("Bu klasor git deposu degil: geri alma icin klasorun DISINDA golge yedek kullaniliyor (klasore .git eklenmedi).")
     print(f"Koruyucu ({guard.koruyucu_yolu(klasor).relative_to(klasor)}): {sonuc['koruyucu']}")
     yol = ayar_yolu(klasor)
     if sonuc["ayar"] == "mevcut":
@@ -155,7 +151,7 @@ def komut_durum(args) -> int:
         print(f"Klasor: {hata}")
         return CIKIS_TAMAM
     print(f"Klasor: {klasor}")
-    print(f"  git deposu: {'evet' if snapshot.hazir_mi(klasor) else 'hayir'}")
+    print(f"  geri alma: {('golge yedek (git yok)' if snapshot.golge_mi(klasor) else 'git deposu') if snapshot.hazir_mi(klasor) else 'hazir degil (klasoru acin)'}")
     eksik = guard.dogrula(klasor)
     print("  koruyucu: " + ("etkin (klasor disi + .env engelli)" if not eksik else "ETKIN DEGIL: " + "; ".join(eksik)))
     try:

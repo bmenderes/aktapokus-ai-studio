@@ -163,7 +163,7 @@ def test_roller_ayri_calistirici_ve_modelle_cagrilir(proje):
 def test_git_deposu_degilse_ve_bos_gorev_reddedilir(tmp_path):
     k = tmp_path / "d"
     k.mkdir()
-    with pytest.raises(HatHatasi, match="git deposu degil"):
+    with pytest.raises(HatHatasi, match="geri alma hazir degil"):
         calistir_hat(k, "g", ayar(), lambda ad: None, lambda q: True)
     with pytest.raises(HatHatasi, match="bos"):
         calistir_hat(k, "  ", ayar(), lambda ad: None, lambda q: True)

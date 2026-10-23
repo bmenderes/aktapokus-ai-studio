@@ -149,10 +149,8 @@ def test_klasor_secimi(kur, tmp_path):
     gitsiz = tmp_path / "gitsiz"
     gitsiz.mkdir()
     st, d = api("POST", "/api/klasor", {"yol": str(gitsiz)})
-    assert st == 428 and "git_gerekli" in d["hata"]
-    assert not (gitsiz / ".git").exists()  # onay olmadan git init yapilmadi
-    st, d = api("POST", "/api/klasor", {"yol": str(gitsiz), "git_baslat": True})
-    assert st == 200 and d["git"] is True and d["koruyucu_eksik"] == []
+    assert st == 200 and d["git"] is True and d["golge"] is True and d["koruyucu_eksik"] == []  # git ISTENMEZ: golge yedek
+    assert not (gitsiz / ".git").exists()  # klasore git init yapilmadi
     assert d["ayar"]["akis"] == ["kodcu", "test"] and d["ayar"]["roller"]["test"]["dogrulama"] is True
 
 

@@ -3,7 +3,10 @@
 Kullanicinin dallarina, indeksine veya gecmisine DOKUNMAZ: gecici bir indeks dosyasiyla calisma
 alanindan bir agac (tree) yazar, onu refs/aktapokus/* altinda tutulan bir commit'e baglar.
 .gitignore'daki dosyalar anlik goruntuye girmez (ve geri yuklenmez). .aktapokus/ dahil edilmez.
-"""
+
+GOLGE DEPO: klasor bir git deposu degilse kullanicidan git ISTENMEZ. Anlik goruntuler klasorun DISINDA, `~/.aktapokus/golge/<kimlik>.git`
+altindaki ozel bir depoda tutulur (GIT_DIR + GIT_WORK_TREE); klasore `.git` eklenmez. Klasor sonradan gercek bir git deposu olursa
+(`.git` belirirse) gercek depo kullanilir. Cok buyuk klasorler (dosya sayisi/boyut siniri) golge depoya alinmaz."""
 
 from __future__ import annotations
 
@@ -25,13 +28,95 @@ _GIT_ORTAMI = {
 }
 
 
+GOLGE_ORTAMI = "AKTAPOKUS_GOLGE"
+AZAMI_GOLGE_DOSYA = 20_000
+AZAMI_GOLGE_BAYT = 1 << 30  # 1 GiB
+
+
 class GitHatasi(Exception):
     pass
+
+
+def golge_koku() -> Path:
+    ortam = os.environ.get(GOLGE_ORTAMI)
+    return Path(ortam) if ortam else Path.home() / ".aktapokus" / "golge"
+
+
+def golge_dizini(klasor: str | Path) -> Path:
+    from . import projeler  # tembel: dairesel ice aktarma yok ama modul yuklemesini hafif tut
+
+    return golge_koku() / f"{projeler.proje_kimligi(klasor)}.git"
+
+
+def golge_mi(klasor: str | Path) -> bool:
+    """Bu klasor icin golge depo kullaniliyor mu? (golge var VE klasorde gercek `.git` yok)"""
+    return golge_dizini(klasor).is_dir() and not (Path(klasor) / ".git").exists()
+
+
+def git_dizini(klasor: str | Path) -> Path:
+    """Gercek git dizini ya da (golge kullaniliyorsa) golge deponun dizini: info/exclude buraya yazilir."""
+    return golge_dizini(klasor) if golge_mi(klasor) else Path(klasor) / ".git"
+
+
+def _golge_ortami(klasor: Path) -> dict:
+    return {"GIT_DIR": str(golge_dizini(klasor)), "GIT_WORK_TREE": str(Path(klasor).resolve())} if golge_mi(klasor) else {}
+
+
+def golge_baslat(klasor: str | Path) -> bool:
+    """Golge depoyu kurar (yoksa). Yeni kurulduysa True. Klasore dokunmaz."""
+    klasor = Path(klasor)
+    dizin = golge_dizini(klasor)
+    if dizin.is_dir():
+        return False
+    dizin.parent.mkdir(parents=True, exist_ok=True)
+    ortam = os.environ.copy()
+    ortam.update(_GIT_ORTAMI)
+    ortam.pop("GIT_DIR", None)
+    ortam.pop("GIT_WORK_TREE", None)
+    try:
+        s = subprocess.run(["git", "init", "-q", "--bare", str(dizin)], capture_output=True, text=True, encoding="utf-8", errors="replace", env=ortam, stdin=subprocess.DEVNULL, timeout=120)
+    except FileNotFoundError as hata:
+        raise GitHatasi("git bulunamadi; git kurulu ve PATH'te olmali") from hata
+    if s.returncode != 0:
+        raise GitHatasi(f"Golge depo kurulamadi: {s.stderr.strip()}")
+    # golge bir 'bare olmayan' depo gibi kullanilir ama calisma alani GIT_WORK_TREE ile verilir: yanlislikla kendi icinde calismasin
+    _git(klasor, "config", "core.bare", "false", env={"GIT_DIR": str(dizin)})
+    _git(klasor, "config", "core.worktree", str(klasor.resolve()), env={"GIT_DIR": str(dizin)})
+    return True
+
+
+def golge_sil(klasor: str | Path) -> None:
+    import shutil
+
+    dizin = golge_dizini(klasor)
+    if dizin.is_dir() and dizin.parent == golge_koku():
+        shutil.rmtree(dizin, ignore_errors=True)
+
+
+def golge_boyut_denetle(klasor: str | Path) -> None:
+    """Golge depoya alinacak dosyalarin sayisi/boyutu sinirlari asarsa GitHatasi (ornegin Masaustu ya da sanal ortam dolu klasor)."""
+    klasor = Path(klasor)
+    cikti = _git(klasor, "ls-files", "-o", "--exclude-standard", "-z")
+    dosyalar = [d for d in cikti.split("\0") if d]
+    if len(dosyalar) > AZAMI_GOLGE_DOSYA:
+        raise GitHatasi(
+            f"Bu klasor cok buyuk ({len(dosyalar)} dosya; sinir {AZAMI_GOLGE_DOSYA}). Geri alma icin anlik goruntu alinamaz. "
+            "Daha kucuk bir proje klasoru secin ya da buyuk klasorleri (node_modules, .venv...) .gitignore ile disarida birakin."
+        )
+    toplam = 0
+    for d in dosyalar:
+        try:
+            toplam += (klasor / d).stat().st_size
+        except OSError:
+            continue
+        if toplam > AZAMI_GOLGE_BAYT:
+            raise GitHatasi("Bu klasor cok buyuk (1 GB'i asiyor). Geri alma icin anlik goruntu alinamaz; daha kucuk bir proje klasoru secin ya da buyuk dosyalari .gitignore ile disarida birakin.")
 
 
 def _git(klasor: Path, *args: str, env: dict | None = None, kontrol: bool = True) -> str:
     ortam = os.environ.copy()
     ortam.update(_GIT_ORTAMI)
+    ortam.update(_golge_ortami(klasor))
     if env:
         ortam.update(env)
     try:
@@ -73,6 +158,8 @@ def repo_baslat(klasor: str | Path) -> None:
 def anlik_goruntu(klasor: str | Path, etiket: str) -> str:
     """Calisma alaninin o anki halini bir commit olarak saklar ve commit adini dondurur."""
     klasor = Path(klasor)
+    if golge_mi(klasor):
+        golge_boyut_denetle(klasor)  # klasor sonradan sisebilir (sanal ortam, indirilen buyuk dosyalar)
     with tempfile.TemporaryDirectory() as gecici:
         ortam = {"GIT_INDEX_FILE": str(Path(gecici) / "indeks")}
         _git(klasor, "add", "-A", "--", ".", env=ortam)
@@ -111,7 +198,9 @@ def commit_var_mi(klasor: str | Path, commit: str) -> bool:
 
     if not re.fullmatch(r"[0-9a-f]{40}", commit or ""):
         return False
-    return subprocess.run(["git", "-C", str(klasor), "cat-file", "-e", f"{commit}^{{commit}}"], capture_output=True, stdin=subprocess.DEVNULL).returncode == 0
+    ortam = os.environ.copy()
+    ortam.update(_golge_ortami(Path(klasor)))
+    return subprocess.run(["git", "-C", str(klasor), "cat-file", "-e", f"{commit}^{{commit}}"], capture_output=True, stdin=subprocess.DEVNULL, env=ortam).returncode == 0
 
 
 def fark_yamasi(klasor: str | Path, once: str, sonra: str, dosya: str | None = None, azami: int = 60_000) -> str:

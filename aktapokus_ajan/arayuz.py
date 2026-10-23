@@ -325,7 +325,8 @@ class Uygulama:
     def durum(self) -> dict:
         d: dict = {"klasor": str(self.klasor) if self.klasor else None, "proje": self.secili.kimlik if self.secili else None, "ayar": self.ayar_ozeti(), "klon_bekleyen": self.klon_bekleyen()}
         if self.klasor:
-            d["git"] = snapshot.hazir_mi(self.klasor)
+            d["git"] = snapshot.hazir_mi(self.klasor)  # geri alma hazir (gercek git deposu YA DA golge yedek)
+            d["golge"] = snapshot.golge_mi(self.klasor)
             d["koruyucu_eksik"] = guard.dogrula(self.klasor)
             k = son_kayit(self.klasor)
             d["son_kayit"] = {x: k.get(x) for x in ("id", "zaman", "gorev", "durum", "token_toplam")} if k else None

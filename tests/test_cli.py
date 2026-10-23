@@ -17,15 +17,18 @@ def girdi_ile(*cevaplar):
     return girdi
 
 
-def test_ac_git_yoksa_aciklar_ve_git_baslat_ile_kurar(tmp_path, capsys):
+def test_ac_git_yoksa_golge_yedek_kullanir_git_baslat_istege_baglidir(tmp_path, capsys):
     k = tmp_path / "p"
     k.mkdir()
-    assert cli.main(["ac", str(k)]) == cli.CIKIS_KULLANIM
-    assert "--git-baslat" in capsys.readouterr().out
-    assert not (k / ".git").exists() and not (k / AYAR_KLASORU).exists()
-    assert cli.main(["ac", str(k), "--git-baslat"]) == cli.CIKIS_TAMAM
-    assert (k / ".git").is_dir() and (k / AYAR_KLASORU / "roller.json").is_file()
-    assert f"{AYAR_KLASORU}/" in (k / ".git" / "info" / "exclude").read_text(encoding="utf-8")
+    assert cli.main(["ac", str(k)]) == cli.CIKIS_TAMAM  # git ISTENMEZ
+    cikti = capsys.readouterr().out
+    assert "golge yedek" in cikti and "--git-baslat" not in cikti
+    assert not (k / ".git").exists() and (k / AYAR_KLASORU / "roller.json").is_file()
+    k2 = tmp_path / "p2"
+    k2.mkdir()
+    assert cli.main(["ac", str(k2), "--git-baslat"]) == cli.CIKIS_TAMAM  # gercek git deposu isteyen kullanici
+    assert (k2 / ".git").is_dir() and (k2 / AYAR_KLASORU / "roller.json").is_file()
+    assert f"{AYAR_KLASORU}/" in (k2 / ".git" / "info" / "exclude").read_text(encoding="utf-8")
 
 
 def test_ac_mevcut_ayari_ezmez_ve_exclude_tekrarlanmaz(proje, capsys):
@@ -105,7 +108,7 @@ def test_calistir_ayar_yoksa_ve_git_yoksa_net_hata(tmp_path, proje, capsys):
 
     (k / AYAR_KLASORU / "roller.json").write_text(json.dumps(VARSAYILAN_AYAR), encoding="utf-8")
     assert cli.main(["calistir", "g", "--klasor", str(k), "--evet"]) == cli.CIKIS_HATA
-    assert "git deposu degil" in capsys.readouterr().out
+    assert "geri alma hazir degil" in capsys.readouterr().out
 
 
 def test_geri_al_komutu(proje, capsys):
@@ -125,4 +128,4 @@ def test_durum_komutu(proje, capsys, monkeypatch):
     monkeypatch.setattr(cli, "opencode_bul", lambda: None)
     assert cli.main(["durum", "--klasor", str(proje)]) == cli.CIKIS_TAMAM
     cikti = capsys.readouterr().out
-    assert "OpenCode CLI: bulunamadi" in cikti and "git deposu: evet" in cikti and "kodcu" in cikti
+    assert "OpenCode CLI: bulunamadi" in cikti and "geri alma: git deposu" in cikti and "kodcu" in cikti

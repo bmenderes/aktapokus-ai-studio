@@ -257,10 +257,8 @@ class Bot:
             try:
                 d = self.app.proje_ac(arg, git_baslat=False, sec=False)
                 self.aktif_proje[chat] = proje_kayit.proje_kimligi(d["klasor"])
-                return self._gonder(chat, f"Klasor: {d['klasor']}\nGit: {'hazir' if d.get('git') else 'yok'}  Koruyucu: {'etkin' if not d.get('koruyucu_eksik') else 'EKSIK'}\nBu sohbetin aktif projesi.")
+                return self._gonder(chat, f"Klasor: {d['klasor']}\nGeri alma: {'golge yedek (git yok)' if d.get('golge') else 'git' if d.get('git') else 'HAZIR DEGIL'}  Koruyucu: {'etkin' if not d.get('koruyucu_eksik') else 'EKSIK'}\nBu sohbetin aktif projesi.")
             except UygulamaHatasi as hata:
-                if str(hata) == "git_gerekli":
-                    return self._gonder(chat, "Bu klasor git deposu degil. Geri alma icin gerekli; bilgisayarda 'aktapokus ac <klasor> --git-baslat' calistirin (Telegram'dan git init yapilmaz).")
                 return self._gonder(chat, f"Klasor secilemedi: {hata}")
         if ad == "/gorev":
             return self._gorev(chat, arg)
@@ -323,7 +321,7 @@ class Bot:
         self.proje_tablosu = liste
         if not liste:
             return self._gonder(chat, "Izinli klasorlerde proje yok. /yeni <ad> ile olusturabilirsiniz.")
-        dugmeler = [{"text": (c.name + ("" if snapshot.hazir_mi(c) else " (git yok)"))[:40], "callback_data": f"p:{i}"} for i, c in enumerate(liste)]
+        dugmeler = [{"text": c.name[:40], "callback_data": f"p:{i}"} for i, c in enumerate(liste)]
         self._gonder(chat, "Bir proje secin:", [dugmeler[i:i + 2] for i in range(0, len(dugmeler), 2)])
 
     def _proje_sec(self, chat: int, yol: Path, git: bool) -> None:
@@ -332,16 +330,9 @@ class Bot:
         try:
             d = self.app.proje_ac(str(yol), git_baslat=git, sec=False)
         except UygulamaHatasi as hata:
-            if str(hata) != "git_gerekli":
-                return self._gonder(chat, f"Klasor secilemedi: {hata}")
-            if self._ust_depo_var(yol):
-                return self._gonder(chat, f"{yol.name} baska bir git deposunun icinde; ic ice depo olusturulmaz. Bilgisayarda hazirlayin.")
-            i = self.proje_tablosu.index(yol) if yol in self.proje_tablosu else None
-            if i is None:
-                return self._gonder(chat, f"{yol.name} git deposu degil. /projeler ile secip 'Git baslat' dugmesini kullanin.")
-            return self._gonder(chat, f"{yol.name} git deposu degil. Geri alma icin git gerekir. Bu klasorde git baslatilsin mi? (yalniz bu klasore 'git init' yapilir)", [[{"text": "Git baslat", "callback_data": f"g:{i}"}]])
+            return self._gonder(chat, f"Klasor secilemedi: {hata}")  # git ISTENMEZ: git olmayan klasorde geri alma golge yedekten calisir
         self.aktif_proje[chat] = proje_kayit.proje_kimligi(d["klasor"])
-        self._gonder(chat, f"Klasor secildi: {yol.name} (bu sohbetin aktif projesi)\nGit: {'hazir' if d.get('git') else 'yok'}  Koruyucu: {'etkin' if not d.get('koruyucu_eksik') else 'EKSIK'}\nGorev icin /gorev <metin> yazin.")
+        self._gonder(chat, f"Klasor secildi: {yol.name} (bu sohbetin aktif projesi)\nGeri alma: {'golge yedek (git yok)' if d.get('golge') else 'git' if d.get('git') else 'HAZIR DEGIL'}  Koruyucu: {'etkin' if not d.get('koruyucu_eksik') else 'EKSIK'}\nGorev icin /gorev <metin> yazin.")
 
     def _yeni(self, chat: int, ad: str) -> None:
         if not self._kokler():

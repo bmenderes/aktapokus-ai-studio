@@ -11,7 +11,7 @@ from .klasor import guvenli_klasor
 
 
 class GitGerekli(Exception):
-    """Klasor bir git deposu degil ve git_baslat=False."""
+    """ESKI: klasor git deposu degilse artik GOLGE DEPO kullanilir (snapshot.golge_*); hazirla() bunu firlatmaz. Uyumluluk icin durur."""
 
 
 def hazirla(klasor: str | Path, git_baslat: bool = False) -> dict:
@@ -20,11 +20,22 @@ def hazirla(klasor: str | Path, git_baslat: bool = False) -> dict:
     klasor = guvenli_klasor(klasor)
     git = "mevcut"
     if not snapshot.hazir_mi(klasor):
-        if not git_baslat:
-            raise GitGerekli(str(klasor))
-        snapshot.repo_baslat(klasor)
-        git = "baslatildi"
-    hariclik = klasor / ".git" / "info" / "exclude"
+        if git_baslat:  # kullanici AYRICA gercek bir git deposu istedi
+            snapshot.repo_baslat(klasor)
+            git = "baslatildi"
+        else:  # git ISTENMEZ: geri alma klasorun disindaki golge depoda tutulur
+            yeni = snapshot.golge_baslat(klasor)
+            try:
+                snapshot.golge_boyut_denetle(klasor)
+            except snapshot.GitHatasi:
+                if yeni:
+                    snapshot.golge_sil(klasor)
+                raise
+            git = "golge"
+    elif snapshot.golge_mi(klasor):
+        snapshot.golge_boyut_denetle(klasor)
+        git = "golge"
+    hariclik = snapshot.git_dizini(klasor) / "info" / "exclude"
     hariclik.parent.mkdir(parents=True, exist_ok=True)
     mevcut = hariclik.read_text(encoding="utf-8") if hariclik.exists() else ""
     eklenecek = [s for s in (f"{AYAR_KLASORU}/", ".opencode/opencode.json") if s not in mevcut.splitlines()]

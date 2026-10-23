@@ -628,7 +628,7 @@ function olayIsle(o){
 async function karar(k){const b=$("#karar-dugmeleri");if(b)b.textContent="";try{await api("/api/gorev/"+S.kosu.kimlik+"/karar",{method:"POST",body:{korunsun:k}})}catch(x){alert(x.message)}}
 function kosuGorunumu(){const aktif=S.kosu&&["calisiyor","karar-bekliyor"].includes(S.kosu.durum);S.kosuAktif=!!aktif;const plan=S.kosu&&S.kosu.durum==="plan";$("#durdur").style.display=aktif?"":"none";$("#gonder").disabled=!S.klasor||aktif||plan;$("#gorev").disabled=!S.klasor||aktif||plan;$("#girdiBilgi").textContent=!S.klasor?"önce bir klasör seçin":aktif?"çalışıyor…":plan?"plan onayınızı bekliyor":"";durumMetniGuncelle()}
 async function durumYukle(){if(S.tekrar)return;try{const d=await api("/api/durum");const onceki=S.projeId;S.projeId=d.proje||null;S.klasor=d.klasor;S.ayar=d.ayar;S.kosu=d.kosu;$("#klasorAd").textContent=d.klasor?d.klasor.split(/[\\/]/).pop():"";ortamCipiCiz();
-  $("#gitRozet").className="badge "+(d.git?"b-ok":"b-err");$("#gitRozet").textContent=d.klasor?(d.git?"git hazır":"git yok"):"";
+  $("#gitRozet").className="badge "+(d.git?"b-ok":"b-err");$("#gitRozet").textContent=d.klasor?(d.git?(d.golge?"geri alma hazır (gölge yedek)":"git hazır"):"geri alma hazır değil"):"";$("#gitRozet").title=d.golge?"Bu klasör git deposu değil: geri alma, klasörün dışındaki gölge yedekten çalışır (klasöre .git eklenmez).":"";
   const ke=d.koruyucu_eksik||[];$("#korRozet").className="badge "+(d.klasor?(ke.length?"b-err":"b-ok"):"");$("#korRozet").textContent=d.klasor?(ke.length?"koruyucu eksik":"koruyucu etkin"):"";$("#korRozet").title=ke.join("; ");
   $("#klon").textContent=d.klon_bekleyen==null?"kurulu değil":d.klon_bekleyen+" öneri bekliyor";if(d.klon_bekleyen)$("#klon").title="aktapokus-klon bekleyen komutuyla inceleyin";
   rolleriCiz();akisCipiGuncelle();gecmisYukle();kosuGorunumu();$("#klasorSec")&&d.klasor&&$("#klasorSec").remove();if(onceki!==S.projeId){if(S.projeId)delete S.okunmadi[S.projeId];projeGorunumuKur()}}catch(x){gunluge("durum alınamadı: "+x.message)}}
@@ -661,9 +661,8 @@ function ortamCipiCiz(){const c=$("#ortamCipi");c.textContent="";
 function ortamMenusuKapat(){const m=$("#ortamMenu");if(m)m.remove()}
 document.addEventListener("click",ev=>{const m=$("#ortamMenu");if(m&&!m.contains(ev.target))ortamMenusuKapat()});
 document.addEventListener("keydown",ev=>{if(ev.key==="Escape")ortamMenusuKapat()});
-async function projeSec(yol,gitSor=true){
-  try{await api("/api/klasor",{method:"POST",body:{yol,git_baslat:false}})}
-  catch(x){if(x.kod===428&&gitSor){if(!confirm("Bu klasör bir git deposu değil. Geri alma için gerekli.\nBu klasörde 'git init' çalıştırılsın mı?\n\n"+yol))return false;await api("/api/klasor",{method:"POST",body:{yol,git_baslat:true}})}else throw x}
+async function projeSec(yol){
+  await api("/api/klasor",{method:"POST",body:{yol}});  // git ISTENMEZ: git deposu olmayan klasörde geri alma gölge yedekten çalışır
   await durumYukle();await dosyalariYukle();await onizlemeKur();return true}
 async function ortamMenusu(){const eski=$("#ortamMenu");if(eski){eski.remove();return}
   modelMenusuKapat();
@@ -688,7 +687,6 @@ async function klasorSecimiAc(){if($("#klasorSec"))return;
   const liste=e("div",{class:"liste klasor-liste",tabindex:"0"});
   const hedef=e("div",{class:"mut3 mono",style:"white-space:normal;min-height:16px;margin-top:4px"});
   const hata=e("div",{class:"badge b-err",style:"display:none;margin-top:6px;white-space:normal"});
-  const gb=e("label",{class:"row mut",style:"margin-top:6px"},e("input",{type:"checkbox",id:"gitBaslat"}),"Klasör git deposu değilse başlat (yalnızca bu klasörde 'git init')");
   let mevcut=null,isimler=[],sec=-1,tampon="",tamponZaman=0;
   const birles=(a,b)=>a+(a.endsWith("\\")||a.endsWith("/")?"":"\\")+b;
   const secDugme=e("button",{class:"pri",text:"Bu klasörü seç"});
@@ -703,8 +701,8 @@ async function klasorSecimiAc(){if($("#klasorSec"))return;
       hedefGuncelle();hata.style.display="none"}catch(x){hata.textContent=x.message;hata.style.display=""}};
   const kapat=()=>arka.remove();
   const sonuc=async()=>{hata.style.display="none";const h=hedefYolu();if(!h)return;
-    try{await api("/api/klasor",{method:"POST",body:{yol:h,git_baslat:$("#gitBaslat").checked}});kapat();await durumYukle();await dosyalariYukle();await onizlemeKur()}
-    catch(x){hata.textContent=x.kod===428?"Bu klasör git deposu değil. Geri alma için gerekli: kutuyu işaretleyip tekrar deneyin.":x.message;hata.style.display=""}};
+    try{await api("/api/klasor",{method:"POST",body:{yol:h}});kapat();await durumYukle();await dosyalariYukle();await onizlemeKur()}
+    catch(x){hata.textContent=x.message;hata.style.display=""}};
   secDugme.onclick=sonuc;
   arka.addEventListener("keydown",ev=>{
     if(ev.target===yol){if(ev.key==="Enter"){ev.preventDefault();goz(yol.value.trim())}else if(ev.key==="Escape")kapat();return}
@@ -718,7 +716,7 @@ async function klasorSecimiAc(){if($("#klasorSec"))return;
     else return;
     if(tampon&&(ev.key.length===1||ev.key==="Backspace")){const kk=isimler.map(katla);let i=kk.findIndex(a=>a.startsWith(tampon));if(i<0)i=kk.findIndex(a=>a.includes(tampon));if(i>=0)isaretle(i)}});
   arka.addEventListener("mousedown",ev=>{if(ev.target===arka)kapat()});
-  k.append(e("b",{text:"Proje klasörünü seçin"}),son,kisayol,yol,liste,hedef,e("div",{class:"mut3",style:"margin-top:2px",text:"Harf yazarak klasöre atlayın · ↑↓ gezin · Enter: içine gir · Backspace: üst klasör · Esc: kapat"}),gb,e("div",{class:"row",style:"margin-top:8px"},secDugme,e("button",{text:"Kapat",onclick:kapat})),hata);
+  k.append(e("b",{text:"Proje klasörünü seçin"}),son,kisayol,yol,liste,hedef,e("div",{class:"mut3",style:"margin-top:2px",text:"Harf yazarak klasöre atlayın · ↑↓ gezin · Enter: içine gir · Backspace: üst klasör · Esc: kapat"}),e("div",{class:"row",style:"margin-top:8px"},secDugme,e("button",{text:"Kapat",onclick:kapat})),hata);
   document.body.append(arka);
   try{const pl=(await api("/api/projeler")).projeler.filter(p=>p.var).slice(0,5);if(pl.length){son.append(e("span",{class:"mut3",text:"Son projeler:"}));for(const p of pl)son.append(e("button",{text:p.ad,title:p.yol,onclick:async()=>{try{if(await projeSec(p.yol))kapat()}catch(x){hata.textContent=x.message;hata.style.display=""}}}))}}catch(x){}
   await goz(S.klasor||"");liste.focus()}

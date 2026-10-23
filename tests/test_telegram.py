@@ -264,11 +264,11 @@ def test_projeler_dugmeleri_gizli_ve_dosyalari_gostermez(kur, tmp_path):
     fake.mesaj(UID, "/projeler")
     assert bekle(lambda: any(v.get("reply_markup") for v in fake.gonderilen("sendMessage")))
     d = dugmeler_of(fake.gonderilen("sendMessage")[-1])
-    assert set(d) == {"hazir", "gitsiz (git yok)", "ikinci (git yok)"}  # gizli, nokta klasoru ve dosya yok
+    assert set(d) == {"hazir", "gitsiz", "ikinci"}  # gizli, nokta klasoru ve dosya yok; git durumu ad yanina yazilmaz (git ISTENMEZ)
     assert all(v.startswith("p:") and len(v) < 10 for v in d.values())  # callback_data kisa, yol icermez
 
 
-def test_projeye_dokununca_secilir_gitsizde_git_baslat_sorulur(kur, tmp_path):
+def test_projeye_dokununca_secilir_gitsizde_de_git_istenmez_golge_yedek_kullanilir(kur, tmp_path):
     k1, k2, k3 = kok_kur(tmp_path)
     bot, fake, app, _ = kur(kokler=(k1, k2))
     fake.mesaj(UID, "/projeler")
@@ -277,22 +277,21 @@ def test_projeye_dokununca_secilir_gitsizde_git_baslat_sorulur(kur, tmp_path):
     fake.dugme(UID, d["hazir"])
     assert bekle(lambda: aktif_klasor(bot) == (k1 / "hazir").resolve())
     assert bekle(lambda: any("Klasor secildi: hazir" in m for m in fake.metinler()))
-    fake.dugme(UID, d["gitsiz (git yok)"])
-    assert bekle(lambda: son_klavye(fake, "g:")[0] is not None)
-    assert not (k1 / "gitsiz" / ".git").exists() and aktif_klasor(bot) == (k1 / "hazir").resolve()  # onay verilmeden git init yok
-    fake.dugme(UID, son_klavye(fake, "g:")[1]["Git baslat"])
-    assert bekle(lambda: (k1 / "gitsiz" / ".git").exists() and aktif_klasor(bot) == (k1 / "gitsiz").resolve())
-    assert (k1 / "gitsiz" / ".opencode" / "opencode.json").exists()  # koruyucu da kuruldu
+    fake.dugme(UID, d["gitsiz"])
+    assert bekle(lambda: aktif_klasor(bot) == (k1 / "gitsiz").resolve())  # soru/onay yok: dogrudan secildi
+    assert son_klavye(fake, "g:")[0] is None and any("golge yedek" in m for m in fake.metinler())
+    assert not (k1 / "gitsiz" / ".git").exists()  # klasore git init yapilmadi
+    assert (k1 / "gitsiz" / ".opencode" / "opencode.json").exists()  # koruyucu kuruldu
 
 
-def test_ust_depo_icindeki_klasorde_git_baslat_yok(kur, tmp_path):
+def test_ust_depo_icindeki_klasor_golge_yedekle_acilir_ic_ice_depo_olusturulmaz(kur, tmp_path):
     k1, k2, k3 = kok_kur(tmp_path)
     bot, fake, app, _ = kur(kokler=(k3,))
     fake.mesaj(UID, "/projeler")
     assert bekle(lambda: any(v.get("reply_markup") for v in fake.gonderilen("sendMessage")))
     d = dugmeler_of(fake.gonderilen("sendMessage")[-1])
-    fake.dugme(UID, d["ustte-depo-icinde (git yok)"])
-    assert bekle(lambda: any("ic ice depo" in m for m in fake.metinler()))
+    fake.dugme(UID, d["ustte-depo-icinde"])
+    assert bekle(lambda: aktif_klasor(bot) == (k3 / "ustte-depo-icinde").resolve())  # ust depoya dokunmadan golge yedekle acildi
     assert son_klavye(fake, "g:")[0] is None and not (k3 / "ustte-depo-icinde" / ".git").exists()
     # elle gonderilen g: dugmesi de ic ice depo olusturamaz
     bot.proje_tablosu = [k3 / "ustte-depo-icinde"]
@@ -379,13 +378,14 @@ def test_kokler_komutu_ve_kok_ekle(kur, tmp_path, monkeypatch):
         tg.kok_ekle(str(Path.home()), ayar_yolu=ayar)
 
 
-def test_klasor_git_degilse_telegramdan_git_init_yapilmaz(kur, tmp_path):
+def test_klasor_git_degilse_golge_yedekle_acilir_telegramdan_git_init_yapilmaz(kur, tmp_path):
     bot, fake, app, _ = kur()
     k = tmp_path / "gitsiz"
     k.mkdir()
     fake.mesaj(UID, f"/klasor {k}")
-    assert bekle(lambda: any("aktapokus ac" in m for m in fake.metinler()))
-    assert not (k / ".git").exists() and aktif_klasor(bot) is None
+    assert bekle(lambda: aktif_klasor(bot) == k.resolve())
+    assert any("golge yedek" in m for m in fake.metinler())
+    assert not (k / ".git").exists()
     fake.mesaj(UID, "/klasor C:/yok/boyle/bir/yer")
     assert bekle(lambda: any("Klasor secilemedi" in m for m in fake.metinler()))
 

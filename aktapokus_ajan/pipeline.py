@@ -113,7 +113,7 @@ def calistir_hat(
     klasor = guvenli_klasor(klasor)
     if not snapshot.hazir_mi(klasor):
         raise HatHatasi(
-            f"{klasor} bir git deposu degil. Geri alma icin gerekli: once 'aktapokus ac {klasor} --git-baslat' calistirin."
+            f"{klasor} icin geri alma hazir degil (git deposu degil ve golge yedek kurulmamis): once klasoru arayuzden ya da 'aktapokus ac {klasor}' ile acin."
         )
     sira = ayar.rol_sirasi()
     if any(r.calistirici.startswith("opencode") for r in sira):
