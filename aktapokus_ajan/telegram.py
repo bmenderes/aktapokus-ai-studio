@@ -137,8 +137,9 @@ class Bot:
     def izinli(self) -> list[int]:
         return self.ayar["izinli"]
 
-    def eslestirme_kodu_uret(self) -> str | None:
-        if self.izinli:
+    def eslestirme_kodu_uret(self, zorla: bool = False) -> str | None:
+        """Eslesmis kullanici varsa None (zorla=True: bir cihaz daha eklemek icin yine de kod uretir; yalniz bilgisayardan cagrilir)."""
+        if self.izinli and not zorla:
             return None
         kod = secrets.token_hex(4)
         self.eslestirme = {"kod": kod, "bitis": time.monotonic() + ESLESTIRME_OMRU_SN, "yanlis": 0}

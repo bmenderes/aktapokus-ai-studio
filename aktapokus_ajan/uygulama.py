@@ -222,6 +222,7 @@ def _calistir(klasor, port, pencere_ac, bekle_sn, tarayici, baglanti_say, acilis
 
     sessiz_alt_surecler()
     app = Uygulama()
+    app._telegram().otomatik_baslat()  # Ayarlar > Telegram'da 'otomatik baslat' aciksa ve token varsa bot arka planda baslar
     sunucu = ArayuzSunucusu(app, port)
     try:
         sunucu.baslat()

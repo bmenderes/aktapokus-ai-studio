@@ -302,14 +302,14 @@ async function istatistikYukle(hedef){const p=hedef||S.istHedef||$("#ayarIcerik"
   p.append(e("div",{class:"mut3",style:"margin-top:10px;white-space:normal",text:"Not: abonelik kotanızın (Claude Pro, ChatGPT/Codex) kalan miktarı CLI'lardan güvenilir okunamıyor; burada yalnızca harcanan token ve limite takılma anı görünür."}))}
 function kapsamSecici(){const b=(ad,v)=>e("button",{class:S.istKapsam===v?"pri":"",text:ad,onclick:()=>{S.istKapsam=v;istatistikYukle()}});return e("div",{class:"row"},b("Bu proje","proje"),b("Tüm projeler","tum"),e("button",{text:"Yenile",onclick:()=>istatistikYukle()}))}
 /* ---- AYARLAR: sol menulu tam sayfa (OpenCode Desktop gibi). Bolumler: Genel, Saglayicilar, Modeller, CLI'lar, Roller, Kullanim, Hakkinda ---- */
-const AYAR_BOLUMLERI=[["genel","Genel"],["saglayicilar","Sağlayıcılar"],["modeller","Modeller"],["clilar","CLI'lar"],["roller","Roller"],["kullanim","Kullanım"],["hakkinda","Hakkında"]];
+const AYAR_BOLUMLERI=[["genel","Genel"],["saglayicilar","Sağlayıcılar"],["modeller","Modeller"],["clilar","CLI'lar"],["roller","Roller"],["telegram","Telegram"],["kullanim","Kullanım"],["hakkinda","Hakkında"]];
 function ayarAc(id){$("#ayarlar").classList.add("on");ayarGit(id||S.ayarBolum||"genel")}
 function ayarKapat(){$("#ayarlar").classList.remove("on")}
 async function clilarYukle(){S.clilar=(await api("/api/clilar")).clilar;return S.clilar}
 async function canliModelleriYukle(){try{S.canliModeller=(await api("/api/modeller")).modeller;(S.modelListeleri||[]).forEach(x=>modelOnerileri(x.liste,x.sel.value))}catch(x){}}
 function ayarMenusuCiz(){const m=$("#ayarMenu");m.textContent="";m.append(e("button",{class:"geri",text:"← Uygulamaya dön",onclick:ayarKapat}));
   for(const [id,ad] of AYAR_BOLUMLERI)m.append(e("button",{class:"ayar-oge"+(S.ayarBolum===id?" on":""),text:ad,onclick:()=>ayarGit(id)}))}
-async function ayarGit(id){S.ayarBolum=id;ayarMenusuCiz();const h=$("#ayarIcerik");h.textContent="";h.scrollTop=0;
+async function ayarGit(id){if(S.telegramZ){clearInterval(S.telegramZ);S.telegramZ=null}S.ayarBolum=id;ayarMenusuCiz();const h=$("#ayarIcerik");h.textContent="";h.scrollTop=0;
   const baslik=(ad,alt)=>{h.append(e("h2",{class:"ayar-baslik",text:ad}));if(alt)h.append(e("div",{class:"mut3 ayar-alt",text:alt}))};
   try{
     if(id==="genel"){baslik("Genel","Bu projenin çalışma ayarları (.aktapokus/roller.json).");await genelBolumu(h)}
@@ -317,6 +317,7 @@ async function ayarGit(id){S.ayarBolum=id;ayarMenusuCiz();const h=$("#ayarIcerik
     else if(id==="modeller"){baslik("Modeller","Bağlı sağlayıcıların ve kurulu CLI'ların modelleri. Bir modeli role atayın ya da deneyin.");await modellerBolumu(h)}
     else if(id==="clilar"){baslik("CLI'lar","Modelleri çalıştıran programlar. Yeni bir CLI'ı kod yazmadan tanımlayarak ekleyebilirsiniz.");await clilarYukle();h.append(cliBolumu())}
     else if(id==="roller"){baslik("Roller","Görevin hangi rollerden, hangi sırayla ve hangi araç + modelle geçeceği.");await clilarYukle();h.append(await rolBolumu());if(!S.canliModeller)canliModelleriYukle()}
+    else if(id==="telegram"){baslik("Telegram","Telefondan görev başlatma, onay ve takip. Bot bu uygulamayla aynı süreçte çalışır: telefon ve arayüz aynı proje ve görevleri görür.");await telegramBolumu(h)}
     else if(id==="kullanim"){baslik("Kullanım","Token harcaması, hatalar ve model değiştirme önerileri.");const k=e("div");h.append(k);S.istHedef=k;await istatistikYukle(k)}
     else if(id==="hakkinda"){baslik("Hakkında");await hakkindaBolumu(h)}
   }catch(x){h.append(e("div",{class:"badge b-err",style:"white-space:normal",text:x.message}))}}
@@ -463,6 +464,34 @@ document.addEventListener("keydown",ev=>{if(ev.altKey&&!ev.ctrlKey&&!ev.metaKey&
 window.addEventListener("resize",duzenUygula);
 $("#onizAyri").onclick=()=>{const u=$("#onizUrl").textContent;if(/^https?:\/\/(127\.0\.0\.1|localhost)(:\d+)?(\/|$)/.test(u))window.open(u,"aktapokus-onizleme","popup=yes,width=1100,height=800");else alert("Önce bir önizleme adresi açın.")};
 duzenUygula();
+/* ---- Ayarlar > Telegram: bot bu uygulamayla ayni surecte; baslat/durdur, otomatik, eslestirme, kokler, gunluk ---- */
+async function telegramBolumu(h){const kutu=e("div");h.append(kutu);
+  const islem=async(yol,govde)=>{try{await api("/api/telegram/"+yol,{method:"POST",body:govde||{}})}catch(x){alert(x.message)}yukle()};
+  const yukle=async()=>{let d;try{d=await api("/api/telegram")}catch(x){kutu.textContent=x.message;return}
+    kutu.textContent="";
+    const durumRozet=d.calisiyor?e("span",{class:"badge b-ok",text:"çalışıyor"}):d.durduruluyor?e("span",{class:"badge b-warn",text:"durduruluyor…"}):e("span",{class:"badge",text:"kapalı"});
+    const baslat=e("button",{class:"pri",text:"Başlat",onclick:()=>islem("baslat")});baslat.disabled=d.calisiyor||d.durduruluyor||!d.token_var;
+    const durdur=e("button",{text:"Durdur",onclick:()=>islem("durdur")});durdur.disabled=!d.calisiyor;
+    const yeni=e("button",{text:"Yeni eşleştirme kodu",title:"Telefon ya da ikinci bir cihaz eklemek için",onclick:()=>islem("eslestir")});yeni.disabled=!d.calisiyor;
+    const oto=e("input",{type:"checkbox"});oto.checked=d.otomatik;oto.onchange=()=>islem("otomatik",{acik:oto.checked});
+    kutu.append(e("div",{class:"ayar-kart"},
+      e("div",{class:"ayar-satir"},e("div",null,e("div",{text:"Telegram botu"}),e("div",{class:"mut3",text:d.bot?d.bot+" · "+d.eslesmis+" eşleşmiş kullanıcı":d.eslesmis+" eşleşmiş kullanıcı"})),e("span",{class:"row"},durumRozet,baslat,durdur)),
+      e("div",{class:"ayar-satir"},e("div",null,e("div",{text:"Token"}),e("div",{class:"mut3",style:"white-space:normal",text:d.token_var?"Bulundu (hiçbir yerde gösterilmez).":"Yok. BotFather'dan aldığınız token'ı SİZ ~/.aktapokus/telegram.token dosyasına yazın (bana ya da sohbete yazmayın)."})),e("span",{class:"badge "+(d.token_var?"b-ok":"b-err"),text:d.token_var?"var":"yok"})),
+      e("div",{class:"ayar-satir"},e("label",{class:"row",style:"gap:8px"},oto,e("div",null,e("div",{text:"Uygulama açılınca otomatik başlat"}),e("div",{class:"mut3",text:"Kısayolla açtığınızda bot da hazır olur; telefondan kullanmak için bilgisayar açık olmalı."})))),
+      e("div",{class:"ayar-satir"},e("div",null,e("div",{text:"Eşleştirme"}),e("div",{class:"mut3",text:"Telefonu bota bağlamak için tek kullanımlık kod (10 dk geçerli)."})),yeni)));
+    if(d.hata)kutu.append(e("div",{class:"badge b-err",style:"white-space:normal;margin:6px 0",text:d.hata}));
+    if(d.eslestirme){const x=d.eslestirme;kutu.append(e("div",{class:"ayar-kart",style:"padding:10px 14px"},e("b",{text:"Eşleştirme kodu hazır ("+x.kalan_sn+" sn)"}),e("div",{class:"mono",style:"margin-top:4px;font-size:15px",text:x.komut}),e("div",{class:"mut3",style:"white-space:normal",text:"Botunuza bu mesajı yazın"+(x.baglanti?"; ya da telefonda şu bağlantıyı açın: "+x.baglanti:"")+"."})));}
+    const kokKart=e("div",{class:"ayar-kart"},e("div",{class:"ayar-grup",text:"Telefondan seçilebilecek proje kökleri"}));
+    if(!d.kokler.length)kokKart.append(e("div",{class:"ayar-satir"},e("div",{class:"mut3",text:"Tanımlı kök yok. Telefonda /projeler bu klasörlerin altındaki projeleri listeler."})));
+    for(const k of d.kokler)kokKart.append(e("div",{class:"ayar-satir"},e("div",{class:"mono",style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0",text:k}),e("button",{text:"Kaldır",onclick:()=>islem("kok-sil",{yol:k})})));
+    const yol=e("input",{placeholder:"C:\\Users\\adiniz\\Desktop\\projeler",style:"flex:1;min-width:0"});
+    kokKart.append(e("div",{class:"ayar-satir"},yol,e("button",{text:"Kök ekle",onclick:()=>{if(yol.value.trim())islem("kok",{yol:yol.value.trim()})}})));
+    kutu.append(kokKart);
+    kutu.append(e("div",{class:"mut3",style:"white-space:normal;margin:6px 0",text:"Not: 'telegram-baslat.bat'ı ayrıca çalıştırmayın; iki bot aynı anda aynı token'la yoklarsa Telegram çakışma (409) verir."}));
+    kutu.append(e("div",{class:"sec",text:"Günlük"}),e("pre",{class:"yama",style:"max-height:260px",text:d.log.length?d.log.join("\n"):"(henüz kayıt yok)"}))};
+  await yukle();
+  if(S.telegramZ)clearInterval(S.telegramZ);
+  S.telegramZ=setInterval(()=>{if(S.ayarBolum==="telegram"&&$("#ayarlar").classList.contains("on")&&!document.activeElement.matches("input[type=text],input:not([type])"))yukle();else if(S.ayarBolum!=="telegram"||!$("#ayarlar").classList.contains("on")){clearInterval(S.telegramZ);S.telegramZ=null}},3000)}
 function cliBolumu(){const kap=e("div");
   const liste=e("div");kap.append(liste);
   for(const c of S.clilar){const sonuc=e("div",{class:"mut3",style:"margin-top:4px"});

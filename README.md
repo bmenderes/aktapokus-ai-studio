@@ -74,6 +74,7 @@ OpenCode Desktop'taki gibi sol menülü tam sayfa; Esc ya da "← Uygulamaya dö
 | **Modeller** | Tek katalog: OpenCode'un yerleşik ücretsiz modelleri, bağlı sağlayıcıların modelleri, Codex/Claude Code modelleri; arama, **Role ata** (rolün CLI'ını ve modelini yazar), **Dene**. Bu bilgisayarda kurulu yerel Ollama modelleri OpenCode tarafından otomatik bulunur ve listenin SONUNDA "Yerel modeller" diye görünür |
 | **CLI'lar** | Yerleşik + tanımla eklenen CLI'lar, kurulu mu, Dene/Düzenle/Sil, **+ CLI ekle** |
 | **Roller** | Rol sırası (↑/↓), rol ekle/sil, araç + model seçici, doğrulama rolü, talimat |
+| **Telegram** | Bot ARAYÜZLE AYNI SÜREÇTE çalışır (`telegram_yonetici.py`): Başlat/Durdur, durum (çalışıyor/durduruluyor/kapalı), bot adı, eşleşmiş kullanıcı sayısı, **eşleştirme kodu** (komut ve bağlantı; "Yeni eşleştirme kodu" ikinci cihaz için), **"Uygulama açılınca otomatik başlat"**, telefondan seçilebilecek **proje kökleri** (ekle/kaldır; çalışan bota hemen yansır) ve son 60 satır günlük. Telefon ve arayüz **tek `Uygulama`'yı** (proje, görev, olay akışı) paylaşır. Token'ı arayüze/günlüğe/yanıta HİÇ yazmaz (yalnız var/yok; son savunma olarak günlükteki her token maskelenir); yalnız yerel belirteçli arayüzden yönetilir, telefondan değil. |
 | **Kullanım** | Token harcaması, hatalar, model değiştirme önerileri (bu proje / tüm projeler) |
 | **Hakkında** | Kurulu araçlar ve veri konumları |
 
@@ -105,6 +106,10 @@ Yazı kutusunun altındaki rol akışı çipine ve sol listedeki rollere tıklam
 - Başka bilgisayarda: `kur.bat`, sonra `kisayol-olustur.bat`.
 
 **Doğrulanan (gerçek Edge, Windows 11):** pencere açıldı (başlık "Aktapokus", `--app`, ayrı profil), `CloseMainWindow` ile kapatılınca pythonw, Edge, kilit ve OpenCode süreci kalmadı, son klasör kaydedildi; gerçek masaüstü kısayoluyla ve **tarayıcı devri (bayat pencere açıkken ikinci başlatma)** durumunda da aynısı. **Doğrulanmayan:** pencerenin görsel düzeni (ekran görüntüsü alınamadı), ikinci tıklamada çıkan "zaten açık" kutusu (yalnız testle), Chrome yolu, tarayıcı güncellemesinin `--app` davranışını değiştirmesi, Windows başlangıcında otomatik açılma (yapılmadı).
+
+## Telegram'ı arayüzle birlikte kullanma (Ayarlar > Telegram)
+
+Token'ı **siz** `~/.aktapokus/telegram.token` dosyasına (ya da `AKTAPOKUS_TELEGRAM_TOKEN`) yazın; arayüz yalnızca "var/yok" görür. Bölümde **Başlat** deyin (ya da "otomatik başlat"ı açın: kısayolla uygulama açılınca bot arka planda başlar; token yoksa/ağ yoksa nedeni günlükte yazar, arayüz açılmaya devam eder). Eşleşmemişseniz kod ve bağlantı görünür; telefondan botunuza `/eslestir KOD` yazın. **Önemli:** `telegram-baslat.bat`'ı aynı anda çalıştırmayın (iki yoklayıcı = Telegram 409 çakışması); yönetici, durdurma sürerken (en çok ~35 sn, Telegram'ın uzun yoklaması) yeniden başlatmayı bilerek reddeder. **Doğrulanan:** sahte Telegram sunucusuyla gerçek yoklama başlat/durdur, token sızıntısı yok, otomatik başlatma, kök ekle/sil (11 test + 8 mutasyon) ve gerçek tarayıcıda arayüz (sahte token: "Token doğrulanamadı" hatası gösterilir). **Doğrulanmayan:** sizin gerçek tokenınızla/telefonunuzla uçtan uca (gerçek botunuza bağlanmamak için kasıtlı denenmedi).
 
 ## Başka bir bilgisayara kurulum (örn. ev bilgisayarı)
 

@@ -610,3 +610,9 @@ def test_esnek_paneller_bolucu_dugme_ve_izgara_yerlesimi():
     assert "visibility:hidden" in kural and "display:none" not in kural
     assert "aktapokus.duzen" in html and "pointer-events:none" in html  # boyutlar hatirlanir; surukleme sirasinda iframe fareyi calmaz
     assert "if(g<400)return" in html  # gizli/cok kucuk pencerede kayitli duzen bozulmaz
+
+
+def test_ayarlar_telegram_bolumu_sayfada_var():
+    html = (Path(__file__).parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
+    assert '["telegram","Telegram"]' in html and "function telegramBolumu" in html and "/api/telegram" in html
+    assert "clearInterval(S.telegramZ)" in html  # bolumden cikinca yoklama durur (arka planda bosuna istek atmaz)

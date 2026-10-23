@@ -156,6 +156,7 @@ class Uygulama:
     ):
         self.calistirici_uret = calistirici_uret
         self._saglayici_istemci_uret = saglayici_istemci_uret
+        self.telegram = None  # TelegramYoneticisi: ilk kullanimda olusur (Ayarlar > Telegram)
         self.token = token or secrets.token_urlsafe(24)
         self.bus = OlayAkisi()
         self.klasor: Path | None = None
@@ -362,6 +363,37 @@ class Uygulama:
         except (SunucuHatasi, CalistiriciHatasi) as hata:
             raise self._sunucu_hatasi(hata) from None
         return {"tamam": True}
+
+    # --- Telegram botu ARAYUZLE AYNI SURECTE (Ayarlar > Telegram): baslat/durdur, otomatik, eslestirme, kokler. Yalniz yerel arayuz; telefondan degil. ---
+    def _telegram(self):
+        from .telegram_yonetici import TelegramYoneticisi
+
+        if self.telegram is None:
+            self.telegram = TelegramYoneticisi(self)
+        return self.telegram
+
+    def telegram_islem(self, islem: str, g: dict) -> dict:
+        from .telegram_yonetici import YoneticiHatasi
+
+        y = self._telegram()
+        try:
+            if islem == "durum":
+                return y.durum()
+            if islem == "baslat":
+                return y.baslat()
+            if islem == "durdur":
+                return y.durdur()
+            if islem == "eslestir":
+                return y.yeni_eslestirme()
+            if islem == "otomatik":
+                return y.otomatik_ayarla(bool(g.get("acik")))
+            if islem == "kok":
+                return y.kok_ekle(str(g.get("yol", "")))
+            if islem == "kok-sil":
+                return y.kok_sil(str(g.get("yol", "")))
+        except YoneticiHatasi as hata:
+            raise UygulamaHatasi(str(hata)) from None
+        raise UygulamaHatasi("Bilinmeyen Telegram işlemi", 404)
 
     # --- ciktilar (Outputs): projede gorevlerle olusan/degisen dosyalarin birlesik listesi (yalniz okur) ---
     def ciktilar(self) -> dict:
@@ -668,6 +700,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                     return self._gonder(200, app.proje_listesi())
                 if yol == "/api/istatistik":
                     return self._gonder(200, app.istatistik(q.get("kapsam", "proje")))
+                if yol == "/api/telegram":
+                    return self._gonder(200, app.telegram_islem("durum", {}))
                 if yol == "/api/ciktilar":
                     return self._gonder(200, app.ciktilar())
                 if yol == "/api/gecmis":
@@ -700,6 +734,9 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                     return self._gonder(200, app.saglayici_baglan(g.get("saglayici"), g.get("anahtar"), g.get("etiket")))
                 if yol == "/api/saglayicilar/kaldir":
                     return self._gonder(200, app.saglayici_kaldir(g.get("baglanti")))
+                m = re.match(r"^/api/telegram/(baslat|durdur|eslestir|otomatik|kok|kok-sil)$", yol)
+                if m:
+                    return self._gonder(200, app.telegram_islem(m.group(1), g))
                 if yol == "/api/projeler/unut":
                     return self._gonder(200, app.proje_unut(g.get("id")))
                 if yol == "/api/clilar/sil":
@@ -848,6 +885,7 @@ class ArayuzSunucusu:
 
 def ui_calistir(klasor: str | None = None, port: int = 0, tarayici: bool = False) -> int:
     app = Uygulama()
+    app._telegram().otomatik_baslat()  # Ayarlar > Telegram'da 'otomatik baslat' aciksa ve token varsa bot arka planda baslar
     sunucu = ArayuzSunucusu(app, port)
     sunucu.baslat()
     if klasor:
