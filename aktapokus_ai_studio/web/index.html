@@ -409,6 +409,27 @@ async function ayarGit(id){if(S.telegramZ){clearInterval(S.telegramZ);S.telegram
     else if(id==="kullanim"){baslik("Kullanım","Token harcaması, hatalar ve model değiştirme önerileri.");const k=e("div");h.append(k);S.istHedef=k;await istatistikYukle(k)}
     else if(id==="hakkinda"){baslik("Hakkında");await hakkindaBolumu(h)}
   }catch(x){h.append(e("div",{class:"badge b-err",style:"white-space:normal",text:x.message}))}}
+/* GitHub hesabı: Aktapokus'a ÖZEL oturum (cihaz kodu ile); bilgisayardaki gh hesabı kullanılmaz. Belirteç yalnızca Aktapokus'un kendi gh klasöründe kalır. */
+function githubKarti(g,yenile){const kart=e("div",{class:"card"});const ust=e("div",{class:"row",style:"justify-content:space-between;gap:8px;flex-wrap:wrap"});const alan=e("div");let iv=null;
+  const rozet=e("span",{class:"badge "+(g.giris?"b-ok":"b-err"),text:g.giris?"@"+g.hesap:(g.kurulu?"giriş yok":"gh kurulu değil")});
+  const dugmeler=e("span",{class:"row",style:"gap:6px"});
+  const durdur=()=>{if(iv){clearInterval(iv);iv=null}};
+  const hata=m=>{alan.textContent="";alan.append(e("div",{class:"badge b-err",style:"white-space:normal;margin-top:4px",text:m}))};
+  const bilgi=m=>e("div",{class:"mut3",style:"margin-top:4px;white-space:normal",text:m});
+  ust.append(e("span",{class:"row",style:"gap:8px"},e("b",{text:"GitHub"}),rozet),dugmeler);kart.append(ust,alan);
+  if(g.giris){alan.append(bilgi("Depo listesi, klonlama, push, pull request ve issue işlemleri bu hesapla yapılır. Bu oturum yalnızca Aktapokus'a aittir; bilgisayardaki başka gh/git hesaplarını etkilemez."));
+    dugmeler.append(e("button",{text:"GitHub bölümü",onclick:()=>ayarGit("github")}),e("button",{text:"Çıkış yap",onclick:async()=>{if(!confirm("Aktapokus'un GitHub oturumu kapatılsın mı?\n\nBilgisayardaki başka hesaplar etkilenmez."))return;try{await api("/api/github/cikis",{method:"POST",body:{}});yenile()}catch(x){hata(x.message)}}}));return kart}
+  if(!g.kurulu){alan.append(bilgi(g.hata||"GitHub CLI (gh) kurulu değil. https://cli.github.com adresinden kurun, sonra bu sayfayı yenileyin."));return kart}
+  alan.append(bilgi("Giriş yok. Aktapokus kendi GitHub oturumunu kullanır (bilgisayardaki gh hesabı kullanılmaz): tarayıcıda bir kod girerek bağlanırsınız; parola ya da belirteç Aktapokus'tan geçmez."));
+  const giris=e("button",{class:"pri",text:"GitHub'a giriş yap"});dugmeler.append(giris);
+  const bekleyis=async()=>{try{const d=await api("/api/github/giris/durum");if(d.durum==="tamam"){durdur();yenile()}else if(d.durum==="hata"){durdur();hata(d.hata||"Giriş başarısız");dugmeler.textContent="";dugmeler.append(giris)}else if(d.durum==="iptal"||d.durum==="yok"){durdur()}}catch(x){}};
+  giris.onclick=async()=>{giris.disabled=true;giris.textContent="kod alınıyor…";try{const r=await api("/api/github/giris/baslat",{method:"POST",body:{}});
+      alan.textContent="";alan.append(bilgi("1) Adresi açın  2) Aşağıdaki kodu girin  3) GitHub'da “Authorize” deyin. Bu pencere kendiliğinden güncellenir."),
+        e("div",{class:"row",style:"gap:10px;margin-top:6px;flex-wrap:wrap"},e("span",{class:"mono",style:"font-size:22px;letter-spacing:3px;font-weight:700;background:var(--saribg);border:1px solid var(--sarikoyu);border-radius:8px;padding:4px 12px",text:r.kod}),
+          e("button",{text:"Kodu kopyala",onclick:()=>navigator.clipboard.writeText(r.kod).catch(()=>{})}),e("button",{class:"pri",text:"Adresi aç",onclick:()=>window.open(r.adres,"_blank","noopener")})));
+      dugmeler.textContent="";dugmeler.append(e("button",{text:"İptal",onclick:async()=>{durdur();try{await api("/api/github/giris/iptal",{method:"POST",body:{}})}catch(x){}yenile()}}));
+      iv=setInterval(()=>{if(!kart.isConnected){durdur();return}bekleyis()},2000)}catch(x){giris.disabled=false;giris.textContent="GitHub'a giriş yap";hata(x.message)}};
+  return kart}
 async function hesaplarBolumu(h){const kap=e("div",{style:"max-width:760px"});h.append(kap);
   const kart=(baslik,rozet,rozetSinif,satirlar,dugme)=>e("div",{class:"card"},e("div",{class:"row",style:"justify-content:space-between;gap:8px;flex-wrap:wrap"},e("span",{class:"row",style:"gap:8px"},e("b",{text:baslik}),e("span",{class:"badge "+rozetSinif,text:rozet})),dugme||null),...satirlar.map(s=>e("div",{class:"mut3",style:"margin-top:4px;white-space:normal",text:s})));
   const git=(ad,b)=>e("button",{text:b||"Ayrıntı",onclick:()=>ayarGit(ad)});
@@ -417,7 +438,7 @@ async function hesaplarBolumu(h){const kap=e("div",{style:"max-width:760px"});h.
     S.hesaplar=d;hesapChipCiz();kap.textContent="";kap.append(e("div",{class:"row",style:"justify-content:flex-end;margin-bottom:6px"},e("button",{text:"Yenile",onclick:ciz})));
     const y=d.yerel||{};
     kap.append(kart("Aktapokus","giriş yok","b-warn",["Yerel kullanıcı: "+(y.kullanici||"?")+(y.bilgisayar?" @ "+y.bilgisayar:""),"Aktapokus'un kendi kullanıcı hesabı yoktur: bu bilgisayarda yerel çalışır, verileriniz burada kalır, giriş gerekmez. (Google ile giriş planlanıyor.) Aşağıdakiler, Aktapokus'un kullandığı araçlardaki kimliklerinizdir."]));
-    const g=d.github||{};kap.append(kart("GitHub",g.giris?"@"+g.hesap:(g.kurulu?"giriş yok":"gh kurulu değil"),g.giris?"b-ok":"b-err",[g.giris?"Depo listesi, klonlama, pull request ve issue işlemleri bu hesapla yapılır (bilgisayardaki gh oturumu).":(g.hata||"Giriş için bir terminalde `gh auth login` çalıştırın.")],git("github","GitHub bölümü")));
+    kap.append(githubKarti(d.github||{},()=>{hesapOzetZ=0;ciz()}));
     const c=d.claude||{};kap.append(kart("Claude Code",c.giris?"giriş yapıldı":(c.kurulu?"giriş yok":"kurulu değil"),c.giris?"b-ok":"b-err",[c.giris?[c.eposta,c.abonelik?"abonelik: "+c.abonelik:null,c.yontem?"yöntem: "+c.yontem:null].filter(Boolean).join(" · "):(c.kurulu?(c.hata||"Giriş için bir terminalde `claude auth login` çalıştırın."):"Claude Code CLI bulunamadı.")],git("roller","Roller")));
     const x=d.codex||{};kap.append(kart("Codex",x.giris?"giriş yapıldı":(x.kurulu?"giriş yok":"kurulu değil"),x.giris?"b-ok":"b-err",[x.giris?(x.detay||""):(x.kurulu?"Giriş için bir terminalde `codex login` çalıştırın.":"Codex CLI bulunamadı.")],git("roller","Roller")));
     kap.append(kart("OpenCode ve model sağlayıcıları","anahtarla","",["OpenCode hesapla değil, sağlayıcı API anahtarlarıyla çalışır: hangi sağlayıcıların bağlı olduğu Sağlayıcılar bölümünde görünür."],git("saglayicilar","Sağlayıcılar")));
@@ -1097,7 +1118,7 @@ async function githubPaneliYukle(){const p=$("#p-github");p.textContent="";
   try{d=await api("/api/github/proje")}catch(x){hata=x.message}
   p.textContent="";
   p.append(e("div",{class:"row",style:"justify-content:space-between"},e("span",{class:"row"},e("b",{text:"GitHub"}),hesap.giris?e("span",{class:"badge b-ok",title:"Bu hesapla işlem yapılır (gh oturumu)",text:"@"+hesap.hesap}):e("span",{class:"badge b-err",text:hesap.kurulu?"giriş yok":"gh kurulu değil"})),e("button",{text:"Yenile",onclick:githubPaneliYukle})));
-  if(!hesap.giris)p.append(e("div",{class:"badge b-warn",style:"display:block;white-space:normal;margin:6px 0",text:(hesap.hata||"GitHub'a giriş yapılmamış.")+" Giriş için bir terminalde `gh auth login` çalıştırın."}));
+  if(!hesap.giris)p.append(e("div",{class:"badge b-warn",style:"display:block;white-space:normal;margin:6px 0",text:(hesap.hata||"GitHub'a giriş yapılmamış.")+" Ayarlar > Hesaplar bölümünden GitHub'a giriş yapın."}));
   if(hesap.giris){const depoKap=e("div");p.append(depoKap);depoKlonlaKarti(depoKap,true)}
   if(hata){p.append(e("div",{class:"badge b-err",style:"display:block;white-space:normal;margin-top:6px",text:/git deposu degil/.test(hata)?"Bu klasör bir git deposu değil (geri alma gölge yedekten çalışır, git gerekmez). Commit ve push için klasörde git deposu gerekir; isterseniz Terminal'de `git init` çalıştırın.":hata}));return}
   const dal=d.dal||"(dal yok)";const uzakAd=d.uzak.depo||d.uzak.url||"";
@@ -1129,7 +1150,7 @@ async function githubPaneliYukle(){const p=$("#p-github");p.textContent="";
 async function githubBolumu(h){const kap=e("div");h.append(kap);
   const hesap=await api("/api/github/durum").catch(x=>({kurulu:false,giris:false,hata:x.message}));
   kap.append(e("div",{class:"card"},e("div",{class:"row",style:"justify-content:space-between"},e("span",{class:"row"},e("b",{text:"Hesap"}),hesap.giris?e("span",{class:"badge b-ok",text:"@"+hesap.hesap}):e("span",{class:"badge b-err",text:hesap.kurulu?"giriş yok":"gh kurulu değil"})),e("button",{text:"Yenile",onclick:()=>ayarGit("github")})),
-    e("div",{class:"mut3",style:"margin-top:4px",text:hesap.giris?"İşlemler bu hesapla yapılır (bilgisayardaki gh oturumu). Başka hesapla giriş yaptıysanız önce `gh auth switch` ile hesabı değiştirin.":(hesap.hata||"")+" Giriş için bir terminalde `gh auth login` çalıştırın (token'ı bu uygulamaya girmeniz gerekmez)."})));
+    e("div",{class:"mut3",style:"margin-top:4px",text:hesap.giris?"İşlemler Aktapokus'a özel GitHub oturumuyla yapılır (Ayarlar > Hesaplar'dan değiştirilir).":(hesap.hata||"")+" Ayarlar > Hesaplar bölümünden GitHub'a giriş yapın (parola/belirteç girmeniz gerekmez)."})));
   if(!hesap.giris)return;
   await depoKlonlaKarti(kap,true)}
 /* Depo listesi + klonlama: kendi hesabin VE uye oldugun organizasyonlar; sahip suzgeci + yazdikca suzulen arama; liste kendiliginden yuklenir. */

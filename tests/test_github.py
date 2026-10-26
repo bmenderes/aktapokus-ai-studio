@@ -53,7 +53,7 @@ def test_durum_giris_yapilmis(gh):
 def test_durum_giris_yok_anlasilir_mesaj(gh, monkeypatch):
     monkeypatch.setenv("SAHTE_GH_GIRIS", "0")
     d = g.durum()
-    assert d["kurulu"] and not d["giris"] and "gh auth login" in d["hata"]
+    assert d["kurulu"] and not d["giris"] and "Hesaplar" in d["hata"]
 
 
 def test_durum_gh_kurulu_degil(monkeypatch, tmp_path):

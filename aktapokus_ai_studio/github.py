@@ -19,9 +19,12 @@ import re
 import shutil
 import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 
 GH_ORTAMI = "AKTAPOKUS_GH"
+GH_DIZIN_ORTAMI = "AKTAPOKUS_GH_DIZIN"  # uygulamaya ozel gh oturum klasoru (varsayilan ~/.aktapokus/gh)
 DEPO_DESENI = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})/[A-Za-z0-9._-]{1,100}$")
 DAL_DESENI = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]{0,99}$")
 AD_DESENI = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
@@ -54,9 +57,28 @@ def _temizle(metin: str) -> str:
     return TOKEN_DESENI.sub("***", metin or "")
 
 
-def _calistir(argv: list[str], klasor: Path | None = None, zaman_asimi: int = 60, girdi: str | None = None) -> tuple[int, str, str]:
+def gh_dizini() -> Path:
+    ortam = os.environ.get(GH_DIZIN_ORTAMI)
+    return Path(ortam) if ortam else Path.home() / ".aktapokus" / "gh"
+
+
+def _ortam() -> dict:
+    """gh/git ortami: Aktapokus'un KENDI GitHub oturumu (gh_dizini); sistemdeki gh hesabi ve GH_TOKEN/GITHUB_TOKEN kullanilmaz.
+    git'in github.com kimlik yardimcisi bu oturuma bagli gh olur (push/klon ayni hesapla)."""
     ortam = os.environ.copy()
-    ortam.update({"GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "never", "GH_PROMPT_DISABLED": "1", "GH_NO_UPDATE_NOTIFIER": "1", "NO_COLOR": "1", "GH_SPINNER_DISABLED": "1"})
+    for k in ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"):
+        ortam.pop(k, None)
+    ortam.update({"GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "never", "GH_PROMPT_DISABLED": "1", "GH_NO_UPDATE_NOTIFIER": "1", "NO_COLOR": "1", "GH_SPINNER_DISABLED": "1",
+                  "GH_CONFIG_DIR": str(gh_dizini())})
+    gh = gh_bul()
+    if gh and not gh.lower().endswith(".py"):
+        ortam.update({"GIT_CONFIG_COUNT": "2", "GIT_CONFIG_KEY_0": "credential.https://github.com.helper", "GIT_CONFIG_VALUE_0": "",
+                      "GIT_CONFIG_KEY_1": "credential.https://github.com.helper", "GIT_CONFIG_VALUE_1": '!"' + gh.replace("\\", "/") + '" auth git-credential'})
+    return ortam
+
+
+def _calistir(argv: list[str], klasor: Path | None = None, zaman_asimi: int = 60, girdi: str | None = None) -> tuple[int, str, str]:
+    ortam = _ortam()
     bayrak = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
         s = subprocess.run(
@@ -80,7 +102,7 @@ def _git(klasor: Path, *args: str, zaman_asimi: int = 60, girdi: str | None = No
 def _gh_calistir(args: tuple[str, ...], klasor: Path | None, zaman_asimi: int) -> tuple[int, str, str]:
     gh = gh_bul()
     if not gh:
-        raise GithubHatasi("GitHub CLI (gh) bulunamadi. https://cli.github.com adresinden kurup `gh auth login` calistirin.")
+        raise GithubHatasi("GitHub CLI (gh) bulunamadi. https://cli.github.com adresinden kurun.")
     onek = [sys.executable, gh] if gh.lower().endswith(".py") else [gh]  # AKTAPOKUS_GH bir .py betigini (deneme) de gosterebilir
     return _calistir([*onek, *args], klasor, zaman_asimi)
 
@@ -90,7 +112,7 @@ def _gh(*args: str, klasor: Path | None = None, zaman_asimi: int = 60, kontrol: 
     if kontrol and kod != 0:
         mesaj = (hata.strip() or cikti.strip() or f"gh {args[0]} basarisiz")
         if "auth login" in mesaj or "not logged" in mesaj.lower() or "authentication" in mesaj.lower():
-            mesaj = "GitHub'a giris yapilmamis. Bir terminalde `gh auth login` calistirin."
+            mesaj = "GitHub'a giris yapilmamis. Ayarlar > Hesaplar > GitHub'dan giris yapin."
         raise GithubHatasi(mesaj[:600])
     return cikti
 
@@ -100,6 +122,97 @@ def _json(metin: str):
         return json.loads(metin)
     except json.JSONDecodeError:
         raise GithubHatasi("GitHub yaniti okunamadi") from None
+
+
+# ---- uygulamaya ozel giris (cihaz kodu): `gh auth login --web`, belirtec Aktapokus'un kendi gh klasorunde (gh_dizini) kalir ----
+KOD_DESENI = re.compile(r"\b([A-Z0-9]{4}-[A-Z0-9]{4})\b")
+GIRIS_ADRESI = "https://github.com/login/device"
+GIRIS_AZAMI_SN = 15 * 60
+_giris_kilit = threading.Lock()
+_giris: dict = {}
+
+
+def _giris_oku(surec: subprocess.Popen, g: dict) -> None:
+    try:
+        for satir in surec.stdout:  # type: ignore[union-attr]
+            if g.get("surec") is not surec:  # yeni giris baslatildi: eski surecin ciktisi yeni durumu bozmasin
+                return
+            m = KOD_DESENI.search(satir)
+            if m and not g.get("kod") and ("code" in satir.lower() or "kod" in satir.lower()):
+                g["kod"] = m.group(1)
+            g["cikti"] = (g.get("cikti", "") + _temizle(satir))[-600:]
+    except (OSError, ValueError):
+        pass
+
+
+def giris_baslat() -> dict:
+    """Cihaz kodu akisini baslatir: {kod, adres}. Kullanici adresi acip kodu girer; sonucu giris_durumu() verir."""
+    gh = gh_bul()
+    if not gh:
+        raise GithubHatasi("GitHub CLI (gh) bulunamadi. https://cli.github.com adresinden kurun.")
+    giris_iptal()
+    gh_dizini().mkdir(parents=True, exist_ok=True)
+    onek = [sys.executable, gh] if gh.lower().endswith(".py") else [gh]
+    surec = subprocess.Popen([*onek, "auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web", "--skip-ssh-key"], stdin=subprocess.DEVNULL,
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", env=_ortam(), creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    with _giris_kilit:
+        _giris.clear()
+        _giris.update({"surec": surec, "kod": None, "cikti": "", "baslangic": time.time(), "iptal": False})
+    g = _giris  # okuyucu iplik ve durum sorgusu AYNI sozlugu kullanir
+    threading.Thread(target=_giris_oku, args=(surec, g), daemon=True).start()
+    bitis = time.time() + 20
+    while time.time() < bitis and not g["kod"] and surec.poll() is None:
+        time.sleep(0.1)
+    if not g["kod"]:
+        giris_iptal()
+        raise GithubHatasi("GitHub giris kodu alinamadi: " + (g["cikti"].strip()[:300] or "gh yanit vermedi"))
+    return {"kod": g["kod"], "adres": GIRIS_ADRESI}
+
+
+def giris_durumu() -> dict:
+    """{durum: yok|bekliyor|tamam|hata|iptal, kod, adres, hesap}"""
+    with _giris_kilit:
+        g = dict(_giris)
+    if not g:
+        return {"durum": "yok"}
+    surec = g["surec"]
+    kod = surec.poll()
+    if kod is None:
+        if time.time() - g["baslangic"] > GIRIS_AZAMI_SN:
+            giris_iptal()
+            return {"durum": "hata", "hata": "Giris suresi doldu; yeniden baslatin."}
+        return {"durum": "bekliyor", "kod": g["kod"], "adres": GIRIS_ADRESI}
+    if g.get("iptal"):
+        return {"durum": "iptal"}
+    if kod == 0:
+        return {"durum": "tamam", **{k: v for k, v in durum().items() if k in ("giris", "hesap", "ad")}}
+    return {"durum": "hata", "hata": (g.get("cikti", "").strip() or "Giris basarisiz")[:300]}
+
+
+def giris_iptal() -> dict:
+    with _giris_kilit:
+        g = _giris.get("surec")
+        if _giris:
+            _giris["iptal"] = True
+    if g is not None and g.poll() is None:
+        try:
+            g.kill()
+        except OSError:
+            pass
+    return {"tamam": True}
+
+
+def cikis() -> dict:
+    """Aktapokus'un GitHub oturumunu kapatir (yalniz kendi gh klasoru; sistemdeki gh hesabina dokunmaz)."""
+    giris_iptal()
+    if gh_bul():
+        _gh_calistir(("auth", "logout", "--hostname", "github.com"), None, 30)
+    hosts = gh_dizini() / "hosts.yml"
+    try:
+        hosts.unlink()
+    except OSError:
+        pass
+    return {"tamam": True}
 
 
 # ---- hesap / depolar --------------------------------------------------------------------------------------------------

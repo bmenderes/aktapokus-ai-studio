@@ -22,6 +22,18 @@ def bitir(metin="", kod=0, hata=""):
     sys.exit(kod)
 
 
+if a[:2] == ["auth", "login"]:  # cihaz kodu akisi: SAHTE_GH_ONAY dosyasi olusunca (kullanici tarayicida onaylamis gibi) basariyla biter
+    sys.stderr.write("! First copy your one-time code: ABCD-1234\nPress Enter to open github.com in your browser...\n")
+    sys.stderr.flush()
+    onay = os.environ.get("SAHTE_GH_ONAY", "")
+    for _ in range(100):
+        if onay and os.path.exists(onay):
+            bitir()
+        import time
+        time.sleep(0.1)
+    bitir(kod=1, hata="zaman asimi")
+if a[:2] == ["auth", "logout"]:
+    bitir()
 if os.environ.get("SAHTE_GH_HATA") == "1":
     bitir(kod=1, hata=f"gh: beklenmeyen hata, kimlik {TOKEN}")
 if a[:2] == ["api", "user"]:

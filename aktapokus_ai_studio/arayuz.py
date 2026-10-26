@@ -606,6 +606,24 @@ class Uygulama:
     def github_durum(self) -> dict:
         return github.durum()
 
+    def github_giris_baslat(self) -> dict:
+        try:
+            return github.giris_baslat()
+        except github.GithubHatasi as h:
+            raise UygulamaHatasi(str(h), 400) from None
+
+    def github_giris_durumu(self) -> dict:
+        return github.giris_durumu()
+
+    def github_giris_iptal(self) -> dict:
+        return github.giris_iptal()
+
+    def github_cikis(self) -> dict:
+        try:
+            return github.cikis()
+        except github.GithubHatasi as h:
+            raise UygulamaHatasi(str(h), 400) from None
+
     def github_depolar(self) -> dict:
         try:
             return {"depolar": github.depolar()}
@@ -1767,6 +1785,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.git_commit_oneri())
                 if yol == "/api/github/durum":
                     return self._gonder(200, app.github_durum())
+                if yol == "/api/github/giris/durum":
+                    return self._gonder(200, app.github_giris_durumu())
                 if yol == "/api/github/depolar":
                     return self._gonder(200, app.github_depolar())
                 if yol == "/api/github/proje":
@@ -1850,6 +1870,12 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.uzak_ayarla(g))
                 if yol == "/api/uzak/anahtar-yenile":
                     return self._gonder(200, app.uzak_anahtar_yenile())
+                if yol == "/api/github/giris/baslat":
+                    return self._gonder(200, app.github_giris_baslat())
+                if yol == "/api/github/giris/iptal":
+                    return self._gonder(200, app.github_giris_iptal())
+                if yol == "/api/github/cikis":
+                    return self._gonder(200, app.github_cikis())
                 if yol == "/api/github/klonla":
                     return self._gonder(200, app.github_klonla(g.get("depo"), g.get("klasor"), g.get("ad")))
                 if yol == "/api/github/commit":

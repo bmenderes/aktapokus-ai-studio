@@ -181,6 +181,10 @@ YONETIM_KAPALIYKEN_YASAK = (
     ({"GET"}, "/api/claude-oturumlari"),  # kullanicinin Claude Code konusmalari (ozel icerik): yalniz bu bilgisayar
     ({"GET"}, "/api/claude-konusma"),
     ({"POST", "PUT", "DELETE"}, "/api/otomasyonlar"),  # zamanlanmis calistirma tanimlamak; '/api/otomasyon-calistir' (yalniz plan uretir) serbest
+    ({"POST"}, "/api/github/giris/baslat"),  # GitHub hesabi baglamak
+    ({"POST"}, "/api/github/giris/iptal"),
+    ({"POST"}, "/api/github/cikis"),
+    ({"GET"}, "/api/github/giris/durum"),
     ({"POST"}, "/api/github/klonla"),
     ({"GET"}, "/api/klasorler"),
     ({"GET"}, "/api/beceri-kaynak"),  # bilgisayardan internete cikis tetikler
