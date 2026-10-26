@@ -95,7 +95,7 @@ def test_calistir_evet_bayragi_ve_butce_ezme(proje, capsys):
     kod = cli.main(["calistir", "g", "--klasor", str(proje), "--evet", "--butce", "1000"], calistirici_uret=uret)
     assert kod == cli.CIKIS_HATA  # butce asildi
     assert "butce_asildi" in capsys.readouterr().out
-    assert cli.main(["calistir", "g", "--klasor", str(proje), "--evet", "--butce", "0"]) == cli.CIKIS_KULLANIM
+    assert cli.main(["calistir", "g", "--klasor", str(proje), "--evet", "--butce", "-5"]) == cli.CIKIS_KULLANIM  # eksi gecersiz; 0 = sinirsiz gecerli
 
 
 def test_calistir_ayar_yoksa_ve_git_yoksa_net_hata(tmp_path, proje, capsys):

@@ -114,10 +114,35 @@ def durum() -> dict:
     return {"kurulu": True, "giris": True, "hesap": k.get("login"), "ad": k.get("name"), "hata": None}
 
 
-def depolar(adet: int = 50) -> list[dict]:
+SAHIP_DESENI = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
+AZAMI_SAHIP = 20
+
+
+def depolar(adet: int = 100) -> list[dict]:
+    """Kendi hesabinin VE uye oldugu organizasyonlarin depolari (GERCEK EKSIK: yalniz kendi hesabi listeleniyordu; asil depolar organizasyondaydi).
+    Organizasyon listesi okunamazsa ya da bir organizasyon hata verirse kalanlar yine gosterilir; kendi hesabinin hatasi iletilir."""
     adet = max(1, min(int(adet), 100))
-    v = _json(_gh("repo", "list", "--limit", str(adet), "--json", "nameWithOwner,description,isPrivate,updatedAt,url", zaman_asimi=90))
-    return [{"depo": d.get("nameWithOwner"), "aciklama": d.get("description") or "", "ozel": bool(d.get("isPrivate")), "guncelleme": d.get("updatedAt"), "url": d.get("url")} for d in v if isinstance(d, dict)]
+    sahipler: list[str | None] = [None]
+    try:
+        for o in _json(_gh("api", "user/orgs?per_page=100", zaman_asimi=60)):
+            giris = o.get("login") if isinstance(o, dict) else None
+            if isinstance(giris, str) and SAHIP_DESENI.fullmatch(giris):
+                sahipler.append(giris)
+    except GithubHatasi:
+        pass
+    sonuc: dict[str, dict] = {}
+    for sahip in sahipler[:AZAMI_SAHIP]:
+        args = ("repo", "list", *((sahip,) if sahip else ()), "--limit", str(adet), "--json", "nameWithOwner,description,isPrivate,updatedAt,url")
+        try:
+            v = _json(_gh(*args, zaman_asimi=90))
+        except GithubHatasi:
+            if sahip is None:
+                raise
+            continue
+        for d in v:
+            if isinstance(d, dict) and isinstance(d.get("nameWithOwner"), str):
+                sonuc.setdefault(d["nameWithOwner"], {"depo": d["nameWithOwner"], "aciklama": d.get("description") or "", "ozel": bool(d.get("isPrivate")), "guncelleme": d.get("updatedAt"), "url": d.get("url")})
+    return sorted(sonuc.values(), key=lambda x: x.get("guncelleme") or "", reverse=True)
 
 
 def klonla(depo: object, ust_klasor: object, ad: object = None) -> Path:

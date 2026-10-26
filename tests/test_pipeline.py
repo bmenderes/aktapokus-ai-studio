@@ -211,3 +211,25 @@ def test_kayit_kimlikleri_ayni_saniyede_bile_olusturma_sirasiyla_siralanir():
         zaman.sleep(0.003)
     assert idler == sorted(idler), "kimlikler olusturma sirasini korumali"
     assert len(set(idler)) == 40
+
+
+def test_butce_sifir_sinirsizdir_cok_token_harcansa_da_durmaz(proje):
+    sahte = SahteCalistirici({"kodcu": lambda *a: sonuc("x", girdi=900_000, cikti=900_000), "test": lambda *a: sonuc("SONUC: BASARILI", girdi=900_000, cikti=900_000)})
+    s = calistir_hat(proje, "g", ayar(butce_token=0), lambda ad: sahte, lambda q: False)
+    assert s.durum != "butce_asildi" and [a.rol for a in s.adimlar] == ["kodcu", "test"]
+    sahte2 = SahteCalistirici({"kodcu": lambda *a: sonuc("x", girdi=900_000, cikti=900_000), "test": lambda *a: sonuc("SONUC: BASARILI")})
+    assert calistir_hat(proje, "g", ayar(butce_token=1000), lambda ad: sahte2, lambda q: False).durum == "butce_asildi"  # sifirdan farkli sinir hala isler
+
+
+def test_varsayilan_butce_2_milyon_ve_sifir_gecerli_eksi_gecersiz():
+    import copy
+
+    from aktapokus_ai_studio.config import AyarHatasi, VARSAYILAN_AYAR, ayar_coz
+
+    assert ayar_coz(VARSAYILAN_AYAR).butce_token == 2_000_000
+    v = copy.deepcopy(VARSAYILAN_AYAR)
+    v["butce_token"] = 0
+    assert ayar_coz(v).butce_token == 0
+    v["butce_token"] = -1
+    with pytest.raises(AyarHatasi):
+        ayar_coz(v)

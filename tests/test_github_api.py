@@ -80,7 +80,7 @@ def test_telegram_githuba_dokunmaz():
 def test_durum_ve_depolar(api):
     _, _, istek, _, _ = api
     assert istek("GET", "/api/github/durum")[1]["hesap"] == "sahte-kullanici"
-    assert [d["depo"] for d in istek("GET", "/api/github/depolar")[1]["depolar"]] == ["sahte-kullanici/proje-bir", "sahte-kullanici/proje-iki"]
+    assert [d["depo"] for d in istek("GET", "/api/github/depolar")[1]["depolar"]] == ["sahte-org/kurumsal", "sahte-kullanici/proje-bir", "sahte-kullanici/proje-iki"]
 
 
 def test_depolar_giris_yoksa_anlasilir_hata(api, monkeypatch):

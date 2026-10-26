@@ -192,7 +192,7 @@ def calistir_hat(
             hata=r.hata,
         )
         sonuc.adimlar.append(adim)
-        olay({"tur": "adim-bitti", "sira": adim.sira, "rol": rol.ad, "ok": r.ok, "hata": r.hata, "token_girdi": r.token_girdi, "token_cikti": r.token_cikti, "token_toplam": sonuc.token_toplam, "sure_sn": adim.sure_sn, "metin": _kisalt(r.metin, 1500)})
+        olay({"tur": "adim-bitti", "sira": adim.sira, "rol": rol.ad, "ok": r.ok, "hata": r.hata, "token_girdi": r.token_girdi, "token_cikti": r.token_cikti, "token_toplam": sonuc.token_toplam, "sure_sn": adim.sure_sn, "metin": _kisalt(r.metin, 20000)})  # ajan yaniti ekranda GORUNUR (inceleme/soru gorevlerinde asil sonuc budur)
         if rol.dogrulama and testi_atla is not None and testi_atla.is_set() and not (iptal is not None and iptal.is_set()):
             adim.dogrulama = "atlandi"  # calisirken iptal edilen test: hata sayilmaz, akis kalan adimlarla/karar ile devam eder
             olay({"tur": "dogrulama-atlandi", "rol": rol.ad})
@@ -204,7 +204,7 @@ def calistir_hat(
             else:
                 durum, sonuc.mesaj = "basarisiz", f"{rol.ad} adimi basarisiz: {r.hata}"
             break
-        if sonuc.token_toplam > ayar.butce_token:
+        if ayar.butce_token and sonuc.token_toplam > ayar.butce_token:  # 0 = sinirsiz
             durum = "butce_asildi"
             sonuc.mesaj = f"Token butcesi asildi ({sonuc.token_toplam} > {ayar.butce_token}); durduruldu."
             break
@@ -240,8 +240,8 @@ def calistir_hat(
         sonuc.durum = "degisiklik_yok" if durum == "tamam" else durum
         if durum == "tamam":
             sonuc.mesaj = (
-                "Klasorde hicbir dosya degismedi. Ajan bir sey yaptigini soylese bile, calisma klasoru disinda "
-                "calismis olabilir; ciktiyi ve kaydi kontrol edin."
+                "Klasorde dosya degismedi. Gorev bir inceleme ya da soru ise yanit yukaridaki adim ciktisindadir; "
+                "dosya degistirmesi bekleniyorduysa ciktiyi ve kaydi kontrol edin."
             )
     else:
         bildir("Degisen dosyalar:\n" + sonuc.fark_ozeti)

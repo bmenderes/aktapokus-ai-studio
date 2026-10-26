@@ -168,7 +168,7 @@ def test_klasorleri_listele(kur, tmp_path):
 def test_tam_akis_korunsun(kur):
     app, sv, api, sahte = kur()
     plan = tam_kosu(app, api, kur.proje, karar=True)
-    assert plan["adimlar"][0]["rol"] == "kodcu" and plan["butce"] == 200000
+    assert plan["adimlar"][0]["rol"] == "kodcu" and plan["butce"] == 2000000
     assert (kur.proje / "yeni.txt").exists()
     turler = [o["tur"] for o in app.bus.gecmis]
     assert turler.index("plan") < turler.index("adim-basladi") < turler.index("fark") < turler.index("karar-bekleniyor") < turler.index("bitti")

@@ -11,12 +11,14 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
 
 from . import guard
+from .config import AYAR_KLASORU
 
 AZAMI_ISTEM_UZUNLUGU = 24_000  # Windows komut satiri siniri (~32k) icin guvenli pay
 
@@ -242,23 +244,36 @@ def claude_bul() -> str | None:
 
 class ClaudeCodeCalistirici(Calistirici):
     """`claude -p` ile Claude Code (2.1.308 ile GERCEK denendi). Istem STDIN'den gider (komut satiri sorunu yok).
-    Dogrulananlar: --output-format json tek bir sonuc nesnesi verir (result, is_error, usage, total_cost_usd, permission_denials);
-    acceptEdits modunda klasor DISINA yazma reddedilir; `permissions.deny` Read(**/.env) .env okumasini engeller;
-    -p kipinde onay gerektiren her sey (Bash/PowerShell dahil) reddedilir."""
+    Cikti `stream-json`: her mesaj/arac cagrisi CANLI gelir (ilerleme geri cagrisi); son satir {type: result} (result, is_error, usage,
+    total_cost_usd, permission_denials, session_id). acceptEdits modunda klasor DISINA yazma reddedilir; `permissions.deny` Read(**/.env)
+    .env okumasini engeller; -p kipinde onay gerektiren her sey reddedilir.
+
+    Oturum kipi (`oturum_kipi`, Ayarlar > Genel > Claude konusmasi): 'tek' = proje basina TEK Claude Code konusmasi (sonraki calistirmalar
+    --resume ile ayni konusmaya yazar; Claude Code'da tek satir gorunur), 'yeni' = her calistirmada yeni konusma (eski davranis),
+    'hic' = konusma kaydedilmez (--no-session-persistence)."""
 
     ad = "claude"
+    oturum_kipi = "yeni"  # CLI/testlerde eski davranis; arayuz proje ayarindan (varsayilan 'tek') atar
+    ilerleme = None  # canli olay geri cagrisi: {"tur": "metin"|"arac"|"arac-sonuc", ...} (OpenCode sunucu calistiricisiyla ayni bicim)
+    OTURUM_OMRU_SN = 24 * 3600  # bundan eski konusma surdurulmez (bayat baglam)
 
     def __init__(self, cli_yolu: str | None = None):
         self.cli_yolu = cli_yolu
+        self._islem = None
+        self._durduruldu = False
 
-    def komut(self, ayar_dosyasi: str, model: str | None, onayli: bool, mcp_dosyasi: str | None = None, mcp_adlari: tuple[str, ...] = ()) -> list[str]:
+    def komut(self, ayar_dosyasi: str, model: str | None, onayli: bool, mcp_dosyasi: str | None = None, mcp_adlari: tuple[str, ...] = (), oturum: str | None = None, kalici: bool = True) -> list[str]:
         cli = self.cli_yolu or claude_bul()
         if not cli:
             raise CalistiriciHatasi(
                 "Claude Code CLI bulunamadi (npm install -g @anthropic-ai/claude-code) ya da AKTAPOKUS_CLAUDE ile yol verin. "
                 "Baska bir CLI kullanmak icin Ayarlar > Roller'e bakin."
             )
-        komut = [cli, "-p", "--output-format", "json", "--settings", ayar_dosyasi]
+        komut = [cli, "-p", "--output-format", "stream-json", "--verbose", "--settings", ayar_dosyasi]
+        if not kalici:
+            komut += ["--no-session-persistence"]
+        if oturum:
+            komut += ["--resume", oturum]
         if model:
             komut += ["--model", model]
         if onayli:
@@ -292,6 +307,128 @@ class ClaudeCodeCalistirici(Calistirici):
             hata=str(veri.get("result"))[:300] if hata_var else None,
         )
 
+    # ---- proje basina tek konusma ------------------------------------------------------------------------------------------
+    @staticmethod
+    def _oturum_yolu(klasor) -> Path:
+        return Path(klasor) / AYAR_KLASORU / "claude-oturum.json"
+
+    def _oturum_oku(self, klasor) -> str | None:
+        try:
+            d = json.loads(self._oturum_yolu(klasor).read_text(encoding="utf-8"))
+            kimlik, zaman = d["oturum"], float(d["zaman"])
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+        if not isinstance(kimlik, str) or not re.fullmatch(r"[0-9a-fA-F-]{36}", kimlik) or time.time() - zaman > self.OTURUM_OMRU_SN:
+            return None  # proje klasorundeki dosya guvenilmez: yalniz UUID bicimi komuta girer
+        return kimlik
+
+    def _oturum_yaz(self, klasor, kimlik: str) -> None:
+        try:
+            yol = self._oturum_yolu(klasor)
+            yol.parent.mkdir(parents=True, exist_ok=True)
+            yol.write_text(json.dumps({"oturum": kimlik, "zaman": time.time()}), encoding="utf-8")
+        except OSError:
+            pass
+
+    def _oturum_sil(self, klasor) -> None:
+        try:
+            self._oturum_yolu(klasor).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    # ---- canli akis ----------------------------------------------------------------------------------------------------------
+    @staticmethod
+    def _girdi_ozeti(girdi) -> dict:
+        """Arac girdisinden arayuze yalniz kisa, duz degerler gider (buyuk dosya icerikleri/diff'ler akisa tasinmaz)."""
+        if not isinstance(girdi, dict):
+            return {}
+        return {str(k): (v[:200] if isinstance(v, str) else v) for k, v in list(girdi.items())[:8] if isinstance(v, (str, int, float, bool))}
+
+    def _olay_bildir(self, olay: dict) -> None:
+        bildir = self.ilerleme
+        if bildir is None:
+            return
+        icerik = (olay.get("message") or {}).get("content")
+        if not isinstance(icerik, list):
+            return
+        try:
+            for c in icerik:
+                if not isinstance(c, dict):
+                    continue
+                if olay.get("type") == "assistant" and c.get("type") == "text" and c.get("text"):
+                    bildir({"tur": "metin", "parca": str(c["text"]) + "\n"})
+                elif olay.get("type") == "assistant" and c.get("type") == "tool_use":
+                    bildir({"tur": "arac", "ad": c.get("name"), "girdi": self._girdi_ozeti(c.get("input"))})
+                elif olay.get("type") == "user" and c.get("type") == "tool_result":
+                    bildir({"tur": "arac-sonuc", "hata": bool(c.get("is_error"))})
+        except Exception:
+            pass  # arayuz geri cagrisi hicbir zaman calistirmayi bozmaz
+
+    @staticmethod
+    def _surec_oldur(islem) -> None:
+        try:
+            if sys.platform == "win32":
+                subprocess.run(["taskkill", "/PID", str(islem.pid), "/T", "/F"], capture_output=True, timeout=15)  # alt surecler de
+            else:
+                islem.kill()
+        except Exception:
+            try:
+                islem.kill()
+            except Exception:
+                pass
+
+    def durdur(self) -> bool:
+        islem = self._islem
+        if islem is None or islem.poll() is not None:
+            return False
+        self._durduruldu = True
+        self._surec_oldur(islem)
+        return True
+
+    def _akis(self, komut, istem: str, klasor, zaman_asimi_sn: int):
+        """Claude'u baslatir, stdout'u SATIR SATIR okuyup canli bildirir. (cikis_kodu, result olayi | None, stderr metni, zaman_asimi_oldu_mu)."""
+        islem = subprocess.Popen(
+            komut, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(klasor), env=_alt_surec_ortami(Path(klasor)),
+        )
+        self._islem = islem
+        hatalar: list[bytes] = []
+        hata_is = threading.Thread(target=lambda: hatalar.append(islem.stderr.read()), daemon=True)  # stderr dolup tikamasin
+        hata_is.start()
+        zaman = {"asildi": False}
+
+        def sure_doldu() -> None:
+            zaman["asildi"] = True
+            self._surec_oldur(islem)
+
+        sayac = threading.Timer(zaman_asimi_sn, sure_doldu)
+        sayac.daemon = True
+        sayac.start()
+        sonuc_olayi = None
+        try:
+            try:
+                islem.stdin.write(istem.encode("utf-8"))  # UTF-8 BAYT: Windows metin kipi '\n' -> '\r\n' cevirirdi
+                islem.stdin.close()
+            except OSError:
+                pass
+            for ham in islem.stdout:
+                satir = ham.decode("utf-8", errors="replace").strip()
+                if not satir.startswith("{"):
+                    continue
+                try:
+                    olay = json.loads(satir)
+                except ValueError:
+                    continue
+                if isinstance(olay, dict) and olay.get("type") == "result":
+                    sonuc_olayi = olay
+                elif isinstance(olay, dict):
+                    self._olay_bildir(olay)
+            islem.wait()
+        finally:
+            sayac.cancel()
+            self._islem = None
+        hata_is.join(2)
+        return islem.returncode, sonuc_olayi, b"".join(hatalar).decode("utf-8", errors="replace"), zaman["asildi"]
+
     def calistir(self, istem, klasor, model=None, agent=None, zaman_asimi_sn=900, onayli=True):
         if not istem.strip():
             raise CalistiriciHatasi("Bos istem gonderilemez")
@@ -300,6 +437,7 @@ class ClaudeCodeCalistirici(Calistirici):
         import tempfile
 
         baslangic = time.monotonic()
+        self._durduruldu = False
         with tempfile.TemporaryDirectory(prefix="aktapokus-claude-") as gecici:
             ayar = Path(gecici) / "ayar.json"
             yasak = list(CLAUDE_YASAK_KURALLARI)
@@ -314,16 +452,31 @@ class ClaudeCodeCalistirici(Calistirici):
 
                 mcp_dosyasi = str(Path(gecici) / "mcp.json")
                 Path(mcp_dosyasi).write_text(json.dumps(mcptanim.claude_ayari(list(self.mcp))), encoding="utf-8")
-            komut = self.komut(str(ayar), model, onayli, mcp_dosyasi, tuple(t.ad for t in self.mcp))
-            try:
-                islem = _stdinli_calistir(komut, istem, Path(klasor), zaman_asimi_sn)
-            except subprocess.TimeoutExpired:
-                return CalistirmaSonucu(False, hata=f"Zaman asimi ({zaman_asimi_sn} sn)", sure_sn=time.monotonic() - baslangic)
-        sonuc = self.cikti_coz(islem.stdout)
-        sonuc.sure_sn = time.monotonic() - baslangic
-        if islem.returncode != 0 and sonuc.ok:
+            oturum = self._oturum_oku(klasor) if self.oturum_kipi == "tek" else None
+            while True:
+                komut = self.komut(str(ayar), model, onayli, mcp_dosyasi, tuple(t.ad for t in self.mcp), oturum=oturum, kalici=self.oturum_kipi != "hic")
+                kod, olay, hata_metni, asildi = self._akis(komut, istem, klasor, zaman_asimi_sn)
+                kayip = oturum and "no conversation found" in (hata_metni + str((olay or {}).get("result", ""))).lower()
+                if kayip:  # konusma silinmis: yeni baslat (bir kez)
+                    self._oturum_sil(klasor)
+                    oturum = None
+                    continue
+                break
+        sure = time.monotonic() - baslangic
+        if asildi:
+            return CalistirmaSonucu(False, hata=f"Zaman asimi ({zaman_asimi_sn} sn)", sure_sn=sure)
+        if self._durduruldu:
+            return CalistirmaSonucu(False, hata="Durduruldu", sure_sn=sure)
+        if olay is None:
+            return CalistirmaSonucu(False, hata=f"Claude Code sonuc dondurmedi (cikis kodu {kod}): {hata_metni.strip()[-300:]}", sure_sn=sure)
+        sonuc = self.cikti_coz(json.dumps(olay))
+        sonuc.sure_sn = sure
+        if kod != 0 and sonuc.ok:
             sonuc.ok = False
-            sonuc.hata = f"Claude Code cikis kodu {islem.returncode}: {(islem.stderr or islem.stdout).strip()[-300:]}"
+            sonuc.hata = f"Claude Code cikis kodu {kod}: {hata_metni.strip()[-300:]}"
+        kimlik = olay.get("session_id")
+        if self.oturum_kipi == "tek" and isinstance(kimlik, str) and re.fullmatch(r"[0-9a-fA-F-]{36}", kimlik):
+            self._oturum_yaz(klasor, kimlik)
         return sonuc
 
 

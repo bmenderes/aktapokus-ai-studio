@@ -239,13 +239,13 @@ def test_claude_calistir_gecici_mcp_dosyasi_yazar_ve_kullanici_ayarina_dokunmaz(
 
     yakalanan = {}
 
-    def sahte_calistir(komut, istem, klasor, zaman_asimi):
+    def sahte_akis(self, komut, istem, klasor, zaman_asimi):
         i = komut.index("--mcp-config")
         yakalanan["icerik"] = json.loads(Path(komut[i + 1]).read_text(encoding="utf-8"))
         yakalanan["dosya"] = komut[i + 1]
-        return type("R", (), {"stdout": json.dumps({"result": "ok", "usage": {}}), "stderr": "", "returncode": 0})()
+        return 0, {"type": "result", "result": "ok", "usage": {}}, "", False
 
-    monkeypatch.setattr(runners, "_stdinli_calistir", sahte_calistir)
+    monkeypatch.setattr(runners.ClaudeCodeCalistirici, "_akis", sahte_akis)
     c = ClaudeCodeCalistirici(cli_yolu="claude")
     c.mcp = (_t(),)
     c.calistir("istem", tmp_path)

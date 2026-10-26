@@ -119,12 +119,16 @@ def test_calistir_basarili_ve_arguman_gecisi(monkeypatch, tmp_path):
 def test_pwd_eski_kabuk_klasorunu_tasisa_bile_hedefe_ayarlanir(monkeypatch, tmp_path):
     monkeypatch.setenv("PWD", "/baska/klasor")
     monkeypatch.setenv("OLDPWD", "/eski")
+    from sahte_popen import claude_taklit
+
     gorulen = []
+    kayit, _ = claude_taklit(monkeypatch, runners)
     monkeypatch.setattr(runners.subprocess, "run", lambda komut, **kw: (gorulen.append(kw["env"]), SahteIslem(stdout=json.dumps({"result": "x"})))[1])
     ClaudeCodeCalistirici(cli_yolu="cl").calistir("selam", tmp_path)
     OpenCodeCalistirici(cli_yolu="oc").calistir("selam", tmp_path)
-    assert [e["PWD"] for e in gorulen] == [str(tmp_path), str(tmp_path)]
-    assert all("OLDPWD" not in e for e in gorulen)
+    ortamlar = [kayit["env"], *gorulen]
+    assert [e["PWD"] for e in ortamlar] == [str(tmp_path), str(tmp_path)]
+    assert all("OLDPWD" not in e for e in ortamlar)
 
 
 def test_calistir_zaman_asimi_ve_cikis_kodu(monkeypatch, tmp_path):
@@ -143,9 +147,10 @@ def test_calistir_zaman_asimi_ve_cikis_kodu(monkeypatch, tmp_path):
 def test_claude_komut_ve_cikti_cozumu():
     c = ClaudeCodeCalistirici(cli_yolu="cl")
     assert c.komut("a.json", "opus", True) == [
-        "cl", "-p", "--output-format", "json", "--settings", "a.json", "--model", "opus", "--permission-mode", "acceptEdits",
+        "cl", "-p", "--output-format", "stream-json", "--verbose", "--settings", "a.json", "--model", "opus", "--permission-mode", "acceptEdits",
     ]
-    assert c.komut("a.json", None, False) == ["cl", "-p", "--output-format", "json", "--settings", "a.json"]
+    assert c.komut("a.json", None, False) == ["cl", "-p", "--output-format", "stream-json", "--verbose", "--settings", "a.json"]
+    assert "--resume" in c.komut("a.json", None, False, oturum="x") and "--no-session-persistence" in c.komut("a.json", None, False, kalici=False)
     ok = ClaudeCodeCalistirici.cikti_coz(
         json.dumps({"result": "bitti", "is_error": False, "usage": {
             "input_tokens": 7, "cache_creation_input_tokens": 100, "output_tokens": 3, "cache_read_input_tokens": 99}})
@@ -165,33 +170,22 @@ def test_claude_reddedilen_izinler_metinde_gorunur():
 
 
 def test_claude_istem_stdinden_ve_yasak_kurallari_ayar_dosyasinda(monkeypatch, tmp_path):
-    gorulen = {}
+    from sahte_popen import claude_taklit
 
-    def sahte_run(komut, **kw):
-        gorulen["komut"], gorulen["kw"] = komut, kw
-        ayar = Path(komut[komut.index("--settings") + 1])
-        gorulen["ayar"] = json.loads(ayar.read_text(encoding="utf-8"))  # gecici dizin silinmeden once oku
-        return SahteIslem(stdout=json.dumps({"result": "x"}))
-
-    monkeypatch.setattr(runners.subprocess, "run", sahte_run)
+    gorulen, _ = claude_taklit(monkeypatch, runners)
     istem = "-ile baslayan \" tirnakli & istem"
     ClaudeCodeCalistirici(cli_yolu="cl").calistir(istem, tmp_path)
-    assert gorulen["kw"]["input"] == istem.encode("utf-8") and istem not in gorulen["komut"]  # bayt: \n -> \r\n cevrilmez
+    assert gorulen["girdi"] == istem.encode("utf-8") and istem not in gorulen["komut"] and gorulen["stdin_kapandi"]  # bayt: \n -> \r\n cevrilmez
     assert "Read(**/.env)" in gorulen["ayar"]["permissions"]["deny"] and "Edit(**/.env.*)" in gorulen["ayar"]["permissions"]["deny"]
     assert not Path(gorulen["komut"][gorulen["komut"].index("--settings") + 1]).exists()  # gecici ayar silinir
 
 
 def _ayar_yakala(monkeypatch, klasor):
-    gorulen = {}
+    from sahte_popen import claude_taklit
 
-    def sahte_run(komut, **kw):
-        ayar = Path(komut[komut.index("--settings") + 1])
-        gorulen["deny"] = json.loads(ayar.read_text(encoding="utf-8"))["permissions"]["deny"]
-        return SahteIslem(stdout=json.dumps({"result": "x"}))
-
-    monkeypatch.setattr(runners.subprocess, "run", sahte_run)
+    kayit, _ = claude_taklit(monkeypatch, runners)
     ClaudeCodeCalistirici(cli_yolu="cl").calistir("selam", klasor)
-    return gorulen["deny"]
+    return kayit["ayar"]["permissions"]["deny"]
 
 
 def test_claude_gizli_dosya_varsa_kabuk_araclari_tumden_yasaklanir_yoksa_serbest(monkeypatch, tmp_path):

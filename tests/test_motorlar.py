@@ -149,7 +149,7 @@ def test_mevcut_ayar_dosyasi_motor_degisse_de_ezilmez(monkeypatch, tmp_path):
     k.mkdir()
     hazirla(k)
     yol = k / AYAR_KLASORU / ROLLER_DOSYASI
-    yol.write_text(yol.read_text(encoding="utf-8").replace('"butce_token": 200000', '"butce_token": 777'), encoding="utf-8")
+    yol.write_text(yol.read_text(encoding="utf-8").replace('"butce_token": 2000000', '"butce_token": 777'), encoding="utf-8")
     kurulu(monkeypatch, claude=True)  # artik OpenCode yok
     hazirla(k)
     assert json.loads(yol.read_text(encoding="utf-8"))["butce_token"] == 777 and json.loads(yol.read_text(encoding="utf-8"))["roller"]["kodcu"]["calistirici"] == "opencode-sunucu"

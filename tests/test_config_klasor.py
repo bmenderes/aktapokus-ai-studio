@@ -31,7 +31,7 @@ def test_varsayilan_ayar_gecerli_ve_siralama():
         {"akis": ["test", "kodcu"]},  # ilk rol dogrulama olamaz
         {"azami_duzeltme": -1},
         {"azami_duzeltme": True},
-        {"butce_token": 0},
+        {"butce_token": -1},
         {"butce_token": "10"},
         {"zaman_asimi_sn": 5},
     ],
@@ -77,7 +77,7 @@ def test_ayar_yukle_dosya_yok_ve_bozuk(tmp_path):
     with pytest.raises(AyarHatasi, match="okunamadi"):
         ayar_yukle(tmp_path)
     yol.write_text(json.dumps(VARSAYILAN_AYAR), encoding="utf-8")
-    assert ayar_yukle(tmp_path).butce_token == 200000
+    assert ayar_yukle(tmp_path).butce_token == 2000000
 
 
 def test_guvenli_klasor_normal_proje_kabul(tmp_path):

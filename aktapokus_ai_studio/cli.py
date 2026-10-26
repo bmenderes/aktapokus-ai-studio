@@ -77,7 +77,7 @@ def _ayar_goster(ayar: Ayar) -> None:
     for ad in ayar.akis:
         r = ayar.roller[ad]
         print(f"  {ad}: {r.calistirici} / {r.model or 'varsayilan model'}" + ("  (dogrulama)" if r.dogrulama else ""))
-    print(f"  butce: {ayar.butce_token} token, en fazla {ayar.azami_duzeltme} duzeltme, adim zaman asimi {ayar.zaman_asimi_sn} sn")
+    print(f"  butce: {ayar.butce_token or 'sinirsiz'} token, en fazla {ayar.azami_duzeltme} duzeltme, adim zaman asimi {ayar.zaman_asimi_sn} sn")
 
 
 def komut_calistir(args, girdi, calistirici_uret) -> int:
@@ -90,8 +90,8 @@ def komut_calistir(args, girdi, calistirici_uret) -> int:
     if args.butce is not None:
         from dataclasses import replace
 
-        if args.butce < 1:
-            print("HATA: --butce 1 veya daha buyuk olmali")
+        if args.butce < 0:
+            print("HATA: --butce 0 (sinirsiz) veya daha buyuk olmali")
             return CIKIS_KULLANIM
         ayar = replace(ayar, butce_token=args.butce)
     print(f"Klasor: {klasor}\nGorev: {args.gorev}")
@@ -175,7 +175,7 @@ def kur_parser() -> argparse.ArgumentParser:
     c = alt.add_parser("calistir", help="Gorevi rollere dagitarak calistir")
     c.add_argument("gorev")
     c.add_argument("--klasor", default=".")
-    c.add_argument("--butce", type=int, help="Bu calistirma icin token butcesi (ayari ezer)")
+    c.add_argument("--butce", type=int, help="Bu calistirma icin token butcesi (ayari ezer; 0 = sinirsiz)")
     c.add_argument("--evet", action="store_true", help="Sorulari otomatik onayla (dikkat: degisiklikler korunur)")
     g = alt.add_parser("geri-al", help="Son calistirmanin oncesine don")
     g.add_argument("--klasor", default=".")

@@ -486,7 +486,7 @@ class Bot:
         if t == "plan":
             adimlar = "\n".join(f"  {a['rol']}: {a['calistirici']} / {a['model'] or 'varsayilan model'}" for a in o["adimlar"])
             self._herkese(
-                f"{et}Plan{' (otomatik onaylandi)' if o.get('otomatik') else ''}\nGorev: {o['gorev']}\n{adimlar}\nButce: {o['butce']} token, en cok {o['azami_duzeltme']} duzeltme, yalniz secili klasor"
+                f"{et}Plan{' (otomatik onaylandi)' if o.get('otomatik') else ''}\nGorev: {o['gorev']}\n{adimlar}\nButce: {o['butce'] or 'sinirsiz'} token, en cok {o['azami_duzeltme']} duzeltme, yalniz secili klasor"
                 + ("\nTest adimi atlanacak." if o.get("testsiz") else ""),
                 None if o.get("otomatik") else [[{"text": "Onayla", "callback_data": f"o:{k}"}, {"text": "Reddet", "callback_data": f"r:{k}"}]],
             )

@@ -199,3 +199,11 @@ def test_arayuz_kodu_otomatik_onayda_durumu_ezmez_ve_test_kapsulu_tiklanir():
     assert '(S.kosu&&S.kosu.kimlik===p.kosu)?S.kosu.durum:(p.otomatik?"calisiyor":"plan")' in html
     assert "async function testiAcKapat" in html and "testiAcKapat()" in html and 'ay.testi_atla=!ay.testi_atla' in html
     assert 'x.dogrulama&&S.ayar.testi_atla' in html  # pasif gorunum
+
+
+def test_gecmis_karti_tekrar_acilinca_ust_uste_yigilmaz():
+    """Gercek hata: soldaki listeden ayni goreve her tiklayista 'Gecmis gorev' karti akisa EKLENIYORDU (3-4 kopya)."""
+    from pathlib import Path
+
+    html = (Path(__file__).parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
+    assert 'querySelectorAll("#akis .gecmis-karti").forEach(x=>x.remove())' in html and 'class:"card gecmis-karti"' in html

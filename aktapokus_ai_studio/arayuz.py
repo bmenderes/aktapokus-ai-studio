@@ -330,6 +330,7 @@ class Uygulama:
             "azami_duzeltme": a.azami_duzeltme,
             "otomatik_onay": a.otomatik_onay,
             "testi_atla": a.testi_atla,
+            "claude_oturum": a.claude_oturum,
         }
 
     def klon_bekleyen(self) -> int | None:
@@ -1175,6 +1176,11 @@ class Uygulama:
         def uret(ad: str) -> Calistirici:
             r = self.calistirici_uret(ad)
             r.mcp = tuple(mcptanim.proje_icin(oturum.kimlik))  # bu projede kullanicinin etkinlestirdigi MCP sunuculari (CLI'lara aktarilir)
+            if hasattr(r, "oturum_kipi"):  # Claude Code: proje basina tek konusma / her seferinde yeni / kaydetme (Ayarlar > Genel)
+                try:
+                    r.oturum_kipi = ayar_yukle(oturum.klasor).claude_oturum
+                except AyarHatasi:
+                    pass
             oturum.aktif_calistirici = r
             if hasattr(r, "ilerleme"):
                 r.ilerleme = lambda e: yayinla({**e, "tur": "canli", "alt": e.get("tur")})
@@ -1215,7 +1221,7 @@ class Uygulama:
     def dosyalar(self) -> dict:
         klasor = self._klasor()
         liste = dosyalari_tara(klasor)
-        md = sorted((d["yol"] for d in liste if d["yol"].lower().endswith(".md") and d["yol"].count("/") <= 3), key=lambda p: (p.count("/"), p.lower()))[:60]
+        md = sorted((d["yol"] for d in liste if d["yol"].lower().endswith(".md")), key=lambda p: (p.count("/"), p.lower()))[:1000]  # arama icin tum belgeler (eskiden 60 dosya ve 3 klasor derinligiyle sinirliydi)
         return {"dosyalar": [{"yol": d["yol"], "boyut": d["boyut"]} for d in liste], "belgeler": md, "imza": imza(liste), "kesildi": len(liste) >= AZAMI_DOSYA_SAYISI, "degisen": self.son_hat.get("degisen", {})}
 
     def imza_al(self) -> str:

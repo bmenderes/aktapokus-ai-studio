@@ -279,7 +279,8 @@ def test_projeye_dokununca_secilir_gitsizde_de_git_istenmez_golge_yedek_kullanil
     assert bekle(lambda: any("Klasor secildi: hazir" in m for m in fake.metinler()))
     fake.dugme(UID, d["gitsiz"])
     assert bekle(lambda: aktif_klasor(bot) == (k1 / "gitsiz").resolve())  # soru/onay yok: dogrudan secildi
-    assert son_klavye(fake, "g:")[0] is None and any("golge yedek" in m for m in fake.metinler())
+    assert bekle(lambda: any("golge yedek" in m for m in fake.metinler()))  # secim yanit mesajindan ONCE olur: beklenir (eskiden yarisiyordu)
+    assert son_klavye(fake, "g:")[0] is None
     assert not (k1 / "gitsiz" / ".git").exists()  # klasore git init yapilmadi
     assert (k1 / "gitsiz" / ".opencode" / "opencode.json").exists()  # koruyucu kuruldu
 
@@ -384,7 +385,7 @@ def test_klasor_git_degilse_golge_yedekle_acilir_telegramdan_git_init_yapilmaz(k
     k.mkdir()
     fake.mesaj(UID, f"/klasor {k}")
     assert bekle(lambda: aktif_klasor(bot) == k.resolve())
-    assert any("golge yedek" in m for m in fake.metinler())
+    assert bekle(lambda: any("golge yedek" in m for m in fake.metinler()))  # secim yanit mesajindan ONCE olur: beklenir (eskiden yarisiyordu)
     assert not (k / ".git").exists()
     fake.mesaj(UID, "/klasor C:/yok/boyle/bir/yer")
     assert bekle(lambda: any("Klasor secilemedi" in m for m in fake.metinler()))

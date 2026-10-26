@@ -62,10 +62,29 @@ def test_durum_gh_kurulu_degil(monkeypatch, tmp_path):
     assert d == {"kurulu": False, "giris": False, "hesap": None, "hata": "GitHub CLI (gh) kurulu degil"}
 
 
-def test_depolar_listelenir(gh):
+def test_depolar_listelenir_organizasyon_depolari_dahil_yenilik_sirasiyla(gh):
+    """GERCEK EKSIK: asil depolar organizasyondaydi ama yalniz kendi hesabinin depolari listeleniyordu."""
     d = g.depolar()
-    assert [x["depo"] for x in d] == ["sahte-kullanici/proje-bir", "sahte-kullanici/proje-iki"] and d[0]["ozel"] is True and d[1]["aciklama"] == ""
-    assert gh.cagrilar()[-1][:3] == ["repo", "list", "--limit"]
+    assert [x["depo"] for x in d] == ["sahte-org/kurumsal", "sahte-kullanici/proje-bir", "sahte-kullanici/proje-iki"]  # org depo + kendi, tekrarsiz, yeniden eskiye
+    assert d[0]["ozel"] is True and d[0]["aciklama"] == "org deposu" and d[2]["aciklama"] == ""
+    cagrilar = gh.cagrilar()
+    assert ["api", "user/orgs?per_page=100"] in cagrilar
+    assert any(c[:3] == ["repo", "list", "sahte-org"] for c in cagrilar) and any(c[:3] == ["repo", "list", "--limit"] for c in cagrilar)
+
+
+def test_organizasyon_listesi_okunamazsa_kendi_depolari_yine_gelir(gh, monkeypatch):
+    monkeypatch.setenv("SAHTE_GH_ORG_HATA", "1")
+    assert [x["depo"] for x in g.depolar()] == ["sahte-kullanici/proje-bir", "sahte-kullanici/proje-iki"]
+
+
+def test_gecersiz_organizasyon_adi_gh_komutuna_gitmez(gh, monkeypatch):
+    monkeypatch.setattr(g, "_gh", lambda *a, **k: '[{"login": "../x"}, {"login": "-bayrak"}, {"login": "iyi-org"}]' if a[0] == "api" else "[]")
+    cagri = []
+    asil = g._gh
+    monkeypatch.setattr(g, "_gh", lambda *a, **k: (cagri.append(a), asil(*a, **k))[1])
+    g.depolar()
+    sahipler = [c[2] for c in cagri if c[:2] == ("repo", "list") and not c[2].startswith("--")]
+    assert sahipler == ["iyi-org"]
 
 
 def test_gh_hatasindaki_token_benzeri_dizgeler_ayiklanir(gh, monkeypatch):

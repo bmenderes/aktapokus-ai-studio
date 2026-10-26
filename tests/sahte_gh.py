@@ -28,6 +28,17 @@ if a[:2] == ["api", "user"]:
     if os.environ.get("SAHTE_GH_GIRIS") == "0":
         bitir(kod=4, hata="To get started with GitHub CLI, please run:  gh auth login")
     bitir(json.dumps({"login": "sahte-kullanici", "name": "Sahte Kisi"}))
+if a[:2] == ["api", "user/orgs?per_page=100"]:
+    if os.environ.get("SAHTE_GH_ORG_HATA") == "1":
+        bitir(kod=1, hata="orgs hatasi")
+    bitir(json.dumps([{"login": "sahte-org"}, {"login": "bos-org"}]))
+if a[:2] == ["repo", "list"] and len(a) > 2 and not a[2].startswith("--"):
+    if a[2] == "bos-org":
+        bitir("[]")
+    bitir(json.dumps([
+        {"nameWithOwner": "sahte-org/kurumsal", "description": "org deposu", "isPrivate": True, "updatedAt": "2026-10-05T00:00:00Z", "url": "https://github.com/sahte-org/kurumsal"},
+        {"nameWithOwner": "sahte-kullanici/proje-bir", "description": "ilk", "isPrivate": True, "updatedAt": "2026-10-01T00:00:00Z", "url": "https://github.com/sahte-kullanici/proje-bir"},
+    ]))
 if a[:2] == ["repo", "list"]:
     bitir(json.dumps([
         {"nameWithOwner": "sahte-kullanici/proje-bir", "description": "ilk", "isPrivate": True, "updatedAt": "2026-10-01T00:00:00Z", "url": "https://github.com/sahte-kullanici/proje-bir"},
