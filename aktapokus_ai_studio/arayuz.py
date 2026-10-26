@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import beceri_kaynak, beceriler, canli, ciktilar, claude_oturumlari, clitanim, github, gityonet, gorevmeta, guard, hesaplar, motorlar, otomasyon, uzak, istatistik, mcptanim, projeler, snapshot, terminal
+from . import beceri_kaynak, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, gorevmeta, guard, hesaplar, motorlar, otomasyon, uzak, istatistik, mcptanim, projeler, snapshot, terminal
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
@@ -1252,6 +1252,28 @@ class Uygulama:
         self.terminal_girdi(t["id"], base64.b64encode(komut.encode("utf-8")).decode("ascii"))
         return {"terminal": t["id"]}
 
+    # --- onizleme tarayici menusu: varsayilan tarayicida ac, ekran goruntusu (yalniz yerel adresler) ---
+    def onizleme_ac(self, url: object) -> dict:
+        if not ekran.yerel_mi(url):
+            raise UygulamaHatasi("Yalnizca yerel (127.0.0.1 / localhost) adresler acilir")
+        import webbrowser
+
+        webbrowser.open(str(url))
+        return {"tamam": True}
+
+    def onizleme_ekran(self, url: object, genislik: object, yukseklik: object) -> dict:
+        from .uygulama import tarayici_bul
+
+        try:
+            g, y = int(genislik or 1280), int(yukseklik or 800)
+        except (TypeError, ValueError):
+            raise UygulamaHatasi("genislik/yukseklik sayi olmali") from None
+        try:
+            png = ekran.goruntu_al(str(url or ""), g, y, tarayici_bul())
+        except ekran.EkranHatasi as h:
+            raise UygulamaHatasi(str(h), 400) from None
+        return {"png": base64.b64encode(png).decode("ascii")}
+
     # --- Claude Code konusmalari (yalniz okunur): bu projenin klasorunde yurutulen TUM konusmalar, Aktapokus gorevleri dahil ---
     def claude_oturumlari(self) -> dict:
         return {"oturumlar": claude_oturumlari.listele(self._klasor(), 8)}
@@ -1818,6 +1840,10 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.klasor_ac(g.get("hedef")))
                 if yol == "/api/claude-devam":
                     return self._gonder(200, app.claude_devam(g.get("id")))
+                if yol == "/api/onizleme-ac":
+                    return self._gonder(200, app.onizleme_ac(g.get("url")))
+                if yol == "/api/onizleme-ekran":
+                    return self._gonder(200, app.onizleme_ekran(g.get("url"), g.get("genislik"), g.get("yukseklik")))
                 if yol == "/api/claude-surdur":
                     return self._gonder(200, app.claude_surdur(g.get("id")))
                 if yol == "/api/uzak":
@@ -2004,6 +2030,16 @@ def yapi_onizleme(app: Uygulama, sunucu: "ArayuzSunucusu", proje: str):
             if klasor is None:
                 return self._hata(404, "Klasor secilmedi")
             yol = urllib.parse.unquote(urllib.parse.urlsplit(self.path).path)
+            if yol == "/__temizle":  # onizleme tarayici verisini temizle: bu portun cerezleri, localStorage'i, onbellegi
+                b = b"temizlendi"
+                self.send_response(200)
+                self.send_header("Clear-Site-Data", '"cache", "cookies", "storage"')
+                self.send_header("Content-Type", "text/plain; charset=utf-8")
+                self.send_header("Content-Length", str(len(b)))
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
+                self.wfile.write(b)
+                return
             goreli = yol.strip("/")
             try:
                 hedef = guvenli_goreli(klasor, goreli) if goreli else klasor.resolve()

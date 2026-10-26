@@ -175,6 +175,8 @@ YONETIM_KAPALIYKEN_YASAK = (
     ({"POST"}, "/api/gorev-sil"),  # kalici silme
     ({"POST"}, "/api/klasor-ac"),  # bilgisayarda Dosya Gezgini/VS Code acar
     ({"POST"}, "/api/claude-devam"),  # bilgisayarda terminal acar
+    ({"POST"}, "/api/onizleme-ac"),  # bilgisayarda tarayici acar
+    ({"POST"}, "/api/onizleme-ekran"),  # bilgisayarda tarayici calistirir
     ({"POST"}, "/api/claude-surdur"),  # bilgisayarda terminal acar
     ({"GET"}, "/api/claude-oturumlari"),  # kullanicinin Claude Code konusmalari (ozel icerik): yalniz bu bilgisayar
     ({"GET"}, "/api/claude-konusma"),
