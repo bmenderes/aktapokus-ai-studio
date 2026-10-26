@@ -108,6 +108,7 @@ class OlayAkisi:
         self.azami = azami
         self.kilit = threading.Lock()
         self.aboneler: list[queue.Queue] = []
+        self.dahili: set[int] = set()  # uygulamanin kendi aboneleri (Telegram botu): pencere/tarayici sayilmaz
         self.sayac = 0
 
     def yayinla(self, olay: dict) -> dict:
@@ -120,17 +121,25 @@ class OlayAkisi:
                 q.put(olay)
         return olay
 
-    def abone_ol(self, son_id: int = 0) -> tuple[queue.Queue, list[dict]]:
+    def abone_ol(self, son_id: int = 0, dahili: bool = False) -> tuple[queue.Queue, list[dict]]:
         q: queue.Queue = queue.Queue()
         with self.kilit:
             tekrar = [o for o in self.gecmis if o["id"] > son_id]
             self.aboneler.append(q)
+            if dahili:
+                self.dahili.add(id(q))
         return q, tekrar
+
+    def tarayici_sayisi(self) -> int:
+        """Acik tarayici/pencere akislari (dahili aboneler haric): pencere kapandi mi sorusunun tek kaynagi."""
+        with self.kilit:
+            return sum(1 for q in self.aboneler if id(q) not in self.dahili)
 
     def ayril(self, q: queue.Queue) -> None:
         with self.kilit:
             if q in self.aboneler:
                 self.aboneler.remove(q)
+            self.dahili.discard(id(q))
 
 
 @dataclass

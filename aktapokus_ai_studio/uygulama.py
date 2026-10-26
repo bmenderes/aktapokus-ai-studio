@@ -245,8 +245,7 @@ def _calistir(klasor, port, pencere_ac, bekle_sn, tarayici, baglanti_say, acilis
     komut = pencere_komutu(tarayici, sunucu.url(), profil)
     log_yaz("baslatildi: " + komut[0])
     def sayac() -> int:
-        with app.bus.kilit:
-            return len(app.bus.aboneler)
+        return app.bus.tarayici_sayisi()  # Telegram botu gibi dahili aboneler sayilmaz: yoksa pencere kapansa da uygulama kapanmaz
 
     try:
         (pencere_ac or (lambda k: subprocess.Popen(k)))(komut)  # surec ID'sine/ömrüne güvenilmez (devir olabilir)

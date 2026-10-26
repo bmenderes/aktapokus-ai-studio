@@ -1,4 +1,4 @@
-# Aktapokus masaustu kisayolu. Hangi klasorden calistirilirsa calistirilsin dogru yeri bulur (ev bilgisayarinda da kullanilabilir).
+﻿# Aktapokus masaustu kisayolu. Hangi klasorden calistirilirsa calistirilsin dogru yeri bulur (ev bilgisayarinda da kullanilabilir).
 $ErrorActionPreference = "Stop"
 $proje = Split-Path -Parent $MyInvocation.MyCommand.Path
 $py = Join-Path $proje ".venv\Scripts\pythonw.exe"
@@ -10,7 +10,7 @@ $k = $ws.CreateShortcut($yol)
 $k.TargetPath = $py
 $k.Arguments = "-m aktapokus_ai_studio ui --uygulama"
 $k.WorkingDirectory = $proje
-$icon = Join-Path $proje "aktapokus.ico"
+$icon = Join-Path $proje "aktapokus-simge.ico"
 if (Test-Path $icon) { $k.IconLocation = $icon }
 $k.Description = "Aktapokus - kendi penceresinde acilir, pencere kapaninca kapanir"
 $k.Save()

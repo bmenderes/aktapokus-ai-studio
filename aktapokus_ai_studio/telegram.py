@@ -532,7 +532,7 @@ class Bot:
 
     def calistir(self) -> None:
         self.birikimi_atla()
-        self._olay_kuyrugu, _ = self.app.bus.abone_ol(self.app.bus.sayac)  # gecmisi yeniden oynatma
+        self._olay_kuyrugu, _ = self.app.bus.abone_ol(self.app.bus.sayac, dahili=True)  # gecmisi yeniden oynatma; dahili: pencere sayacini kirletmez
         threading.Thread(target=self._olay_dongusu, daemon=True).start()
         while not self.dur.is_set():
             try:

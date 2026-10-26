@@ -346,6 +346,64 @@ def test_gercek_olay_akisi_baglantisi_sayilir_ve_kopunca_uygulama_kapanir(proje,
     assert time.monotonic() - baslangic >= 1.9  # baglanti suresince acik kaldi, kopunca kapandi
 
 
+def test_olay_akisi_dahili_aboneler_tarayici_sayisina_girmez():
+    from aktapokus_ai_studio.arayuz import OlayAkisi
+
+    bus = OlayAkisi()
+    assert bus.tarayici_sayisi() == 0
+    dahili, _ = bus.abone_ol(0, dahili=True)
+    assert bus.tarayici_sayisi() == 0 and len(bus.aboneler) == 1
+    sayfa, _ = bus.abone_ol(0)
+    assert bus.tarayici_sayisi() == 1
+    bus.ayril(sayfa)
+    assert bus.tarayici_sayisi() == 0
+    bus.ayril(dahili)
+    assert bus.aboneler == [] and bus.dahili == set()
+
+
+def test_telegram_botu_acikken_de_pencere_kapaninca_uygulama_kapanir(proje, tmp_path, monkeypatch):
+    """Gerçek hata: içteki Telegram botu olay akisine abone oldugu icin pencere kapansa da uygulama hic sonlanmiyordu."""
+    import http.client
+    import re
+
+    from aktapokus_ai_studio import arayuz
+
+    sahte = tmp_path / "t.exe"
+    sahte.write_text("")
+    monkeypatch.setenv("AKTAPOKUS_TARAYICI", str(sahte))
+    monkeypatch.setattr(uygulama, "sessiz_alt_surecler", lambda: None)
+    asil = arayuz.OlayAkisi.__init__
+
+    def bot_gibi(self, *a, **k):
+        asil(self, *a, **k)
+        self.abone_ol(0, dahili=True)  # Telegram botunun aboneligi
+
+    monkeypatch.setattr(arayuz.OlayAkisi, "__init__", bot_gibi)
+    bitir = threading.Event()
+
+    def sayfa(komut):
+        url = next(a for a in komut if a.startswith("--app=")).removeprefix("--app=")
+        port = int(re.search(r":(\d+)/", url).group(1))
+        token = url.split("#t=")[1]
+
+        def oku():
+            c = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+            c.request("GET", "/api/olaylar?son=0", headers={"X-Aktapokus-Token": token})
+            assert c.getresponse().status == 200
+            bitir.wait(10)
+            c.close()
+
+        threading.Thread(target=oku, daemon=True).start()
+        threading.Timer(1.0, bitir.set).start()
+
+    sonuc: dict = {}
+    t = threading.Thread(target=lambda: sonuc.setdefault("kod", uygulama.uygulama_calistir(str(proje), 0, sayfa, bekle_sn=0.05, acilis_sn=15, kopma_sn=0.5)), daemon=True)
+    t.start()
+    t.join(20)
+    assert not t.is_alive(), "pencere kapandi ama uygulama sonlanmadi (dahili abone pencere sayacini kirletiyor)"
+    assert sonuc["kod"] == 0
+
+
 def test_tolerans_SON_baglantidan_itibaren_sayilir_ilk_baglantidan_degil():
     """Uzun suredir bagli bir pencere kapaninca HEMEN kapandi denmemeli; kopma_sn kadar beklenmeli."""
     cagri = {"n": 0}
