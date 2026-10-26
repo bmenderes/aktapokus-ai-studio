@@ -1,162 +1,279 @@
-# Aktapokus AI Studio: Ayarlar sayfası nasıl kullanılır
+# Ayarlar kılavuzu: adım adım nasıl yapılır
 
-Ayarlar, uygulamanın tek merkezi yönetim sayfasıdır. Sağlayıcılar, modeller, CLI'lar, roller, Telegram, uzak erişim ve kullanım istatistiği burada toplanır.
+Bu kılavuz "bu bölüm nedir"den çok **"şunu nasıl yaparım"** sorusuna cevap verir. Her bölümde önce ne işe yaradığı bir cümleyle, sonra numaralı adımlar ve örnekler var. Sayfanın sonunda en sık yapılan işlerin hazır tarifleri ve sorun giderme tablosu bulunur.
 
-## Açmak ve kapatmak
+## 0. Ayarlar sayfasını açmak, gezmek, kapatmak
 
-- **Açmak:** sol kenar çubuğunun en altındaki **⚙ Ayarlar** düğmesi. Yazı kutusunun altındaki rol çipine (`kodcu · model ▾`) tıklamak da **Ayarlar > Roller**'i açar; hızlı model menüsündeki "Tüm modeller ve ayarlar…" ise **Ayarlar > Modeller**'i açar.
-- **Kapatmak:** **Esc** tuşu ya da sol menünün üstündeki **← Uygulamaya dön**.
-- **Düzen:** solda bölüm menüsü, sağda seçili bölümün içeriği. Dar ekranda (<900 px) menü üste yatay olarak dizilir.
-- Uygulama, en son baktığınız bölümü hatırlar.
+1. Sol kenar çubuğunun en altındaki **⚙ Ayarlar** düğmesine tıklayın. (Kısayollar: yazı kutusunun altındaki bir rol çipine tıklamak **Ayarlar > Roller**'i, hızlı model menüsündeki "Tüm modeller ve ayarlar…" **Ayarlar > Modeller**'i açar. Kenar çubuğundaki **kullanıcı kutusuna** tıklamak **Ayarlar > Hesaplar**'ı açar.)
+2. Solda bölüm menüsü, sağda seçili bölümün içeriği görünür. Bölümler: Hesaplar, Genel, Sağlayıcılar, Modeller, CLI'lar, MCP sunucuları, Beceriler, GitHub, Roller, Telegram, Otomasyonlar, Uzak erişim, Kullanım, Hakkında. Uygulama en son baktığınız bölümü hatırlar.
+3. Kapatmak için **Esc** tuşuna ya da sol menünün üstündeki **← Uygulamaya dön**'e basın.
+4. **Önemli iki kural:** (a) Bir **görev çalışırken** Genel ve Roller ayarları kilitlidir ("Görev çalışırken ayarlar değiştirilemez"); görev bitince ya da **Durdur**'dan sonra değiştirin. (b) Genel ve Roller'deki değişiklikler yalnızca alttaki **Kaydet** / **Rolleri kaydet** düğmesine basınca uygulanır.
 
-## Bölümler
+---
 
-| Bölüm | Ne işe yarar |
-| --- | --- |
-| Genel | Projenin çalışma ayarları |
-| Sağlayıcılar | Model sağlayıcılarına API anahtarıyla bağlanma |
-| Modeller | Tüm modellerin kataloğu; role atama ve deneme |
-| CLI'lar | Modelleri çalıştıran programlar |
-| MCP sunucuları | Modellere ek araç ve bilgi veren sunucular |
-| Beceriler | Modelin gerektiğinde yüklediği talimat paketleri |
-| GitHub | Hesap durumu ve depo klonlama |
-| Roller | Görevin hangi rollerden, hangi sırayla, hangi araç ve modelle geçeceği |
-| Telegram | Telefondan görev verme ve onaylama |
-| Otomasyonlar | Kayıtlı görev şablonları ve zamanlama |
-| Uzak erişim | Telefondan/başka bilgisayardan erişim (Tailscale) |
-| Kullanım | Token harcaması, hatalar, öneriler |
-| Hakkında | Kurulu araçlar ve veri konumları |
+## 1. Hesaplar: kim olarak giriş yaptım?
 
-## Genel
+**Ne işe yarar:** Aktapokus'un kendi kullanıcı hesabı yoktur; bilgisayarınızda yerel çalışır ve giriş istemez. "Giriş" dediğimiz şey, Aktapokus'un kullandığı araçlardaki kimliklerinizdir. Bu bölüm hepsini tek yerde gösterir.
 
-Bu projenin ayarlarıdır; proje klasöründeki `.aktapokus/roller.json` dosyasına yazılır. Önce bir proje klasörü seçilmiş olmalıdır, yoksa sayfa "Klasör seç" düğmesi gösterir.
+**Nasıl bakarım:**
+1. Kenar çubuğunun altındaki kutuya (Windows kullanıcı adınız ve "yerel · hesap girişi yok" yazar) ya da **Ayarlar > Hesaplar**'a tıklayın.
+2. Kartları okuyun: **GitHub** (hangi `@hesap`), **Claude Code** (e-posta ve abonelik), **Codex** (giriş yöntemi), **Telegram botu**, **Uzak erişim**. Rozet yeşilse giriş var, kırmızıysa yok.
+3. Bir hizmette giriş yoksa kartın yazdığı komutu **bir terminalde** çalıştırın: `claude auth login`, `codex login`, `gh auth login`. Sonra **Yenile**'ye basın.
 
-| Ayar | Açıklama |
-| --- | --- |
-| Proje klasörü | Hangi klasörde çalışıldığını gösterir; **Değiştir** ile başka klasör seçilir |
-| Token bütçesi | Bir görevin toplam girdi + çıktı token sınırı (adım sonunda denetlenir). **0 = sınırsız.** Claude Code basit bir görevde bile ~50.000 token harcar, çok düşük bir sınır görevi erken durdurur |
-| En çok düzeltme turu | Doğrulama (test) başarısız olursa kodcunun en fazla kaç kez daha deneneceği (0-10) |
-| Adım zaman aşımı (sn) | Bir adım bu süreyi aşarsa durdurulur (10-7200) |
-| Ortak bağlam | Açıkken her çalıştırmadan önce `AGENTS.md` bloğu ve `.aktapokus/DURUM.md` güncellenir; model değişse de konu başa dönmez |
-| Planı otomatik onayla | Açıkken yazdığınız görev, plan onay düğmesi beklemeden başlar. Otomasyon ve GitHub issue görevleri yine onay ister; değişiklikleri **koru/geri al** kararı da sizde kalır. Uzaktan değiştirilemez |
-| Claude konuşması | Claude Code rolleri için: *Proje başına tek konuşma* (24 saat sonra yenilenir), *Her seferinde yeni konuşma* ya da *Konuşmayı kaydetme* |
-| Testi varsayılan olarak atla | Test adımları çalışmaz; her görevin plan kartında yine de açıp kapatabilirsiniz |
+**Birden çok GitHub hesabınız varsa:** Bilgisayarda hangisinin etkin olduğu burada görünür. Değiştirmek için terminalde `gh auth switch` çalıştırıp **Yenile**'ye basın.
 
-**Değişiklikler ancak alttaki Kaydet düğmesine basınca uygulanır;** "kaydedildi" rozeti görünür. **Bir görev çalışırken bu alanlar kilitlidir** ("Görev çalışırken ayarlar değiştirilemez"), görev bitince değiştirin.
+---
 
-## Sağlayıcılar
+## 2. Genel: bu projenin çalışma ayarları
 
-Model sağlayıcılarına (Google/Gemini, OpenRouter, OpenAI, Anthropic, DeepSeek, Groq, Mistral, xAI...) kendi API anahtarınızla bağlanırsınız. Bu bölüm OpenCode'a özgüdür; OpenCode kurulu değilse çalışmaz.
+**Ne işe yarar:** Seçili projenin klasöründeki `.aktapokus/roller.json` dosyasına yazılır. Önce bir proje açık olmalıdır (yoksa sayfa **Klasör seç** düğmesi gösterir).
 
-**+ Model ekle sihirbazı:**
+**Nasıl değiştiririm:**
+1. **Ayarlar > Genel**'i açın.
+2. İstediğiniz alanı değiştirin (aşağıdaki tablo), **Kaydet**'e basın, "kaydedildi" rozetini bekleyin.
 
-1. Sağlayıcıyı arayıp seçin (önerilenler ve bağlı olanlar başta).
-2. API anahtarını yapıştırın. Anahtar yalnızca bu bilgisayardaki OpenCode'a gider; burada saklanmaz, günlüğe yazılmaz, gönderilince kutu boşaltılır.
-3. Sağlayıcının modelleri listelenir. **Anahtarı dene** küçük bir istekle anahtarın çalışıp çalışmadığını gösterir (anahtar bağlanırken doğrulanmaz, bu yüzden bu adım önemlidir). **Role ata** modeli bir role bağlar.
+| Alan | Ne yapar | Ne yazmalıyım |
+| --- | --- | --- |
+| Token bütçesi | Bir görevin toplam girdi + çıktı token sınırı; adım bitince denetlenir | **0 = sınırsız.** Claude Code basit bir görevde bile ~50.000 token harcar, çok düşük sınır görevi erken durdurur |
+| En çok düzeltme turu | Test başarısız olursa kodcunun kaç kez daha deneyeceği | 0 ile 10 arası. 0 = hiç tekrar denemez |
+| Adım zaman aşımı (sn) | Bir adım bu süreyi aşarsa durdurulur | 10 ile 7200 arası |
+| Ortak bağlam | Her çalıştırmadan önce `AGENTS.md` bloğu ve `.aktapokus/DURUM.md` güncellenir; model değişince konu başa dönmez | Genelde açık bırakın |
+| Planı otomatik onayla | Yazdığınız görev, plan onayı beklemeden başlar | Açarsanız onay düğmesi çıkmaz. Otomasyon ve GitHub issue görevleri **yine onay ister**; görev bitince "değişiklikler korunsun mu" kararı da sizde kalır. Uzaktan değiştirilemez |
+| Claude konuşması | Claude Code rolleri için konuşma kaydı | **Proje başına tek konuşma:** tüm görevler Claude Code'da tek konuşmaya yazılır (24 saat sonra yenilenir). **Her seferinde yeni:** her görev ayrı konuşma. **Kaydetme:** konuşma saklanmaz |
+| Testi varsayılan olarak atla | Test (doğrulama) adımları çalışmaz | Her görevin plan kartındaki "Test adımını atla" kutusuyla görev bazında yine değiştirebilirsiniz |
 
-Bağlı bir sağlayıcıda **Kaldır** anahtarı OpenCode'dan siler. Yalnızca ortam değişkeni (`env`) ya da `oauth` ile bağlanan sağlayıcılar anahtarla eklenemez.
+---
 
-> İpucu: ücretsiz denemek için Google AI Studio'dan alınan Gemini anahtarı yeterlidir.
+## 3. Sağlayıcılar: API anahtarıyla bir model sağlayıcısına bağlanmak
 
-## Modeller
+**Ne işe yarar:** OpenCode'un kullanacağı modellerin sağlayıcılarına (Google/Gemini, OpenRouter, OpenAI, Anthropic, DeepSeek, Groq, Mistral, xAI…) kendi anahtarınızla bağlanırsınız. OpenCode kurulu değilse bu bölüm çalışmaz.
 
-Tek katalog: OpenCode'un yerleşik ücretsiz modelleri, bağlı sağlayıcıların modelleri, Codex ve Claude Code modelleri. En sonda, bilgisayarda kurulu yerel Ollama modelleri "Yerel modeller" başlığıyla görünür.
+**Nasıl yeni sağlayıcı eklerim:**
+1. **Ayarlar > Sağlayıcılar** > **+ Model ekle**.
+2. Sağlayıcıyı arayıp seçin (önerilenler ve bağlı olanlar başta çıkar).
+3. API anahtarını yapıştırın. Anahtar yalnızca bu bilgisayardaki OpenCode'a gider; Aktapokus'ta saklanmaz, günlüğe yazılmaz, gönderilince kutu boşaltılır.
+4. Sağlayıcının modelleri listelenir. Önce **Anahtarı dene**'ye basın: anahtar bağlanırken doğrulanmaz, bu adım çalışıp çalışmadığını gösterir. Sonra **Role ata** ile modeli bir role bağlayın.
 
-- **Arama kutusu:** ad ya da sağlayıcıya göre süzer.
-- **Role ata:** satırdaki rol listesinden bir rol seçip düğmeye basın; o rolün CLI'ı ve modeli ayara yazılır.
-- **Dene:** boş geçici klasörde küçük bir istek gönderir (az token harcar) ve "çalışıyor · X sn" ya da hatayı gösterir.
-- Aradığınız model yoksa **Sağlayıcılar'a git** düğmesiyle anahtar ekleyin.
+**Nasıl kaldırırım:** Bağlı sağlayıcı satırında **Kaldır**. Yalnızca ortam değişkeni ya da `oauth` ile bağlanan sağlayıcılar anahtarla eklenemez.
 
-OpenCode modelleri ilk açılışta birkaç saniye "yükleniyor" gösterebilir; bu normaldir.
+**Ücretsiz denemek için:** Google AI Studio'dan alınan bir Gemini anahtarı yeterlidir.
 
-## CLI'lar
+---
 
-Modelleri çalıştıran programlar listelenir: OpenCode, Claude Code, Codex ve kendi eklediklerinizin her biri için **kurulu mu** bilgisi görünür.
+## 4. Modeller: bir modeli role atamak ya da denemek
 
-- **Dene:** o CLI'ı boş geçici klasörde, yazma izni olmadan, tek küçük istekle sınar.
-- **+ CLI ekle:** kod yazmadan yeni bir CLI tanımlarsınız (program yolu, argümanlar, istemin stdin ya da `{istem}` ile verilmesi, model bayrağı, çıktı çözümü). Özel olanlar için **Düzenle/Sil** vardır; bir rolde kullanılan CLI silinemez.
-- **Güvenlik:** CLI tanımlamak bu bilgisayarda program çalıştırmak demektir; yalnızca yerel arayüzden yapılır. Program yolu mutlak olmalıdır, `.cmd/.bat/.ps1` sarmalayıcıları reddedilir. Özel CLI'lar OpenCode koruyucusu dışındadır; gizli dosya taraması onlar için de çalışır.
+**Ne işe yarar:** OpenCode'un yerleşik ücretsiz modelleri, bağlı sağlayıcıların modelleri, Codex ve Claude Code modelleri tek katalogda. En sonda bilgisayarda kurulu yerel Ollama modelleri görünür.
 
-## MCP sunucuları
+**Nasıl yaparım:**
+1. **Ayarlar > Modeller**. İlk açılışta OpenCode modelleri birkaç saniye "yükleniyor" gösterebilir; bu normaldir.
+2. Üstteki kutuya modelin ya da sağlayıcının adını yazarak süzün.
+3. **Bir role atamak için:** satırdaki rol listesinden rolü (örn. `kodcu`) seçin, **Role ata**'ya basın. O rolün CLI'ı ve modeli ayara yazılır.
+4. **Denemek için:** **Dene**. Boş bir geçici klasörde küçük bir istek gönderir (az token harcar) ve "çalışıyor · X sn" ya da hatayı gösterir.
+5. Aradığınız model listede yoksa **Sağlayıcılar'a git** ile anahtar ekleyin.
 
-Modellere ek araç ve bilgi veren sunucular (yerel program ya da uzak HTTP adresi). Bir kez tanımlarsınız, **hangi projelerde açılacağını işaretlersiniz** (varsayılan: hiçbirinde). Görev sırasında sunucu o projenin CLI'larına kendiliğinden aktarılır (OpenCode, Claude Code, Codex); kendi CLI yapılandırmanıza dokunulmaz. **Dene** düğmesi sunucuyu geçici başlatıp bağlanıp bağlanmadığını gösterir.
+---
 
-Dikkat: MCP sunucusu bilgisayarınızda program çalıştırır ve proje klasör korumasının dışındadır. Yalnızca güvendiğiniz sunucuları ekleyin. Anahtar/başlık değerleri arayüze geri gösterilmez.
+## 5. CLI'lar: modelleri çalıştıran programlar
 
-## Beceriler
+**Ne işe yarar:** OpenCode, Claude Code, Codex ve kendi eklediğiniz programların her biri için "kurulu mu" bilgisi.
 
-`~/.agents/skills/<kimlik>/SKILL.md` dosyalarıdır (OpenCode okur). Arayüzden oluşturur, düzenler, silersiniz. Başka yerlerden (örn. `~/.claude/skills`) bulunanlar yalnızca listelenir, değiştirilemez. Klasörde başka dosya (scripts vb.) varsa silme reddedilir.
+**Nasıl denerim:** Satırdaki **Dene**: o CLI'ı boş geçici klasörde, yazma izni olmadan tek küçük istekle sınar.
 
-## GitHub
+**Nasıl yeni bir CLI eklerim (kod yazmadan):**
+1. **+ CLI ekle**.
+2. Alanları doldurun. Örnek, `aider` için:
+   - **Ad:** `aider` (küçük harf)
+   - **Görünen ad:** `Aider`
+   - **Program (tam yol, .exe):** `C:\Araclar\aider.exe`
+   - **Sabit argümanlar:** her satıra bir tane. İstem argüman olarak verilecekse bir satıra `{istem}` yazın; yazmazsanız istem standart girdiden (stdin) gider.
+   - **Model bayrağı:** örn. `--model` (boşsa model seçimi yok)
+   - **Yazma izinli / Salt okunur çalışma argümanları:** satır satır; görev yazma iznine göre hangisi kullanılacak
+   - **Yanıt metni yolu:** çıktı JSON ise yanıtın bulunduğu alan (örn. `result`); ayrıca hata bayrağı ve token alanlarının yolları
+   - **Önerilen modeller:** virgülle
+3. **Kaydet**. Sonra satırdaki **Dene** ile sınayın.
 
-Bilgisayardaki `gh` (GitHub CLI) girişini kullanır; uygulama token'ı görmez ya da saklamaz. Önce bir terminalde `gh auth login` yapın. Bu bölümde hangi hesabın etkin olduğu görünür ve **depo klonlayıp proje olarak açabilirsiniz** (yalnız `sahip/depo` biçimi). Commit, push, pull request ve issue işlemleri bu sayfada değil, **proje panelindeki GitHub sekmesindedir**; yazan her işlem açık onay penceresiyle yapılır.
+**Kısıtlar:** Program yolu mutlak olmalı; `.cmd`, `.bat`, `.ps1` sarmalayıcıları reddedilir. Bir rolde kullanılan CLI silinemez. CLI tanımlamak bu bilgisayarda program çalıştırmak demektir, bu yüzden yalnızca yerel arayüzden yapılır. Özel CLI'lar OpenCode'un klasör koruyucusunun dışındadır.
 
-## Roller
+---
 
-Bir görevin hangi rollerden, hangi sırayla geçeceğini belirler. Varsayılan hat: **kodcu → test**.
+## 6. MCP sunucuları: modellere ek araç vermek
 
-- Her rolde: **CLI seçici**, model kutusu (öneri listeli), doğrulama rolü kutusu ve **talimat** metni.
-- **↑ / ↓** ile çalışma sırası değiştirilir; **rol ekle / sil** yapılabilir.
-- Test rolü `SONUC: BASARILI` demezse düzeltme döngüsü çalışır (üst sınır: Genel > "En çok düzeltme turu").
-- Rolün bağlı olduğu CLI kurulu değilse arayüz uyarır ve onayınızla kurulu olana geçirmeyi önerir; hiçbir ayar kendiliğinden değişmez.
+**Ne işe yarar:** Bir kez tanımlarsınız, **hangi projelerde açılacağını işaretlersiniz** (varsayılan: hiçbirinde). Görev sırasında sunucu o projenin CLI'larına (OpenCode, Claude Code, Codex) kendiliğinden aktarılır; kendi CLI yapılandırmanıza dokunulmaz.
 
-## Telegram
+**Nasıl yerel (program olarak çalışan) bir MCP eklerim:** Örnek, bu bilgisayardaki bir Python sunucusu:
+1. **+ MCP sunucusu ekle**.
+2. **Ad:** `sokrates` (küçük harf). **Tür:** yerel.
+3. **Komut:** her satıra bir parça yazın. İlk satır program, sonrakiler argümandır:
+   ```
+   C:\Python314\python.exe
+   C:\Users\siz\Desktop\aktapokus\aktapokus-sokrates-mcp\server.py
+   ```
+   (npx ile bir paket için: ilk satır `npx`, ikinci satır `-y`, üçüncü satır paket adı.)
+4. Anahtar gerekiyorsa **Ortam değişkenleri**'ne her satıra `ANAHTAR=değer` yazın. Kaydedilen değer sonra `••••` görünür; değiştirmezseniz korunur.
+5. **Kaydet**, sonra **Dene**: sunucuyu seçili projede geçici başlatıp bağlanıp bağlanmadığına bakar.
+6. Satırdaki proje listesinden **hangi projelerde açık olacağını işaretleyin**.
 
-Bot arayüzle **aynı süreçte** çalışır; telefon ve arayüz aynı proje ve görevleri görür.
+**Nasıl uzak (HTTP) bir MCP eklerim:** **Tür:** uzak, **Adres:** `https://…` ile başlayan tam adres, gerekirse **Başlıklar:** her satıra `Ad: değer` (örn. `Authorization: Bearer …`). Kaydedip **Dene**.
 
-1. Token'ı **siz** `~/.aktapokus/telegram.token` dosyasına (ya da `AKTAPOKUS_TELEGRAM_TOKEN` ortam değişkenine) yazın. Token'ı BotFather verir (`/newbot`). Arayüz token'ı hiç göstermez, yalnızca "var/yok" der.
-2. Bölümde **Başlat**'a basın (durum: çalışıyor / durduruluyor / kapalı).
-3. Eşleşmediyseniz görünen kodu/bağlantıyı telefonda açın ya da botunuza `/eslestir KOD` yazın. İkinci cihaz için **Yeni eşleştirme kodu**.
-4. **Uygulama açılınca otomatik başlat** kutusu, kısayolla açılışta botu kendiliğinden başlatır.
-5. **Proje kökleri:** telefondan seçilebilecek klasörlerin kapsamı. Buradan eklenip kaldırılır; çalışan bota hemen yansır.
-6. Altta son 60 satır günlük görünür.
+**Dene "needs_auth" derse:** Sunucu OAuth girişi istiyor demektir. Aktapokus yalnızca sabit başlık/anahtar gönderebilir. Çözüm: sunucunun herkese açık olması, bir API anahtarı sunması (başlığa ekleyin) ya da sunucu sizdeyse kimlik doğrulamayı kapatmak.
 
-`telegram-baslat.bat`'ı aynı anda çalıştırmayın (iki yoklayıcı Telegram 409 çakışması verir). Dosya içeriği ve fark metni Telegram'a varsayılan olarak **gönderilmez**; bu, telefondaki `/gizlilik acik` ile açılır.
+**Dikkat:** MCP sunucusu bilgisayarınızda program çalıştırır ve proje klasör korumasının dışındadır. Yalnızca güvendiğiniz sunucuları ekleyin.
 
-## Otomasyonlar
+---
 
-Sık yaptığınız işi **şablon** olarak kaydedin: ad, proje, görev metni (`{tarih}`, `{saat}`, `{proje}`, `{dal}` değişkenleri doldurulur).
+## 7. Beceriler: modele hazır talimat paketleri vermek
 
-- **Şimdi çalıştır** ya da Telegram'da `/sablon` ile tetiklenir.
-- Otomasyon **yalnızca plan üretir**; plan yine sizin onayınızı bekler.
-- **Zamanlama:** her N dakikada bir (en az 5), her gün SS:DD ya da haftanın seçili günleri. Zamanlayıcı yalnızca **uygulama açıkken** çalışır; kaçan zamanlar geriye dönük çalıştırılmaz ("kaçırıldı" olarak görünür).
-- Projede görev sürüyorsa ya da bir plan onay bekliyorsa tetikleme atlanır, birikmez. Günlük en çok 12 plan üretilir.
+**Ne işe yarar:** `~/.agents/skills/<kimlik>/SKILL.md` dosyalarıdır; OpenCode bulur, ilgili olduğunda yükler. Başka yerlerden bulunanlar (örn. `~/.claude/skills`) yalnızca listelenir, değiştirilemez.
 
-## Uzak erişim
+**Nasıl beceri oluştururum:**
+1. **Ayarlar > Beceriler** > **+ Beceri ekle**.
+2. **Kimlik:** küçük harf ve tire, örn. `sunum-hazirla`. **Görünen ad:** `Sunum Hazırla`.
+3. **Açıklama:** modelin "bunu ne zaman yükleyeyim" diye baktığı cümle. Örn. `Kısa bir sunum taslağı çıkarmak istendiğinde kullan`. Açık ve spesifik yazın; belirsiz açıklama becerinin hiç yüklenmemesine yol açar.
+4. **İçerik:** modele verilecek talimatlar, Markdown. Adımları numaralayın.
+5. "Modele kendiliğinden sunulsun" kutusu kapalıysa beceri yalnızca `@kimlik` yazılarak çağrılır.
+6. **Kaydet**. Düzenlemek için satırdaki **Düzenle**, silmek için **Sil**. Klasörde başka dosya (scripts vb.) varsa silme reddedilir.
 
-**Varsayılan KAPALI.** Arayüze Tailscale özel ağındaki cihazlarınızdan (ör. telefon) ulaşmanızı sağlar; internete açılmaz.
+---
 
-1. Bu bilgisayara ve telefona Tailscale kurup ikisinde **aynı hesapla** giriş yapın.
-2. "Uzak erişim açık"ı işaretleyin; durum "dinliyor" olunca gösterilen bağlantıyı telefonda açın. Bağlantı anahtarı içerir, yalnız kendi cihazlarınızda kullanın.
-3. Şüphe halinde **Anahtarı yenile**: eski anahtarı ve açık uzak oturumları anında geçersiz kılar.
+## 8. GitHub
 
-Uzak istemcinin yetkisi daraltılmıştır: görev verip onaylayabilir, dosya/fark/Git işlerini görebilir; ancak varsayılan olarak terminal, CLI/MCP/sağlayıcı tanımlama ve klonlama yapamaz. "Uzaktan terminal" ve "uzaktan yönetim" anahtarlarını bilerek ve ayrı ayrı açarsınız. **Uzak erişim ayarlarının kendisi uzaktan değiştirilemez**; bu sayfa uzak bağlantıdan açılırsa yalnızca bir uyarı gösterir.
+**Ne işe yarar:** Bilgisayardaki `gh` oturumunu kullanır; Aktapokus token'ı görmez ya da saklamaz. Hangi hesabın etkin olduğu burada ve **Hesaplar**'da görünür.
 
-## Kullanım
+**Nasıl depo klonlarım:**
+1. Önce giriş: terminalde `gh auth login` (giriş yoksa bu bölüm bunu söyler).
+2. **Ayarlar > GitHub**'da liste kendiliğinden yüklenir: kendi hesabınızın **ve üyesi olduğunuz organizasyonların** depoları. Üstteki **sahip** listesinden birini seçin, **Depo ara** kutusuna yazdıkça liste süzülür.
+3. **Üst klasör**'ün (varsayılan Masaüstü) doğru olduğundan emin olun.
+4. İstediğiniz depoda **Klonla**, onay penceresinde onaylayın. Depo klonlanır ve proje olarak açılır.
 
-Her görevin `.aktapokus/kayit/*.json` kaydından hesaplanır; yeni veri toplanmaz, hiçbir şey gönderilmez.
+Klonlanan depodaki talimat dosyaları (`AGENTS.md`, `.opencode/`) ajanın davranışını etkileyebilir; yalnızca güvendiğiniz depoları açın.
 
-- **Bugün / Son 7 gün / Toplam** token, 14 günlük çubuk grafik, model/rol dökümü, hata sınıfları (limit/kota, anahtar/giriş, zaman aşımı, bütçe) ve son hatalar.
-- **Kapsam:** *Bu proje* ya da *Tüm projeler*.
-- **Öneriler:** son 48 saatte bir model limit/kota hatası verdiyse, o modeli kullanan roller için tek tıkla "rol → model" değişikliği sunulur. Bu düğme ayara yazar, basmadan değişiklik olmaz.
-- Abonelik kotalarının (Claude Pro, ChatGPT) **kalan** miktarı okunamaz; yalnızca harcanan token görünür.
+**Commit, push, pull request, issue:** bu sayfada değil, **proje panelindeki GitHub ve Git sekmelerindedir**. Yazan her işlem açık onay penceresiyle yapılır.
 
-## Hakkında
+---
 
-Hangi CLI'ların kurulu olduğunu ve veri konumlarını gösterir:
+## 9. Roller: görev hangi adımlardan geçsin?
 
-- Kullanıcı verisi: `~/.aktapokus` (`clilar.json`, `telegram.json`, `uygulama.log`)
-- Proje ayarı ve kayıtlar: `<proje>\.aktapokus` (`roller.json`, `kayit/`)
+**Ne işe yarar:** Bir görevin hangi rollerden, hangi sırayla, hangi CLI ve modelle geçeceğini belirler. Varsayılan hat: **kodcu → test**.
 
-## Sık karşılaşılan durumlar
+**Nasıl bir rolün modelini değiştiririm:**
+1. **Ayarlar > Roller**. Rolün kartında **CLI seçici**'den programı (OpenCode, Claude, Codex…), **model** kutusundan modeli seçin ya da yazın (boş = CLI'ın varsayılanı).
+2. **Rolleri kaydet**.
 
-| Durum | Ne yapmalı |
+**Nasıl rol eklerim / silerim / sırasını değiştiririm:**
+- Eklemek için alttaki kutuya yeni rol adını yazıp **Rol ekle**. Silmek için rolün **Sil** düğmesi.
+- Sıra için rolün **↑ / ↓** düğmeleri. İlk rol doğrulama rolü olamaz.
+- Bir rolü **doğrulama rolü** yapmak için kutusunu işaretleyin: bu rol yanıtının son satırına `SONUC: BASARILI` ya da `SONUC: BASARISIZ` yazmalıdır. Başarısızsa kodcu Genel'deki "En çok düzeltme turu" kadar yeniden dener.
+- **Talimat** kutusu o role verilen yönergedir. Kısa ve odaklı tutarsanız ajan da kısa ve odaklı çalışır; ayrıntılı belge/analiz görevleri için "ayrıntılı ol, adım adım yaz, örnek ver" gibi cümleler ekleyin.
+
+Rolün bağlı olduğu CLI kurulu değilse arayüz uyarır ve onayınızla kurulu olana geçirmeyi önerir; hiçbir ayar kendiliğinden değişmez.
+
+---
+
+## 10. Telegram: telefondan görev vermek
+
+**Ne işe yarar:** Telefondan görev başlatma, onay ve takip. Bot bu uygulamayla aynı süreçte çalışır; telefon ve arayüz aynı proje ve görevleri görür. Telegram'dan hiçbir şey tanımlanamaz (CLI/MCP/otomasyon tanımı yalnızca bilgisayardan).
+
+**Nasıl kurarım:**
+1. Telegram'da **@BotFather**'a `/newbot` yazın, adı seçin; size bir **token** verir.
+2. Token'ı **siz** `C:\Users\<kullanıcı adınız>\.aktapokus\telegram.token` dosyasına yazın (içinde yalnızca token olsun). Token'ı sohbete ya da bana yazmayın; arayüz onu hiç göstermez, yalnızca "var/yok" der.
+3. **Ayarlar > Telegram** > **Başlat**. Durum "çalışıyor" olmalı.
+4. **Eşleştirme:** görünen tek kullanımlık kodu (10 dk geçerli) botunuza `/eslestir KOD` diye yazın ya da gösterilen bağlantıyı telefonda açın. İkinci bir cihaz için **Yeni eşleştirme kodu**.
+5. **Proje kökleri:** telefondan `/projeler` ile hangi klasörlerin altındaki projelerin listeleneceğini belirler. Örn. `C:\Users\siz\Desktop\projeler` yazıp **Kök ekle**; kaldırmak için **Kaldır**. Değişiklik çalışan bota hemen yansır.
+6. Kısayolla açtığınızda botun kendiliğinden başlaması için **Uygulama açılınca otomatik başlat** kutusunu işaretleyin. Telefondan kullanmak için bilgisayarın açık olması gerekir.
+
+**Telefonda komutlar:** `/projeler`, `/gorev <metin>`, `/sablon` (kayıtlı otomasyon şablonlarını listeler), `/gizlilik acik` (dosya içeriği ve fark metninin Telegram'a gönderilmesini açar; varsayılan kapalı).
+
+**Sorun:** "409" hatası, aynı token'ı kullanan ikinci bir bot (örn. `telegram-baslat.bat`) çalışıyor demektir; birini kapatın.
+
+---
+
+## 11. Otomasyonlar: sık işi şablon yapmak, zamanlamak
+
+**Ne işe yarar:** Bir otomasyon **yalnızca plan üretir**; plan yine sizin onayınızı bekler, onaysız dosya değişmez.
+
+**Nasıl şablon oluştururum (örnek: haftalık bağımlılık kontrolü):**
+1. **Ayarlar > Otomasyonlar** > **+ Şablon ekle**.
+2. **Ad:** `haftalik-kontrol` (küçük harf, rakam, tire, en çok 31 karakter).
+3. **Proje:** listeden seçin (kayıtlı olmalı).
+4. **Görev metni:** `Bağımlılıkları kontrol et ve güncel olmayanları listele. Tarih: {tarih}`. Kullanabileceğiniz değişkenler: `{tarih}` `{saat}` `{proje}` `{dal}`.
+5. İsterseniz **Açıklama** (tek satır) yazın. "Açık" kutusu Telegram'dan çalıştırılabilmeyi belirler.
+6. **Kaydet**.
+
+**Nasıl çalıştırırım:** Şablon kartında **Şimdi çalıştır** (seçili projeyi değiştirmeden o projede bir plan oluşturur), ya da telefonda `/sablon`.
+
+**Nasıl zamanlarım:** Formda **Zamanlanmış çalıştır**'ı işaretleyin ve birini seçin: *her N dakikada bir* (en az 5), *her gün* (SS:DD), ya da *haftanın seçili günleri*. Kaydedin. Kartta ⏱ satırı çıkar.
+- Zamanlayıcı yalnızca **uygulama açıkken** çalışır. Uygulama kapalıyken kaçan zamanlar geriye dönük çalıştırılmaz; geçmişte "kaçırıldı" görünür.
+- Projede görev sürüyorsa ya da bir plan onay bekliyorsa tetikleme **atlanır** (birikmez). Günde en çok 12 zamanlanmış plan üretilir.
+- **Çalışma geçmişi** bölümü her tetiklemenin sonucunu gösterir: plan oluştu, atlandı, kaçırıldı, hata.
+
+---
+
+## 12. Uzak erişim: telefondan ya da başka bilgisayardan arayüze ulaşmak
+
+**Ne işe yarar:** Arayüze **Tailscale** özel ağındaki cihazlarınızdan ulaşırsınız; internete açılmaz. **Varsayılan KAPALI**: kapalıyken hiçbir ağ dinleyicisi açılmaz.
+
+**Nasıl açarım:**
+1. Bu bilgisayara ve telefona **Tailscale** kurun, ikisinde **aynı hesapla** giriş yapın.
+2. **Ayarlar > Uzak erişim**: "Tailscale" satırında adresin göründüğünden emin olun (yoksa **Yeniden kontrol et**).
+3. Uzak erişim anahtarını açın, istenirse **Port** yazıp **Kaydet**. Durum "dinliyor" olunca gösterilen bağlantılardan birini telefonda tarayıcıda açın. **Kopyala** ile panoya alabilirsiniz. Bağlantı gizli anahtar içerir; yalnızca kendi cihazlarınızda kullanın.
+4. Telefonda alt çubuktan **Görevler / Sohbet / Panel** arasında geçersiniz. (Ana ekrana uygulama olarak ekleme henüz yok.)
+
+**Güvenlik anahtarları (hepsi varsayılan kapalı, ayrı ayrı bilerek açılır):** "Uzaktan terminal" (tam komut çalıştırma yetkisi) ve "Uzaktan yönetim" (CLI, MCP, sağlayıcı, Telegram, beceri tanımlama; klasör gezme; depo klonlama). Kapalıyken uzak cihaz yalnızca görev verip onaylayabilir, dosya/fark/Git bilgilerini görebilir.
+
+**Şüphelenirseniz:** **Anahtarı yenile**. Eski anahtar ve açık uzak bağlantılar anında geçersiz olur.
+
+**Not:** Uzak erişim ayarlarının kendisi uzaktan değiştirilemez; bu sayfa uzak bağlantıdan açılırsa yalnızca bir uyarı gösterir.
+
+---
+
+## 13. Kullanım: ne kadar harcadım?
+
+**Ne işe yarar:** Her görevin `.aktapokus/kayit/*.json` kaydından hesaplanır; yeni veri toplanmaz, hiçbir şey gönderilmez.
+
+**Nasıl okurum:**
+1. **Ayarlar > Kullanım**. Üstten **Bu proje** ya da **Tüm projeler** kapsamını seçin; **Yenile** ile tazeleyin.
+2. **Bugün / Son 7 gün / Toplam** token, 14 günlük grafik, model ve rol dökümü, hata sınıfları (limit/kota, anahtar/giriş, zaman aşımı, bütçe) ve son hatalar görünür.
+3. **Öneriler:** son 48 saatte bir model limit/kota hatası verdiyse, o modeli kullanan roller için tek tıkla "rol → başka model" değişikliği sunulur. Düğmeye basmadan hiçbir şey değişmez.
+
+Abonelik kotalarının (Claude Pro, ChatGPT) **kalan** miktarı okunamaz; yalnızca harcanan token görünür.
+
+---
+
+## 14. Hakkında
+
+Hangi CLI'ların kurulu olduğunu ve verilerin nerede durduğunu gösterir:
+- Kullanıcı verisi: `~/.aktapokus` (`clilar.json`, `mcp.json`, `otomasyonlar.json`, `gorev-meta.json`, `telegram.json`, `uygulama.log`)
+- Proje ayarı ve kayıtlar: `<proje>\.aktapokus` (`roller.json`, `kayit/` ve görev konuşmaları `kayit/olaylar/`)
+
+---
+
+## Hazır tarifler
+
+**Ücretsiz modelle ilk görevi vermek:** Ayarlar > Roller'de `kodcu` için OpenCode + ücretsiz model (varsayılan) kalsın → **Test adımını atla**'yı kapatmak istemiyorsanız olduğu gibi bırakın → yazı kutusuna görevi yazın → plan kartında **Onayla**.
+
+**Claude Code'u kodcu yapmak:** Ayarlar > Roller > `kodcu` > CLI olarak **Claude**, model `sonnet` (ya da `opus`/`haiku`) > **Rolleri kaydet**. Önce Hesaplar'da Claude Code'un "giriş yapıldı" olduğunu görün.
+
+**Onay düğmesine basmadan görev vermek:** Ayarlar > Genel > **Planı otomatik onayla** > **Kaydet**. Yine de değişiklikleri korumak/geri almak sizin kararınızdır.
+
+**Testi her seferinde çalıştırmamak:** Ayarlar > Genel > **Testi varsayılan olarak atla** (hepsi için), ya da tek görev için plan kartındaki **Test adımını atla** kutusu, ya da çalışırken üstteki **Testi atla** düğmesi.
+
+**Token bütçesi yüzünden görev durduysa:** Genel > Token bütçesi'ni yükseltin ya da `0` yazın.
+
+**Bir görevi Claude Code'da sürdürmek:** Soldaki görev satırına sağ tıklayın (ya da ⋯) > **Claude Code'da devam et**. Terminal proje klasöründe açılır ve aynı konuşma `claude --resume` ile sürer.
+
+## Sorun giderme
+
+| Belirti | Ne yapmalı |
 | --- | --- |
 | "Ayarları görmek için önce bir proje klasörü seçin" | **Klasör seç** ile bir proje açın |
-| Genel'deki alanlar soluk/değiştirilemiyor | Bir görev çalışıyor; bitmesini bekleyin ya da **Durdur** |
+| Genel/Roller alanları soluk, değişmiyor | Bir görev çalışıyor; bitmesini bekleyin ya da **Durdur** |
 | Modeller listesi boş / "OpenCode modelleri alınamadı" | OpenCode kurulu mu, Hakkında'dan bakın; ilk açılışta birkaç saniye bekleyin |
-| Rolün CLI'ı kurulu değil uyarısı | Roller bölümünde kurulu bir CLI seçin ya da uyarıdaki geçiş düğmesini onaylayın |
+| Rolün CLI'ı kurulu değil uyarısı | Roller'de kurulu bir CLI seçin ya da uyarıdaki geçiş düğmesini onaylayın |
 | Görev token bütçesi yüzünden durdu | Genel > Token bütçesi'ni yükseltin (0 = sınırsız) |
-| Telegram 409 hatası | Aynı token'ı kullanan ikinci bir bot/bat dosyası çalışıyor; birini kapatın |
+| GitHub'da yanlış hesap görünüyor | Terminalde `gh auth switch`, sonra Hesaplar'da **Yenile** |
+| MCP "needs_auth" | Sunucu OAuth istiyor; herkese açık yapın ya da başlığa API anahtarı ekleyin |
+| Telegram 409 | Aynı token'ı kullanan ikinci bir bot çalışıyor; birini kapatın |
+| Uygulama "zaten açık" diyor | Pencere kapandıktan birkaç saniye sonra yeniden açmayı deneyin; açık bir pencere varsa öne getirilir |
+| Claude/Codex "giriş yok" | Terminalde `claude auth login` / `codex login`, sonra Hesaplar'da **Yenile** |
 
-Ayrıntılı arka plan için bkz. [README.md](../README.md).
+Arka plan ayrıntıları için bkz. [README.md](../README.md).
