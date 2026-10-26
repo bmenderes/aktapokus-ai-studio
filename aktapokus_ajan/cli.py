@@ -136,7 +136,7 @@ def komut_geri_al(args, girdi) -> int:
 
 
 def komut_durum(args) -> int:
-    print(f"aktapokus-ajan {__version__}")
+    print(f"aktapokus-ai-studio {__version__}")
     oc = opencode_bul()
     print(f"OpenCode CLI: {oc + '  ' + _surum_oku([oc, '--version']) if oc else 'bulunamadi'}")
     cl = claude_bul()

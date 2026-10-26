@@ -122,7 +122,7 @@ def depolar(adet: int = 50) -> list[dict]:
 
 def klonla(depo: object, ust_klasor: object, ad: object = None) -> Path:
     if not isinstance(depo, str) or not DEPO_DESENI.match(depo):
-        raise GithubHatasi("Depo 'sahip/ad' biciminde olmali (ornek: bmenderes/aktapokus-ajan)")
+        raise GithubHatasi("Depo 'sahip/ad' biciminde olmali (ornek: bmenderes/aktapokus-ai-studio)")
     ust = Path(str(ust_klasor)).expanduser()
     if not ust.is_absolute() or not ust.is_dir():
         raise GithubHatasi("Klonlanacak ust klasor TAM yol olmali ve var olmali")

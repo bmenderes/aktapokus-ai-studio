@@ -1,6 +1,8 @@
-# aktapokus-ajan
+# Aktapokus AI Studio
 
-OpenCode (ve Claude Code) motorlarını **rol/model bazlı** süren, **git anlık görüntüsü, fark, onay ve geri alma** ekleyen ince katman. Yalnızca standart kütüphane; Docker, Ollama, ek bağımlılık yok. Tasarım: `../aktapokus-orkestrasyon/docs/basit-mimari.md`.
+OpenCode, Claude Code ve Codex gibi **kod ajanı CLI'ları için yerel kontrol katmanı**: rol/model bazlı çalıştırma, plan onayı, otomatik anlık görüntü ve geri alma (git deposu gerekmez), çoklu proje, ortak MCP, Telegram'dan kontrol ve GitHub Desktop benzeri Git yönetimi. Yalnızca standart kütüphane; ek bağımlılık yok.
+
+> Depo eskiden `aktapokus-ajan` adındaydı (GitHub eski adresi yeni adrese yönlendirir). Python paketi ve komutlar aynı kaldı: `python -m aktapokus_ajan ...`, `aktapokus ...`.
 
 ## Gereksinimler
 
@@ -149,7 +151,7 @@ Token'ı **siz** `~/.aktapokus/telegram.token` dosyasına (ya da `AKTAPOKUS_TELE
 
 ## Başka bir bilgisayara kurulum (örn. ev bilgisayarı)
 
-1. `aktapokus-ajan` klasörünü kopyalayın (`.venv`, `.git`, `__pycache__` hariç).
+1. Depoyu klonlayın (`git clone https://github.com/bmenderes/aktapokus-ai-studio.git`) ya da klasörü kopyalayın (`.venv`, `.git`, `__pycache__` hariç).
 2. Gereksinimleri kontrol edin (yukarıdaki **Gereksinimler** bölümü): Python 3.10+, git ve **en az bir ajan CLI'ı** (OpenCode, Claude Code ya da Codex).
 3. `kur.bat` dosyasına çift tıklayın: Python/git'i denetler (eksikse indirme adresini verir), klasörde `.venv` kurar, isteğe bağlı QR paketini (segno) sorar, OpenCode'u bulup bulmadığını yazar. Yönetici izni gerekmez, başka yere dosya yazmaz.
 4. **Her bilgisayar için ayrı Telegram botu açın** (BotFather → `/newbot`); token'ı o bilgisayarda `%USERPROFILE%\.aktapokus\telegram.token` dosyasına yazın. Aynı token iki bilgisayarda aynı anda çalışmaz (Telegram çakışma hatası verir).
@@ -207,4 +209,4 @@ python -m pytest
 
 [MIT](LICENSE). Pakete dahil üçüncü taraf dosyalar (xterm.js, Inter yazı tipi) ve sürdüğü araçlar hakkında bilgi: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Bu proje OpenCode, Anthropic, OpenAI ya da GitHub ile bağlantılı değildir.
 
-**Önemli güvenlik notu:** Aktapokus-ajan, ajan CLI'larını **bu bilgisayarda** çalıştırır; terminal sekmesi, MCP sunucuları ve özel CLI tanımları bilgisayarınızda program çalıştırmak demektir. Arayüz yalnızca `127.0.0.1`'e bağlanır ve her istek rastgele bir belirteç ister; yine de yalnızca güvendiğiniz sunucu/CLI/depoları ekleyin ve arayüz adresini kimseyle paylaşmayın. Yazılım "olduğu gibi" sunulur (bkz. LICENSE).
+**Önemli güvenlik notu:** Aktapokus AI Studio, ajan CLI'larını **bu bilgisayarda** çalıştırır; terminal sekmesi, MCP sunucuları ve özel CLI tanımları bilgisayarınızda program çalıştırmak demektir. Arayüz yalnızca `127.0.0.1`'e bağlanır ve her istek rastgele bir belirteç ister; yine de yalnızca güvendiğiniz sunucu/CLI/depoları ekleyin ve arayüz adresini kimseyle paylaşmayın. Yazılım "olduğu gibi" sunulur (bkz. LICENSE).

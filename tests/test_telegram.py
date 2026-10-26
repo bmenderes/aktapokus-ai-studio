@@ -372,7 +372,7 @@ def test_kokler_komutu_ve_kok_ekle(kur, tmp_path, monkeypatch):
     assert tg.kok_ekle(str(k2), ayar_yolu=ayar) == k2.resolve()
     assert tg.kok_ekle(str(k2), ayar_yolu=ayar) == k2.resolve()  # tekrar eklenmez
     v = json.loads(ayar.read_text(encoding="utf-8"))
-    assert v["kokler"] == [str(k2.resolve())] and v["gizli"] == ["aktapokus-ajan"]
+    assert v["kokler"] == [str(k2.resolve())] and v["gizli"] == ["aktapokus-ajan", "aktapokus-ai-studio"]
     from pathlib import Path
     with pytest.raises(Exception):
         tg.kok_ekle(str(Path.home()), ayar_yolu=ayar)

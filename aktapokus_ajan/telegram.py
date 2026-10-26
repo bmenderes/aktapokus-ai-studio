@@ -35,7 +35,7 @@ from . import projeler as proje_kayit
 from . import snapshot
 from .arayuz import Uygulama, UygulamaHatasi
 
-GIZLI_VARSAYILAN = ["aktapokus-ajan"]  # botun kendi kaynak klasoru telefondan secilemez (kendi kodunu degistirmesin)
+GIZLI_VARSAYILAN = ["aktapokus-ajan", "aktapokus-ai-studio"]  # botun kendi kaynak klasoru (eski ve yeni ad) telefondan secilemez (kendi kodunu degistirmesin)
 AD_KALIBI = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,40}")
 YASAK_AD = re.compile(r"(con|prn|aux|nul|com[1-9]|lpt[1-9])", re.IGNORECASE)  # Windows ayrilmis aygit adlari
 AZAMI_PROJE_DUGMESI = 40
