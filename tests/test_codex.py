@@ -231,15 +231,17 @@ def test_risk_kabul_edilirse_calisir_ve_gizli_dosya_yoksa_zaten_calisir(proje):
     assert s.durum == "degisiklik_yok" and len(c2.cagrilar) == 2
 
 
-def test_opencode_rolleri_bu_denetimden_etkilenmez_claude_etkilenir(proje):
+def test_opencode_ve_claude_rolleri_bu_denetimden_etkilenmez_ama_codex_etkilenir(proje):
     from conftest import SahteCalistirici, sonuc
 
     (proje / ".env").write_text("SECRET=abc123", encoding="utf-8")
     c = SahteCalistirici({"kodcu": lambda *a: sonuc("x"), "test": lambda *a: sonuc("SONUC: BASARILI")})
     assert calistir_hat(proje, "g", ayar_coz(VARSAYILAN_AYAR), lambda ad: c, lambda q: True).durum == "degisiklik_yok"  # OpenCode: koruyucu .env'i engelliyor
     veri = copy.deepcopy(VARSAYILAN_AYAR)
-    veri["roller"]["test"]["calistirici"] = "claude"
-    with pytest.raises(HatHatasi, match="claude"):
+    veri["roller"]["test"]["calistirici"] = "claude"  # Claude kendi izin kurallariyla (+ gizli dosya varken kabuk kapali) korunur: calisir
+    assert calistir_hat(proje, "g", ayar_coz(veri), lambda ad: c, lambda q: True).durum == "degisiklik_yok"
+    veri["roller"]["test"]["calistirici"] = "codex"  # Codex'in koruyucusu yok: reddedilir
+    with pytest.raises(HatHatasi, match="codex"):
         calistir_hat(proje, "g", ayar_coz(veri), lambda ad: c, lambda q: True)
 
 

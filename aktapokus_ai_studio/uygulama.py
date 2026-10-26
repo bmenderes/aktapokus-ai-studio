@@ -166,6 +166,118 @@ def kilit_al() -> bool:
     return True
 
 
+def pencere_yolu() -> Path:
+    return ayar_dizini() / "uygulama.pencere"
+
+
+def pencere_isaretle(durum: str | None) -> None:
+    """Calisan kopyanin pencere durumu: 'aciliyor' | 'bagli' | 'kopuk' (pencere kapandi, kapanma toleransi sayiliyor). None: dosyayi siler."""
+    yol = pencere_yolu()
+    try:
+        if durum is None:
+            yol.unlink(missing_ok=True)
+        else:
+            yol.parent.mkdir(parents=True, exist_ok=True)
+            yol.write_text(durum, encoding="utf-8")
+    except OSError:
+        pass
+
+
+def devral_yolu() -> Path:
+    return ayar_dizini() / "uygulama.devral"
+
+
+def devral_iste() -> None:
+    """Yeni acma istegi: pencere zaten kopuksa eski kopya kopma toleransini (20 sn) beklemeden hemen kapanir."""
+    try:
+        devral_yolu().parent.mkdir(parents=True, exist_ok=True)
+        devral_yolu().write_text("1", encoding="utf-8")
+    except OSError:
+        pass
+
+
+def devral_var_mi() -> bool:
+    return devral_yolu().exists()
+
+
+def devral_temizle() -> None:
+    try:
+        devral_yolu().unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def pencere_durumu() -> str | None:
+    try:
+        return pencere_yolu().read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
+
+
+def kapaniyor_mu() -> bool:
+    return pencere_durumu() == "kopuk"
+
+
+def mevcut_pencereyi_one_getir() -> bool:
+    """Acik Aktapokus uygulama penceresini (Edge/Chrome 'Aktapokus' basligi) one getirir; bulunursa True. Yalniz Windows."""
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        u = ctypes.windll.user32
+        bulunan: list[int] = []
+        islev_tipi = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+
+        def bak(hwnd, _):
+            if u.IsWindowVisible(hwnd):
+                uzunluk = u.GetWindowTextLengthW(hwnd)
+                if uzunluk:
+                    baslik = ctypes.create_unicode_buffer(uzunluk + 1)
+                    u.GetWindowTextW(hwnd, baslik, uzunluk + 1)
+                    sinif = ctypes.create_unicode_buffer(64)
+                    u.GetClassNameW(hwnd, sinif, 64)
+                    if sinif.value.startswith("Chrome_WidgetWin") and baslik.value.startswith("Aktapokus"):
+                        bulunan.append(hwnd)
+            return True
+
+        u.EnumWindows(islev_tipi(bak), 0)
+        if not bulunan:
+            return False
+        u.ShowWindow(bulunan[0], 9)  # SW_RESTORE (simge durumundaysa)
+        u.SetForegroundWindow(bulunan[0])
+        return True
+    except Exception:
+        return False
+
+
+KAPANMA_BEKLEME_SN = 30.0  # pencere kapaninca uygulama kopma toleransi (20 sn) kadar daha acik kalir; hemen yeniden acma bunu bekler
+
+
+def ikinci_kopya_bekle(azami_sn: float | None = None, saat: Callable[[], float] = time.monotonic, uyku: Callable[[float], None] = time.sleep) -> str:
+    """Kilit baska bir kopyadaysa: 'al' (kilit alindi, devam), 'one' (acik pencere one getirildi) ya da 'mesaj' (azami sure doldu).
+
+    GERCEK HATA (gercek Edge ile yeniden uretildi): pencere kapaninca Edge baglantiyi birkac sn sonra birakir; o aralikta eski kopya
+    'pencere acik' sanir ve hemen yeniden acma 'zaten acik' kutusunda takiliyordu. Durum dosyasina GUVENILMEZ: asil olcut GERCEK pencere.
+    Pencere varsa one getirilir; yoksa (kapaniyor ya da henuz aciliyor) kilit alinana ya da pencere belirene kadar beklenir."""
+    if kilit_al():
+        return "al"
+    bitis = saat() + (KAPANMA_BEKLEME_SN if azami_sn is None else azami_sn)
+    while saat() < bitis:
+        if mevcut_pencereyi_one_getir():
+            devral_temizle()
+            return "one"
+        if pencere_durumu() == "kopuk":
+            devral_iste()  # eski kopya pencere kopukken kopma toleransini beklemeden kapanir
+        uyku(0.5)
+        if kilit_al():
+            devral_temizle()
+            return "al"
+    devral_temizle()
+    return "mesaj"
+
+
 def kilit_birak() -> None:
     yol = kilit_yolu()
     try:
@@ -179,7 +291,7 @@ ACILIS_SURESI_SN = 90.0  # pencere bu surede sunucuya hic baglanmazsa vazgecilir
 KOPMA_TOLERANSI_SN = 20.0  # baglanti bu kadar suredir yoksa pencere kapanmis sayilir (yenileme/kisa kopmalar tolere edilir)
 
 
-def pencere_bekle(baglanti_say: Callable[[], int], bekle_sn: float, acilis_sn: float, kopma_sn: float, saat: Callable[[], float] = time.monotonic) -> str:
+def pencere_bekle(baglanti_say: Callable[[], int], bekle_sn: float, acilis_sn: float, kopma_sn: float, saat: Callable[[], float] = time.monotonic, erken_cik: Callable[[], bool] | None = None) -> str:
     """'kapandi' (en az bir kez baglandi, sonra kopma_sn boyunca baglanti yok) ya da 'baglanmadi' (acilis_sn icinde hic baglanmadi)."""
     baslangic = son = saat()
     gorulen = False
@@ -187,7 +299,7 @@ def pencere_bekle(baglanti_say: Callable[[], int], bekle_sn: float, acilis_sn: f
         simdi = saat()
         if baglanti_say() > 0:
             gorulen, son = True, simdi
-        elif gorulen and simdi - son > kopma_sn:
+        elif gorulen and (simdi - son > kopma_sn or (erken_cik is not None and erken_cik())):  # erken_cik: yeni acma istegi geldi, pencere zaten kopuk
             return "kapandi"
         elif not gorulen and simdi - baslangic > acilis_sn:
             return "baglanmadi"
@@ -207,7 +319,10 @@ def uygulama_calistir(
     if not tarayici:
         hata_goster("Edge ya da Chrome bulunamadi. Uygulama penceresi icin biri gerekir (AKTAPOKUS_TARAYICI ile yol verilebilir).")
         return 1
-    if not kilit_al():
+    ikinci = ikinci_kopya_bekle()
+    if ikinci == "one":
+        return 0  # acik pencere one getirildi (kutu gosterilmez)
+    if ikinci == "mesaj":
         bilgi_goster(f"Aktapokus zaten acik (gorev cubugunda). Pencere yoksa {kilit_yolu()} dosyasini silin.")
         return 0
     try:
@@ -247,9 +362,22 @@ def _calistir(klasor, port, pencere_ac, bekle_sn, tarayici, baglanti_say, acilis
     def sayac() -> int:
         return app.bus.tarayici_sayisi()  # Telegram botu gibi dahili aboneler sayilmaz: yoksa pencere kapansa da uygulama kapanmaz
 
+    gorulen = {"pencere": False, "durum": None}
+
+    def izle() -> int:
+        n = (baglanti_say or sayac)()
+        gorulen["pencere"] = gorulen["pencere"] or n > 0
+        if n > 0:
+            devral_temizle()  # pencere geri geldi (yenileme): eski devral istegi gecersiz
+        durum = "bagli" if n > 0 else ("kopuk" if gorulen["pencere"] else "aciliyor")
+        if durum != gorulen["durum"]:
+            gorulen["durum"] = durum
+            pencere_isaretle(durum)
+        return n
+
     try:
         (pencere_ac or (lambda k: subprocess.Popen(k)))(komut)  # surec ID'sine/ömrüne güvenilmez (devir olabilir)
-        sonuc = pencere_bekle(baglanti_say or sayac, bekle_sn, acilis_sn, kopma_sn)
+        sonuc = pencere_bekle(izle, bekle_sn, acilis_sn, kopma_sn, erken_cik=devral_var_mi)
         if sonuc == "baglanmadi":
             hata_goster(f"Pencere {acilis_sn:.0f} sn icinde arayuze baglanamadi. Tarayici penceresi acildiysa kapatip kisayola yeniden tiklayin.")
             return 1
@@ -260,6 +388,8 @@ def _calistir(klasor, port, pencere_ac, bekle_sn, tarayici, baglanti_say, acilis
         hata_goster(f"Pencere acilamadi: {hata}")
         return 1
     finally:
+        pencere_isaretle(None)
+        devral_temizle()
         son_klasoru_yaz(str(app.klasor) if app.klasor else None)
         sunucu.kapat()
         hepsini_kapat()

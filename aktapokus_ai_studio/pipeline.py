@@ -106,6 +106,8 @@ def calistir_hat(
     bildir: Callable[[str], None] = lambda _m: None,
     olay: Callable[[dict], None] = lambda _e: None,
     iptal: threading.Event | None = None,
+    testsiz: bool = False,
+    testi_atla: threading.Event | None = None,
 ) -> HatSonucu:
     """olay: yapisal ilerleme olaylari (arayuz icin); iptal: ayarlanirsa bir sonraki adimdan once durur."""
     if not gorev.strip():
@@ -116,6 +118,9 @@ def calistir_hat(
             f"{klasor} icin geri alma hazir degil (git deposu degil ve golge yedek kurulmamis): once klasoru arayuzden ya da 'aktapokus ac {klasor}' ile acin."
         )
     sira = ayar.rol_sirasi()
+    if testsiz:
+        sira = [r for r in sira if not r.dogrulama]
+        bildir("Test (dogrulama) adimlari atlandi: kullanici istegi.")
     if any(r.calistirici.startswith("opencode") for r in sira):
         eksik = guard.dogrula(klasor)
         if eksik:
@@ -126,7 +131,8 @@ def calistir_hat(
     korumasiz = [r for r in sira if not r.calistirici.startswith("opencode")]
     if korumasiz:
         bildir("UYARI: " + ", ".join(sorted({r.calistirici for r in korumasiz})) + " rolleri icin OpenCode koruyucusu (klasor disi okuma/.env engeli) uygulanmaz.")
-        riskli = [r for r in korumasiz if not r.okuma_riski_kabul]
+        # Claude Code kendi izin kurallariyla korunur (runners.CLAUDE_YASAK_KURALLARI: Read/Edit reddi; -p kipinde Bash/klasor disi onay istedigi icin reddedilir)
+        riskli = [r for r in korumasiz if not r.okuma_riski_kabul and r.calistirici != "claude"]
         hassas = guard.hassas_dosyalar(klasor) if riskli else []
         if hassas:
             raise HatHatasi(
@@ -157,6 +163,11 @@ def calistir_hat(
         if iptal is not None and iptal.is_set():
             durum, sonuc.mesaj = "iptal", "Kullanici durdurdu."
             break
+        if rol.dogrulama and testi_atla is not None and testi_atla.is_set():
+            olay({"tur": "dogrulama-atlandi", "rol": rol.ad})
+            bildir(f"-> {rol.ad} atlandi (kullanici testi atlatti).")
+            idx += 1
+            continue
         istem = istem_olustur(rol, gorev, onceki, duzeltme_notu if idx == 0 else None)
         bildir(f"-> {rol.ad} ({rol.calistirici}/{rol.model or 'varsayilan model'}) calisiyor...")
         olay({"tur": "adim-basladi", "sira": len(sonuc.adimlar) + 1, "rol": rol.ad, "calistirici": rol.calistirici, "model": rol.model})
@@ -182,6 +193,11 @@ def calistir_hat(
         )
         sonuc.adimlar.append(adim)
         olay({"tur": "adim-bitti", "sira": adim.sira, "rol": rol.ad, "ok": r.ok, "hata": r.hata, "token_girdi": r.token_girdi, "token_cikti": r.token_cikti, "token_toplam": sonuc.token_toplam, "sure_sn": adim.sure_sn, "metin": _kisalt(r.metin, 1500)})
+        if rol.dogrulama and testi_atla is not None and testi_atla.is_set() and not (iptal is not None and iptal.is_set()):
+            adim.dogrulama = "atlandi"  # calisirken iptal edilen test: hata sayilmaz, akis kalan adimlarla/karar ile devam eder
+            olay({"tur": "dogrulama-atlandi", "rol": rol.ad})
+            idx += 1
+            continue
         if not r.ok:
             if iptal is not None and iptal.is_set():
                 durum, sonuc.mesaj = "iptal", "Kullanici durdurdu."

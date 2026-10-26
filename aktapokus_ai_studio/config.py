@@ -71,6 +71,8 @@ class Ayar:
     butce_token: int
     zaman_asimi_sn: int
     baglam: bool = True  # ortak baglam dosyalari (AGENTS.md blogu, DURUM.md) calistirmadan once guncellensin mi
+    otomatik_onay: bool = False  # arayuzden/Telegram'dan yazilan gorevin plani onay beklemeden baslar (otomasyon ve issue gorevleri HER ZAMAN onay ister)
+    testi_atla: bool = False  # dogrulama (test) rolleri varsayilan olarak atlanir; gorev basina degistirilebilir
 
     def rol_sirasi(self) -> list[Rol]:
         return [self.roller[ad] for ad in self.akis]
@@ -131,6 +133,9 @@ def ayar_coz(veri: object) -> Ayar:
     baglam = veri.get("baglam", True)
     if not isinstance(baglam, bool):
         raise AyarHatasi("'baglam' true/false olmali")
+    for ad_ in ("otomatik_onay", "testi_atla"):
+        if not isinstance(veri.get(ad_, False), bool):
+            raise AyarHatasi(f"'{ad_}' true/false olmali")
     return Ayar(
         akis=tuple(akis),
         roller=roller,
@@ -138,6 +143,8 @@ def ayar_coz(veri: object) -> Ayar:
         butce_token=_tam_sayi(veri, "butce_token", 1, 100_000_000),
         zaman_asimi_sn=_tam_sayi(veri, "zaman_asimi_sn", 10, 7200),
         baglam=baglam,
+        otomatik_onay=bool(veri.get("otomatik_onay", False)),
+        testi_atla=bool(veri.get("testi_atla", False)),
     )
 
 

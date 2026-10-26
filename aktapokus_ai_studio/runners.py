@@ -16,6 +16,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from . import guard
+
 AZAMI_ISTEM_UZUNLUGU = 24_000  # Windows komut satiri siniri (~32k) icin guvenli pay
 
 
@@ -205,7 +207,11 @@ class OpenCodeCalistirici(Calistirici):
 CLAUDE_YASAK_KURALLARI = [
     f"{arac}({desen})"
     for arac in ("Read", "Edit")
-    for desen in ("**/.env", "**/.env.*", "**/*.pem", "**/*.key", "**/id_rsa", "**/id_ed25519", "**/.npmrc", "**/.netrc")
+    for desen in (
+        "**/.env", "**/.env.*", "**/.netrc",
+        "**/id_rsa*", "**/id_ed25519*", "**/.npmrc*", "**/.pypirc*", "**/credentials*",  # guard.hassas_dosyalar'in onek listesi
+        "**/*.pem", "**/*.key", "**/*.pfx", "**/*.p12", "**/*.keystore", "**/*.jks",  # ...ve uzanti listesi (testle senkron tutulur)
+    )
 ]
 
 
@@ -296,7 +302,12 @@ class ClaudeCodeCalistirici(Calistirici):
         baslangic = time.monotonic()
         with tempfile.TemporaryDirectory(prefix="aktapokus-claude-") as gecici:
             ayar = Path(gecici) / "ayar.json"
-            ayar.write_text(json.dumps({"permissions": {"deny": CLAUDE_YASAK_KURALLARI}}), encoding="utf-8")
+            yasak = list(CLAUDE_YASAK_KURALLARI)
+            if guard.hassas_dosyalar(klasor):
+                # GERCEK denemeyle dogrulandi: Read kurallari varken bile `Get-ChildItem -Recurse | Select-String` .env icerigini yazdirdi.
+                # Gizli dosya olan klasorde kabuk araclari tumden kapali; model yalniz Read/Glob/Grep (yasak kurallarina uyar) kullanir.
+                yasak += ["Bash", "PowerShell"]
+            ayar.write_text(json.dumps({"permissions": {"deny": yasak}}), encoding="utf-8")
             mcp_dosyasi = None
             if self.mcp:
                 from . import mcptanim

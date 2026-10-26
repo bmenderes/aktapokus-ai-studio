@@ -181,6 +181,40 @@ def test_claude_istem_stdinden_ve_yasak_kurallari_ayar_dosyasinda(monkeypatch, t
     assert not Path(gorulen["komut"][gorulen["komut"].index("--settings") + 1]).exists()  # gecici ayar silinir
 
 
+def _ayar_yakala(monkeypatch, klasor):
+    gorulen = {}
+
+    def sahte_run(komut, **kw):
+        ayar = Path(komut[komut.index("--settings") + 1])
+        gorulen["deny"] = json.loads(ayar.read_text(encoding="utf-8"))["permissions"]["deny"]
+        return SahteIslem(stdout=json.dumps({"result": "x"}))
+
+    monkeypatch.setattr(runners.subprocess, "run", sahte_run)
+    ClaudeCodeCalistirici(cli_yolu="cl").calistir("selam", klasor)
+    return gorulen["deny"]
+
+
+def test_claude_gizli_dosya_varsa_kabuk_araclari_tumden_yasaklanir_yoksa_serbest(monkeypatch, tmp_path):
+    """GERCEK denemeyle bulundu: yalniz Read kurallariyla `Get-ChildItem -Recurse | Select-String` .env icerigini yazdirdi."""
+    assert "PowerShell" not in _ayar_yakala(monkeypatch, tmp_path) and "Bash" not in _ayar_yakala(monkeypatch, tmp_path)
+    (tmp_path / "alt").mkdir()
+    (tmp_path / "alt" / ".env").write_text("A=1", encoding="utf-8")
+    deny = _ayar_yakala(monkeypatch, tmp_path)
+    assert "PowerShell" in deny and "Bash" in deny and "Read(**/.env)" in deny
+
+
+def test_claude_yasak_kurallari_koruyucunun_tanidigi_her_gizli_dosya_turunu_kapsar():
+    import fnmatch
+
+    from aktapokus_ai_studio import guard
+
+    kurallar = [k[len("Read("):-1] for k in runners.CLAUDE_YASAK_KURALLARI if k.startswith("Read(")]
+    adlar = [on + ek for on in guard._SIR_ONEKLERI for ek in ("", ".local")] + ["anahtar" + u for u in guard._SIR_UZANTILARI]
+    for ad in adlar:
+        assert any(fnmatch.fnmatch("x/y/" + ad, k.replace("**/", "*/")) for k in kurallar), f"Claude kurali yok: {ad}"
+    assert {k.replace("Read(", "Edit(", 1) for k in runners.CLAUDE_YASAK_KURALLARI if k.startswith("Read(")} <= set(runners.CLAUDE_YASAK_KURALLARI)  # Edit de ayni kapsamda
+
+
 def test_claude_bul_cmd_sarmalayicisini_kullanmaz(monkeypatch, tmp_path):
     monkeypatch.delenv("AKTAPOKUS_CLAUDE", raising=False)
     monkeypatch.setenv("APPDATA", str(tmp_path / "ap"))

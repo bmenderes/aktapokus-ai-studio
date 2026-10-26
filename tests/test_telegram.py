@@ -698,3 +698,19 @@ def test_durum_ve_durdur_diger_calisan_projeleri_gosterir(kur, tmp_path):
     finally:
         for e in ornekler:
             e.serbest.set()
+
+
+def test_otomatik_onayli_plan_telegramda_dugmesiz_gelir(kur, proje):
+    from aktapokus_ai_studio.config import ayar_yolu
+
+    bot, fake, app, _ = kur()
+    fake.mesaj(UID, f"/klasor {proje}")
+    assert bekle(lambda: aktif_klasor(bot) is not None)
+    yol = ayar_yolu(proje)
+    veri = json.loads(yol.read_text(encoding="utf-8"))
+    veri["otomatik_onay"] = True
+    veri["testi_atla"] = True
+    yol.write_text(json.dumps(veri), encoding="utf-8")
+    fake.mesaj(UID, "/gorev yeni.txt ekle")
+    assert bekle(lambda: any("otomatik onaylandi" in m and "Test adimi atlanacak" in m for m in fake.metinler()))
+    assert son_klavye(fake, "o:")[0] is None  # onay dugmesi YOK

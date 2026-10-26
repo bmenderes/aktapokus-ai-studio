@@ -182,7 +182,7 @@ body.suruklenir iframe{pointer-events:none}
     <div id="akis"></div>
     <div id="girdi">
       <textarea id="gorev" rows="2" style="width:100%;resize:none" placeholder="Bir görev yazın… (Enter gönderir, Shift+Enter yeni satır)"></textarea>
-      <div class="row" style="justify-content:space-between;margin-top:6px;gap:10px;align-items:flex-start"><span style="min-width:0;flex:1"><span class="row" style="gap:6px;flex-wrap:wrap"><span id="ortamCipi"></span><span id="rolCipleri" class="row" style="gap:6px;flex-wrap:wrap"></span></span><span id="girdiBilgi" class="mut3" style="display:block;margin-top:2px"></span></span><span class="row"><button id="durdur" style="display:none">Durdur</button><button id="gonder" class="pri">Gönder</button></span></div>
+      <div class="row" style="justify-content:space-between;margin-top:6px;gap:10px;align-items:flex-start"><span style="min-width:0;flex:1"><span class="row" style="gap:6px;flex-wrap:wrap"><span id="ortamCipi"></span><span id="rolCipleri" class="row" style="gap:6px;flex-wrap:wrap"></span></span><span id="girdiBilgi" class="mut3" style="display:block;margin-top:2px"></span></span><span class="row"><button id="testiAtla" style="display:none" title="Calisan test adimini iptal eder; degisiklikler ve karar adimi devam eder">Testi atla</button><button id="durdur" style="display:none">Durdur</button><button id="gonder" class="pri">Gönder</button></span></div>
     </div>
   </div>
   <div class="bolucu" id="bolucuSag" title="Sürükleyin: genişliği değiştirin · çift tıklayın: sıfırla"></div>
@@ -377,14 +377,18 @@ async function genelBolumu(h){let ay;try{ay=await api("/api/ayar")}catch(x){h.ap
   const sayi=(deger,alt,ust)=>{const g=e("input",{type:"number",min:alt,max:ust,style:"width:110px;text-align:right"});g.value=deger;g.disabled=kilitli;return g};
   const butce=sayi(ay.butce_token,1,100000000),duz=sayi(ay.azami_duzeltme,0,10),zaman=sayi(ay.zaman_asimi_sn,10,7200);
   const bag=e("input",{type:"checkbox"});bag.checked=ay.baglam!==false;bag.disabled=kilitli;
+  const oto=e("input",{type:"checkbox"});oto.checked=!!ay.otomatik_onay;oto.disabled=kilitli;
+  const tat=e("input",{type:"checkbox"});tat.checked=!!ay.testi_atla;tat.disabled=kilitli;
   const kart=e("div",{class:"ayar-kart"},
     alan("Proje klasörü",S.klasor||"-",e("button",{text:"Değiştir",onclick:()=>{ayarKapat();klasorSecimiAc()}})),
     alan("Token bütçesi","Bir görevin toplam girdi + çıktı token sınırı (adım sonunda denetlenir)",butce),
     alan("En çok düzeltme turu","Doğrulama başarısız olursa kodcunun kaç kez daha denenebileceği (0-10)",duz),
     alan("Adım zaman aşımı (sn)","Bir adım bu süreyi aşarsa durdurulur (10-7200)",zaman),
-    alan("Ortak bağlam","Çalıştırmadan önce AGENTS.md bloğu ve .aktapokus/DURUM.md güncellensin; model değişince konu başa dönmez",bag));
+    alan("Ortak bağlam","Çalıştırmadan önce AGENTS.md bloğu ve .aktapokus/DURUM.md güncellensin; model değişince konu başa dönmez",bag),
+    alan("Planı otomatik onayla","Yazdığınız görev onay düğmesi beklemeden başlar. Otomasyon ve GitHub issue görevleri yine onay ister; değişiklikleri koru/geri al kararı da sizde kalır. Uzaktan değiştirilemez.",oto),
+    alan("Testi varsayılan olarak atla","Test (doğrulama) adımları çalışmaz; her görevin plan kartında istediğiniz zaman açıp kapatabilirsiniz",tat));
   const durum=e("div",{style:"margin-top:8px;white-space:normal"});
-  const kaydet=e("button",{class:"pri",text:"Kaydet",onclick:async()=>{durum.style.display="none";try{const yeni=Object.assign({},ay,{butce_token:parseInt(butce.value,10),azami_duzeltme:parseInt(duz.value,10),zaman_asimi_sn:parseInt(zaman.value,10),baglam:bag.checked});await api("/api/ayar",{method:"PUT",body:yeni});ay=yeni;await durumYukle();durum.className="badge b-ok";durum.textContent="kaydedildi"}catch(x){durum.className="badge b-err";durum.textContent=x.message}durum.style.display=""}});kaydet.disabled=kilitli;
+  const kaydet=e("button",{class:"pri",text:"Kaydet",onclick:async()=>{durum.style.display="none";try{const yeni=Object.assign({},ay,{butce_token:parseInt(butce.value,10),azami_duzeltme:parseInt(duz.value,10),zaman_asimi_sn:parseInt(zaman.value,10),baglam:bag.checked,otomatik_onay:oto.checked,testi_atla:tat.checked});await api("/api/ayar",{method:"PUT",body:yeni});ay=yeni;await durumYukle();durum.className="badge b-ok";durum.textContent="kaydedildi"}catch(x){durum.className="badge b-err";durum.textContent=x.message}durum.style.display=""}});kaydet.disabled=kilitli;
   h.append(kart,e("div",{style:"margin-top:8px"},kaydet),durum);if(kilitli)h.append(e("div",{class:"mut3",text:"Görev çalışırken ayarlar değiştirilemez."}))}
 async function modellerBolumu(h){const ara=e("input",{placeholder:"Model ara (ad, sağlayıcı)…",style:"width:100%;margin:2px 0 8px"});const durum=e("div",{class:"mut3",text:"modeller yükleniyor… (OpenCode ilk seferde birkaç saniye ister)"});const liste=e("div");h.append(ara,durum,liste);
   let ay=null;try{ay=await api("/api/ayar")}catch(x){}
@@ -418,8 +422,11 @@ $("#ayarDugme").onclick=()=>ayarAc();document.addEventListener("keydown",ev=>{if
 function rolleriCiz(){const r=$("#rolCipleri");r.textContent="";
   if(!S.ayar||S.ayar.hata){r.append(e("span",{class:"mut3",text:S.ayar&&S.ayar.hata?S.ayar.hata:"klasör seçilmedi"}));durumMetniGuncelle();return}
   for(const ad of S.ayar.akis){const x=S.ayar.roller[ad];const d=S.rolDurum[ad]||"";
-    const cip=e("button",{class:"cip",title:ad+" rolünün modelini değiştir",onclick:ev=>{ev.stopPropagation();modelMenusu(ad)}},e("span",{class:"dot "+d}),e("b",{text:ad}),e("span",{class:"mut",text:kisaModel(x.model)+(x.calistirici.startsWith("opencode")?"":" · "+x.calistirici)}),e("span",{class:"mut3",text:"▾"}));r.append(cip)}
+    const pasif=!!(x.dogrulama&&S.ayar.testi_atla);
+    const anahtar=x.dogrulama?e("span",{class:"badge "+(pasif?"":"b-ok"),style:"cursor:pointer;margin-left:2px",title:pasif?"Test pasif: tıklayınca aktif olur (bu projede testler çalışır)":"Test aktif: tıklayınca pasif olur (bu projede test adımı atlanır)",text:pasif?"pasif":"aktif",onclick:ev=>{ev.stopPropagation();testiAcKapat()}}):null;
+    const cip=e("button",{class:"cip",style:pasif?"opacity:.6":"",title:ad+" rolünün modelini değiştir",onclick:ev=>{ev.stopPropagation();modelMenusu(ad)}},e("span",{class:"dot "+d}),e("b",{text:ad,style:pasif?"text-decoration:line-through":""}),e("span",{class:"mut",text:kisaModel(x.model)+(x.calistirici.startsWith("opencode")?"":" · "+x.calistirici)}),e("span",{class:"mut3",text:"▾"}),anahtar);r.append(cip)}
   durumMetniGuncelle()}
+async function testiAcKapat(){try{const ay=await api("/api/ayar");ay.testi_atla=!ay.testi_atla;await api("/api/ayar",{method:"PUT",body:ay});await durumYukle()}catch(x){alert(x.message)}}
 function durumMetniGuncelle(){const d=$("#durumMetni");let m="Hazır",sinif="hazir";
   if(!S.klasor)m="Önce bir proje klasörü seçin";
   else if(S.kosu&&S.kosu.durum==="plan"){m="Plan onayınızı bekliyor";sinif="bekle"}
@@ -619,17 +626,21 @@ function olayIsle(o){
   if(!S.tekrar&&S.kosu&&o.kosu===S.kosu.kimlik){if(o.tur==="adim-basladi"){S.kosu.durum="calisiyor";kosuGorunumu();gecmisYukle()}else if(o.tur==="karar-bekleniyor"){S.kosu.durum="karar-bekliyor";kosuGorunumu();gecmisYukle()}}
   switch(o.tur){
   case "klasor":break;
-  case "plan":{S.butce=o.butce;S.rolDurum={};rolleriCiz();gecmisYukle();const k=e("div",{class:"card",id:"plan-"+o.kosu});
+  case "plan":{S.dogrulamaRolleri=o.adimlar.filter(a=>a.dogrulama).map(a=>a.rol);S.butce=o.butce;S.rolDurum={};rolleriCiz();gecmisYukle();const k=e("div",{class:"card",id:"plan-"+o.kosu});
     const etiket=e("span",{class:"mut3",text:"onay bekliyor"});S.planEtiket[o.kosu]=etiket;
     k.append(e("div",{class:"row",style:"justify-content:space-between"},e("b",{text:"Plan"}),etiket));
     for(const a of o.adimlar)k.append(e("div",{class:"row",style:"margin-top:3px"},e("span",{class:"badge "+(a.dogrulama?"b-warn":"b-acc"),text:a.rol}),e("span",{class:"mut",text:a.calistirici+" · "+(a.model||"varsayılan model")})));
     k.append(e("div",{class:"mut3",style:"margin-top:4px",text:"Bütçe "+o.butce.toLocaleString("tr-TR")+" token · en çok "+o.azami_duzeltme+" düzeltme · yalnızca bu klasör"}));
+    const testVar=o.adimlar.some(a=>a.dogrulama);const tst=e("input",{type:"checkbox"});tst.checked=!!o.testsiz;
+    if(testVar&&!o.otomatik)k.append(e("label",{class:"row mut",style:"gap:6px;margin-top:5px"},tst,"Test adımını atla (bu görevde)"));
+    else if(testVar&&o.testsiz)k.append(e("div",{class:"mut3",style:"margin-top:4px",text:"Test adımı atlanacak (Ayarlar > Genel)"}));
+    if(o.otomatik){etiket.textContent="otomatik onaylandı"}
     const bt=e("div",{class:"row",style:"margin-top:6px"});
-    bt.append(e("button",{class:"pri",text:"Onayla",onclick:async()=>{bt.remove();try{await api("/api/gorev/"+o.kosu+"/onayla",{method:"POST",body:{}})}catch(x){alert(x.message)}}}),e("button",{text:"Reddet",onclick:async()=>{bt.remove();try{await api("/api/gorev/"+o.kosu+"/reddet",{method:"POST",body:{}})}catch(x){alert(x.message)}}}));
+    if(!o.otomatik)bt.append(e("button",{class:"pri",text:"Onayla",onclick:async()=>{bt.remove();try{await api("/api/gorev/"+o.kosu+"/onayla",{method:"POST",body:{testsiz:testVar?tst.checked:false}})}catch(x){alert(x.message)}}}),e("button",{text:"Reddet",onclick:async()=>{bt.remove();try{await api("/api/gorev/"+o.kosu+"/reddet",{method:"POST",body:{}})}catch(x){alert(x.message)}}}));
     S.planDugmeleri[o.kosu]=bt;
     k.append(bt);akisaEkle(e("div",{class:"kullanici",text:o.gorev}));akisaEkle(k);break}
   case "basladi":S.butce=o.butce||S.butce;tokenGuncelle(0);gunluge("görev başladı");break;
-  case "adim-basladi":{S.rolDurum[o.rol]="calisiyor";rolleriCiz();const d=e("div",{class:"adim"},e("div",{class:"row"},e("span",{class:"dot calisiyor"}),e("b",{text:o.rol}),e("span",{class:"mut3",text:o.calistirici+" · "+(o.model||"")})));const c=e("div",{class:"canli"});d.append(c);S.adimDiv[o.sira]=d;S.canliDiv=c;akisaEkle(d);gunluge(o.rol+" başladı");break}
+  case "adim-basladi":{S.testAdimi=!!(S.dogrulamaRolleri&&S.dogrulamaRolleri.includes(o.rol));$("#testiAtla").style.display=S.testAdimi?"":"none";S.rolDurum[o.rol]="calisiyor";rolleriCiz();const d=e("div",{class:"adim"},e("div",{class:"row"},e("span",{class:"dot calisiyor"}),e("b",{text:o.rol}),e("span",{class:"mut3",text:o.calistirici+" · "+(o.model||"")})));const c=e("div",{class:"canli"});d.append(c);S.adimDiv[o.sira]=d;S.canliDiv=c;akisaEkle(d);gunluge(o.rol+" başladı");break}
   case "canli":{if(!S.canliDiv)break;if(o.alt==="metin"){S.canliDiv.textContent=(S.canliDiv.textContent+(o.parca||"")).slice(-400)}
     else if(o.alt==="arac"&&o.girdi&&typeof o.girdi==="object"){S.canliDiv.parentNode.insertBefore(aracKarti(o),S.canliDiv)}break}
   case "adim-bitti":{S.rolDurum[o.rol]=o.ok?"ok":"err";rolleriCiz();tokenGuncelle(o.token_toplam);const d=S.adimDiv[o.sira];if(d){const ust=d.querySelector(".dot");ust.className="dot "+(o.ok?"ok":"err");d.querySelector(".canli").remove();d.firstChild.append(e("span",{class:"mut3",text:o.sure_sn+" sn · "+(o.token_girdi+o.token_cikti).toLocaleString("tr-TR")+" token"}));
@@ -644,6 +655,8 @@ function olayIsle(o){
     k.append(yama);const bt=e("div",{class:"row",id:"karar-dugmeleri",style:"margin-top:6px"});k.append(bt);akisaEkle(k);dosyalariYukle();degisiklikCiz(o);if(adet)sekme("p-degisiklik");break}
   case "karar-bekleniyor":{S.kararBekliyor=true;if(S.fark)degisiklikCiz(S.fark);const bt=$("#karar-dugmeleri");if(bt&&!bt.childNodes.length){bt.append(e("button",{class:"pri",text:"Korunsun",onclick:()=>karar(true)}),e("button",{text:"Geri al",onclick:()=>karar(false)}))}break}
   case "durduruluyor":akisaEkle(e("div",{class:"mut3",text:"durduruluyor…"}));break;
+  case "test-atlatiliyor":akisaEkle(e("div",{class:"mut3",text:"test adımı atlatılıyor…"}));break;
+  case "dogrulama-atlandi":S.testAdimi=false;$("#testiAtla").style.display="none";akisaEkle(e("div",{class:"mut3",text:"test adımı atlandı"}));break;
   case "bitti":{S.kararBekliyor=false;S.kosuAktif=false;if(S.fark)degisiklikCiz(Object.assign({},S.fark,{durum:o.durum}));gecmisYukle();if($("#ayarlar").classList.contains("on")&&S.ayarBolum==="kullanim")istatistikYukle();const bt=$("#karar-dugmeleri");if(bt)bt.remove();S.canliDiv=null;
     const renk=o.durum==="onaylandi"||o.durum==="degisiklik_yok"?"b-ok":o.durum==="geri_alindi"||o.durum==="reddedildi"?"":"b-err";
     akisaEkle(e("div",{class:"card"},e("span",{class:"badge "+renk,text:o.durum}),e("span",{class:"mut",text:" "+(o.mesaj||"")}),o.token_toplam?e("span",{class:"mut3",text:"  · "+o.token_toplam.toLocaleString("tr-TR")+" token"}):null));
@@ -651,15 +664,16 @@ function olayIsle(o){
   case "gunluk":gunluge(o.mesaj.split("\n")[0]);break;
   }}
 async function karar(k){const b=$("#karar-dugmeleri");if(b)b.textContent="";try{await api("/api/gorev/"+S.kosu.kimlik+"/karar",{method:"POST",body:{korunsun:k}})}catch(x){alert(x.message)}}
-function kosuGorunumu(){const aktif=S.kosu&&["calisiyor","karar-bekliyor"].includes(S.kosu.durum);S.kosuAktif=!!aktif;const plan=S.kosu&&S.kosu.durum==="plan";$("#durdur").style.display=aktif?"":"none";$("#gonder").disabled=!S.klasor||aktif||plan;$("#gorev").disabled=!S.klasor||aktif||plan;$("#girdiBilgi").textContent=!S.klasor?"önce bir klasör seçin":aktif?"çalışıyor…":plan?"plan onayınızı bekliyor":"";durumMetniGuncelle()}
+function kosuGorunumu(){const aktif=S.kosu&&["calisiyor","karar-bekliyor"].includes(S.kosu.durum);S.kosuAktif=!!aktif;const plan=S.kosu&&S.kosu.durum==="plan";$("#durdur").style.display=aktif?"":"none";$("#testiAtla").style.display=S.kosu&&S.kosu.durum==="calisiyor"&&S.testAdimi?"":"none";$("#gonder").disabled=!S.klasor||aktif||plan;$("#gorev").disabled=!S.klasor||aktif||plan;$("#girdiBilgi").textContent=!S.klasor?"önce bir klasör seçin":aktif?"çalışıyor…":plan?"plan onayınızı bekliyor":"";durumMetniGuncelle()}
 async function durumYukle(){if(S.tekrar)return;try{const d=await api("/api/durum");const onceki=S.projeId;S.projeId=d.proje||null;S.baglanti=d.baglanti||{};uzakDuzen();S.klasor=d.klasor;S.ayar=d.ayar;S.kosu=d.kosu;$("#klasorAd").textContent=d.klasor?d.klasor.split(/[\\/]/).pop():"";ortamCipiCiz();
   $("#gitRozet").className="badge "+(d.git?"b-ok":"b-err");$("#gitRozet").textContent=d.klasor?(d.git?(d.golge?"geri alma hazır (gölge yedek)":"git hazır"):"geri alma hazır değil"):"";$("#gitRozet").title=d.golge?"Bu klasör git deposu değil: geri alma, klasörün dışındaki gölge yedekten çalışır (klasöre .git eklenmez).":"";
   const ke=d.koruyucu_eksik||[];$("#korRozet").className="badge "+(d.klasor?(ke.length?"b-err":"b-ok"):"");$("#korRozet").textContent=d.klasor?(ke.length?"koruyucu eksik":"koruyucu etkin"):"";$("#korRozet").title=ke.join("; ");
   $("#klon").textContent=d.klon_bekleyen==null?"kurulu değil":d.klon_bekleyen+" öneri bekliyor";if(d.klon_bekleyen)$("#klon").title="aktapokus-klon bekleyen komutuyla inceleyin";
   rolleriCiz();akisCipiGuncelle();gecmisYukle();kosuGorunumu();motorUyarisi();$("#klasorSec")&&d.klasor&&$("#klasorSec").remove();if(onceki!==S.projeId){if(S.projeId)delete S.okunmadi[S.projeId];projeGorunumuKur()}}catch(x){gunluge("durum alınamadı: "+x.message)}}
-async function gonder(){const t=$("#gorev").value.trim();if(!t||!S.klasor)return;try{if("Notification" in window&&Notification.permission==="default")Notification.requestPermission().catch(()=>{})}catch(x){}$("#gorev").value="";try{const p=await api("/api/gorev",{method:"POST",body:{gorev:t}});S.kosu={kimlik:p.kosu,gorev:t,durum:"plan"};kosuGorunumu()}catch(x){akisaEkle(e("div",{class:"badge b-err",text:x.message}))}}
+async function gonder(){const t=$("#gorev").value.trim();if(!t||!S.klasor)return;try{if("Notification" in window&&Notification.permission==="default")Notification.requestPermission().catch(()=>{})}catch(x){}$("#gorev").value="";try{const p=await api("/api/gorev",{method:"POST",body:{gorev:t}});S.kosu={kimlik:p.kosu,gorev:t,durum:(S.kosu&&S.kosu.kimlik===p.kosu)?S.kosu.durum:(p.otomatik?"calisiyor":"plan")};kosuGorunumu()}catch(x){akisaEkle(e("div",{class:"badge b-err",text:x.message}))}}
 $("#gonder").onclick=gonder;$("#gorev").addEventListener("keydown",ev=>{if(ev.key==="Enter"&&!ev.shiftKey){ev.preventDefault();gonder()}});
 $("#durdur").onclick=async()=>{try{await api("/api/gorev/"+S.kosu.kimlik+"/durdur",{method:"POST",body:{}})}catch(x){alert(x.message)}};
+$("#testiAtla").onclick=async()=>{try{$("#testiAtla").disabled=true;await api("/api/gorev/"+S.kosu.kimlik+"/testi-atla",{method:"POST",body:{}})}catch(x){alert(x.message)}$("#testiAtla").disabled=false};
 async function dosyalariYukle(){if(!S.klasor||S.tekrar)return;ciktilariYukle();try{const d=await api("/api/dosyalar");S.imza=d.imza;S.degisen=Object.assign({},d.degisen||{});agacCiz(d.dosyalar);belgeleriCiz(d.belgeler)}catch(x){}}
 function agacCiz(liste){const a=$("#agac");a.textContent="";const kok={};for(const f of liste){const p=f.yol.split("/");let n=kok;p.forEach((s,i)=>{n=n[s]=n[s]||(i===p.length-1?{__f:f.yol}:{})})}
   const ciz=(n,kap,d)=>{for(const k of Object.keys(n).sort((x,y)=>{const a1=n[x].__f?1:0,b1=n[y].__f?1:0;return a1-b1||x.localeCompare(y)})){const c=n[k];if(c.__f){const dur=S.degisen[c.__f];const sat=e("div",{class:"f",style:"padding-left:"+d*12+"px",onclick:()=>dosyaGoster(c.__f)});if(dur)sat.append(e("span",{style:"color:var(--"+(dur==="A"?"ok":dur==="D"?"err":"warn")+")",text:dur+" "}));sat.append(k);kap.append(sat)}else{const sat=e("div",{class:"d mut",style:"padding-left:"+d*12+"px",text:"▸ "+k});kap.append(sat);const alt=e("div");kap.append(alt);let ac=d<1;alt.style.display=ac?"":"none";sat.textContent=(ac?"▾ ":"▸ ")+k;sat.onclick=()=>{ac=!ac;alt.style.display=ac?"":"none";sat.textContent=(ac?"▾ ":"▸ ")+k};ciz(c,alt,d+1)}}};ciz(kok,a,0)}

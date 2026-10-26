@@ -206,6 +206,115 @@ def test_kilit_baska_canli_kopya_varsa_alinmaz_olu_kopya_yok_sayilir(baska_canli
     assert not uygulama.kilit_yolu().exists()
 
 
+def _kilitle(baska_canli_surec, durum=None):
+    uygulama.ayar_dizini().mkdir(parents=True, exist_ok=True)
+    uygulama.kilit_yolu().write_text(str(baska_canli_surec.pid), encoding="utf-8")
+    if durum:
+        uygulama.pencere_isaretle(durum)
+
+
+def test_kapanmakta_olan_kopya_varsa_yeniden_acma_bekler_ve_acilir(baska_canli_surec, monkeypatch):
+    """Gercek hata: pencereyi kapatip hemen yeniden acinca 'zaten acik' denip acilmiyordu."""
+    monkeypatch.setattr(uygulama, "mevcut_pencereyi_one_getir", lambda: False)  # pencere yok (kapandi)
+    _kilitle(baska_canli_surec, "kopuk")
+    threading.Timer(0.8, baska_canli_surec.kill).start()
+    baslangic = time.monotonic()
+    assert uygulama.ikinci_kopya_bekle(azami_sn=10) == "al"
+    assert 0.5 < time.monotonic() - baslangic < 6
+    uygulama.kilit_birak()
+
+
+def test_gercek_pencere_varsa_hemen_one_getirilir_beklenmez(baska_canli_surec, monkeypatch):
+    monkeypatch.setattr(uygulama, "mevcut_pencereyi_one_getir", lambda: True)
+    _kilitle(baska_canli_surec, "bagli")
+    baslangic = time.monotonic()
+    assert uygulama.ikinci_kopya_bekle(azami_sn=10) == "one"
+    assert time.monotonic() - baslangic < 1.0
+
+
+def test_durum_bagli_gorunse_de_pencere_yoksa_beklenir_gercek_hata(baska_canli_surec, monkeypatch):
+    """Gercek Edge: pencere kapandi ama baglanti birkac sn daha 'bagli' gorundu; ikinci istek pes edip kutu gosteriyordu."""
+    monkeypatch.setattr(uygulama, "mevcut_pencereyi_one_getir", lambda: False)
+    _kilitle(baska_canli_surec, "bagli")
+    threading.Timer(1.2, baska_canli_surec.kill).start()  # eski kopya birazdan kapanir
+    assert uygulama.ikinci_kopya_bekle(azami_sn=10) == "al"
+    uygulama.kilit_birak()
+
+
+def test_pencere_henuz_aciliyorsa_belirene_kadar_beklenir_ve_one_getirilir(baska_canli_surec, monkeypatch):
+    sayac = {"n": 0}
+
+    def pencere():
+        sayac["n"] += 1
+        return sayac["n"] >= 4  # ilk yoklamalarda pencere yok, sonra belirir
+
+    monkeypatch.setattr(uygulama, "mevcut_pencereyi_one_getir", pencere)
+    _kilitle(baska_canli_surec, "aciliyor")
+    assert uygulama.ikinci_kopya_bekle(azami_sn=10) == "one"
+
+
+def test_pencere_hic_yoksa_ve_surec_kapanmiyorsa_azami_sureden_sonra_mesaj(baska_canli_surec, monkeypatch):
+    monkeypatch.setattr(uygulama, "mevcut_pencereyi_one_getir", lambda: False)
+    _kilitle(baska_canli_surec, "bagli")
+    baslangic = time.monotonic()
+    assert uygulama.ikinci_kopya_bekle(azami_sn=1.2) == "mesaj"
+    assert 1.0 < time.monotonic() - baslangic < 4
+    assert not uygulama.devral_var_mi()  # istek temizlenir
+
+
+def test_pencere_bekle_yeni_acma_istegi_gelince_kopma_toleransini_beklemeden_kapanir():
+    sira = {"n": 0}
+
+    def sayac():
+        sira["n"] += 1
+        return 1 if sira["n"] <= 3 else 0  # 3 yoklama bagli, sonra kopuk
+
+    saat = SahteSaat()
+
+    def erken():
+        return sira["n"] >= 6  # kopmadan 3 yoklama sonra yeni acma istegi
+
+    assert uygulama.pencere_bekle(sayac, 0, 90, 1000, saat, erken_cik=erken) == "kapandi"
+    assert sira["n"] <= 8, "yeni acma istegi geldi ama 1000 sn'lik toleransi bekledi"
+
+
+def test_pencere_bekle_erken_cikis_yalniz_pencere_gorulmus_ve_kopuksa_isler():
+    saat = SahteSaat()
+    sira = {"n": 0}
+
+    def hic_baglanmadi():
+        sira["n"] += 1
+        return 0
+
+    assert uygulama.pencere_bekle(hic_baglanmadi, 0, 5, 5, saat, erken_cik=lambda: True) == "baglanmadi"  # hic gorulmediyse erken cikis yok
+
+
+def test_kopuk_kopyaya_devral_istegi_yazilir_ve_sonunda_temizlenir(baska_canli_surec, monkeypatch):
+    monkeypatch.setattr(uygulama, "mevcut_pencereyi_one_getir", lambda: False)
+    _kilitle(baska_canli_surec, "kopuk")
+    yazilan = []
+    asil = uygulama.devral_iste
+    monkeypatch.setattr(uygulama, "devral_iste", lambda: (yazilan.append(1), asil())[1])
+    assert uygulama.ikinci_kopya_bekle(azami_sn=1.2) == "mesaj"  # surec kapanmiyor: sure doldu
+    assert yazilan and not uygulama.devral_var_mi()
+
+
+def test_acik_pencere_varsa_mesaj_kutusu_yerine_pencere_one_getirilir(baska_canli_surec, tmp_path, monkeypatch):
+    sahte = tmp_path / "t.exe"
+    sahte.write_text("")
+    monkeypatch.setenv("AKTAPOKUS_TARAYICI", str(sahte))
+    _kilitle(baska_canli_surec, "bagli")
+    kutular, one = [], []
+    monkeypatch.setattr(uygulama, "bilgi_goster", lambda m: kutular.append(m))
+    monkeypatch.setattr(uygulama, "mevcut_pencereyi_one_getir", lambda: one.append(1) or True)
+    assert uygulama.uygulama_calistir(None, 0, lambda k: (_ for _ in ()).throw(AssertionError("pencere acilmamali"))) == 0
+    assert one and kutular == []  # pencere one getirildi, kutu YOK
+    one.clear()
+    monkeypatch.setattr(uygulama, "KAPANMA_BEKLEME_SN", 0.6)
+    monkeypatch.setattr(uygulama, "mevcut_pencereyi_one_getir", lambda: one.append(1) or False)  # pencere bulunamazsa eski mesaj
+    assert uygulama.uygulama_calistir(None, 0, lambda k: None) == 0 and kutular and "zaten acik" in kutular[0]
+
+
 def test_kilit_bozuk_dosya_ve_baskasinin_kilidini_silmez(baska_canli_surec):
     uygulama.ayar_dizini().mkdir(parents=True, exist_ok=True)
     uygulama.kilit_yolu().write_text("sayi degil", encoding="utf-8")
@@ -225,6 +334,8 @@ def test_ikinci_kopya_sunucu_baslatmadan_cikar(baska_canli_surec, tmp_path, monk
     monkeypatch.setattr(uygulama, "bilgi_goster", lambda m: kutular.append(m))
     from aktapokus_ai_studio import arayuz
 
+    monkeypatch.setattr(uygulama, "mevcut_pencereyi_one_getir", lambda: False)
+    monkeypatch.setattr(uygulama, "KAPANMA_BEKLEME_SN", 0.6)
     baslayan = []
     def baslat(self):  # kilit denetimi atlanirsa burasi cagrilir: hemen OSError (sunucu hic baslamadigi icin kapat() beklemez)
         baslayan.append(1)
@@ -343,6 +454,7 @@ def test_gercek_olay_akisi_baglantisi_sayilir_ve_kopunca_uygulama_kapanir(proje,
     baslangic = time.monotonic()
     kod = uygulama.uygulama_calistir(str(proje), 0, sayfa, bekle_sn=0.05, acilis_sn=15, kopma_sn=0.5)
     assert baglandi.is_set() and kod == 0
+    assert not uygulama.pencere_yolu().exists()  # cikista pencere isareti silinir
     assert time.monotonic() - baslangic >= 1.9  # baglanti suresince acik kaldi, kopunca kapandi
 
 
