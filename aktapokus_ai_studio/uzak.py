@@ -172,6 +172,9 @@ YONETIM_KAPALIYKEN_YASAK = (
     ({"POST", "PUT", "DELETE"}, "/api/saglayicilar"),
     ({"POST", "PUT", "DELETE"}, "/api/telegram"),
     ({"POST", "PUT", "DELETE"}, "/api/beceriler"),
+    ({"POST"}, "/api/gorev-sil"),  # kalici silme
+    ({"POST"}, "/api/klasor-ac"),  # bilgisayarda Dosya Gezgini/VS Code acar
+    ({"POST"}, "/api/claude-devam"),  # bilgisayarda terminal acar
     ({"POST", "PUT", "DELETE"}, "/api/otomasyonlar"),  # zamanlanmis calistirma tanimlamak; '/api/otomasyon-calistir' (yalniz plan uretir) serbest
     ({"POST"}, "/api/github/klonla"),
     ({"GET"}, "/api/klasorler"),

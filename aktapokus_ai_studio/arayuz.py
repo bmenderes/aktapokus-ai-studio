@@ -22,6 +22,8 @@ import queue
 import re
 import secrets
 import shutil
+import subprocess
+import sys
 import threading
 import time
 import urllib.parse
@@ -30,13 +32,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import beceriler, ciktilar, clitanim, github, gityonet, guard, motorlar, otomasyon, uzak, istatistik, mcptanim, projeler, snapshot, terminal
+from . import beceriler, ciktilar, clitanim, github, gityonet, gorevmeta, guard, motorlar, otomasyon, uzak, istatistik, mcptanim, projeler, snapshot, terminal
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
 from .pipeline import HatHatasi, _kayit_klasoru, calistir_hat, son_kayit
 from .proje import GitGerekli, hazirla as proje_hazirla
-from .runners import Calistirici, CalistiriciHatasi, calistirici_olustur, hepsini_kapat
+from .runners import Calistirici, CalistiriciHatasi, calistirici_olustur, claude_bul, hepsini_kapat
 
 ATLANAN_KLASORLER = {".git", "node_modules", "__pycache__", ".aktapokus", ".opencode", ".venv", "venv", "dist", "build", ".idea", ".vscode"}
 GIZLI_UZANTILAR = (".pem", ".key", ".pfx", ".p12", ".keystore", ".jks")
@@ -155,9 +157,51 @@ class Kosu:
     testi_atla: threading.Event = field(default_factory=threading.Event)  # calisirken testi atlatma
     simdiki_rol: str | None = None
     dogrulama_rolleri: frozenset = frozenset()
+    olaylar: list = field(default_factory=list)  # konusma olarak yeniden oynatilacak olaylar (kayitla birlikte saklanir)
+    kayit_kimligi: str | None = None  # pipeline kayit kimligi ('basladi' olayindan)
 
 
 AKTIF_KOSU = ("plan", "calisiyor", "karar-bekliyor")
+
+AZAMI_KAYITLI_OLAY = 1500
+KAYITLI_OLAY_TURLERI = {"plan", "basladi", "adim-basladi", "adim-bitti", "dogrulama", "duzeltme", "fark", "bitti", "test-atlatiliyor", "dogrulama-atlandi", "durduruluyor"}
+
+
+def _olay_kaydi(olay: dict) -> dict | None:
+    """Konusma olarak yeniden oynatilacak olayin saklanacak (kisaltilmis) kopyasi; akici metin parcalari ve arac sonuclari saklanmaz."""
+    tur = olay.get("tur")
+    if tur == "canli":
+        if olay.get("alt") != "arac":
+            return None
+        girdi = olay.get("girdi")
+        girdi = {str(a): (v[:200] if isinstance(v, str) else v) for a, v in list(girdi.items())[:8] if isinstance(v, (str, int, float, bool))} if isinstance(girdi, dict) else {}
+        return {"tur": "canli", "alt": "arac", "ad": olay.get("ad"), "girdi": girdi}
+    if tur not in KAYITLI_OLAY_TURLERI:
+        return None
+    return {k: v for k, v in olay.items() if k != "proje"}
+
+
+def _olaylar_uret(k: dict) -> list[dict]:
+    """Olay gunlugu olmayan (eski) kayitlar icin konusmayi kayit dosyasindan yeniden kurar."""
+    kosu = "gecmis-" + str(k.get("id"))
+    adimlar = [a for a in (k.get("adimlar") or []) if isinstance(a, dict)]
+    olaylar: list[dict] = [{
+        "tur": "plan", "kosu": kosu, "gorev": str(k.get("gorev", "")), "butce": int(k.get("butce_token") or 0), "azami_duzeltme": 0, "testsiz": False, "otomatik": False,
+        "adimlar": [{"rol": a.get("rol"), "calistirici": a.get("calistirici"), "model": a.get("model"), "dogrulama": a.get("dogrulama") is not None} for a in adimlar],
+    }, {"tur": "basladi", "kosu": kosu, "kimlik": k.get("id"), "once": k.get("once"), "butce": int(k.get("butce_token") or 0)}]
+    toplam = 0
+    for a in adimlar:
+        toplam += int(a.get("token_girdi") or 0) + int(a.get("token_cikti") or 0)
+        olaylar.append({"tur": "adim-basladi", "kosu": kosu, "sira": a.get("sira"), "rol": a.get("rol"), "calistirici": a.get("calistirici"), "model": a.get("model")})
+        olaylar.append({"tur": "adim-bitti", "kosu": kosu, "sira": a.get("sira"), "rol": a.get("rol"), "ok": bool(a.get("ok")), "hata": a.get("hata"), "token_girdi": a.get("token_girdi", 0),
+                        "token_cikti": a.get("token_cikti", 0), "token_toplam": toplam, "sure_sn": a.get("sure_sn", 0), "metin": a.get("metin", "")})
+        if a.get("dogrulama"):
+            olaylar.append({"tur": "dogrulama", "kosu": kosu, "sira": a.get("sira"), "sonuc": a.get("dogrulama")})
+    if k.get("degisen"):
+        olaylar.append({"tur": "fark", "kosu": kosu, "degisen": k["degisen"], "ozet": "", "once": k.get("once"), "sonra": k.get("sonra"), "durum": k.get("durum"), "mesaj": k.get("mesaj")})
+    olaylar.append({"tur": "bitti", "kosu": kosu, "durum": k.get("durum"), "mesaj": k.get("mesaj"), "korundu": k.get("korundu"), "token_toplam": k.get("token_toplam", toplam), "degisen": k.get("degisen") or {}})
+    return olaylar
+
 _ISTEK_PROJESI: contextvars.ContextVar[str | None] = contextvars.ContextVar("aktapokus_istek_projesi", default=None)
 
 
@@ -276,6 +320,12 @@ class Uygulama:
 
     def _yayinla(self, oturum: ProjeOturumu, olay: dict) -> dict:
         """Olay akisina proje kimligiyle etiketli yayinlar (arayuz birden cok projenin olaylarini ayirt edebilsin)."""
+        k = oturum.kosu
+        # "bitti" olayindan hemen once durum "bitti" yapilir: kosu kimligi eslesen olaylar durumdan bagimsiz kaydedilir
+        if k is not None and (olay.get("kosu") == k.kimlik or (olay.get("kosu") is None and k.durum in AKTIF_KOSU)):
+            kayit = _olay_kaydi(olay)
+            if kayit is not None and len(k.olaylar) < AZAMI_KAYITLI_OLAY:
+                k.olaylar.append(kayit)
         return self.bus.yayinla({**olay, "proje": oturum.kimlik})
 
     # --- proje ---
@@ -1038,27 +1088,137 @@ class Uygulama:
         gruplar, son = [], []
         for pr in projeler.listele():
             o = acik.get(pr["id"])
-            gorevler = self._gecmis_oku(Path(pr["yol"]), adet) if pr["var"] else []
+            tum = self._gecmis_oku(Path(pr["yol"]), 100) if pr["var"] else []
+            meta = gorevmeta.proje_icin(pr["id"])
+            for g in tum:
+                m = meta.get(g.get("id"), {})
+                g["sabit"], g["arsiv"], g["okunmadi"], g["ozel_ad"] = bool(m.get("sabit")), bool(m.get("arsiv")), bool(m.get("okunmadi")), m.get("ad")
+            arsivlenen = [g for g in tum if g["arsiv"]]
+            gorevler = [g for g in tum if g["sabit"] and not g["arsiv"]] + [g for g in tum if not g["sabit"] and not g["arsiv"]][:adet]  # sabitler hep ustte
             k = o.kosu if o else None
             aktif = k.durum if k and k.durum in AKTIF_KOSU else None
             gruplar.append({
                 "id": pr["id"], "ad": pr["ad"], "yol": pr["yol"], "var": pr["var"], "secili": pr["id"] == self.secili_kimlik, "acik": o is not None,
                 "durum": aktif, "gorev": k.gorev[:200] if aktif else None,
-                "gorevler": [{x: g.get(x) for x in ("id", "zaman", "gorev", "durum", "token_toplam", "degisen_sayisi")} for g in gorevler],
+                "gorevler": [{x: g.get(x) for x in ("id", "zaman", "gorev", "durum", "token_toplam", "degisen_sayisi", "sabit", "okunmadi", "ozel_ad")} for g in gorevler],
+                "arsiv": [{x: g.get(x) for x in ("id", "zaman", "gorev", "durum", "ozel_ad")} for g in arsivlenen[:30]],
             })
-            for g in gorevler[:son_adet]:
-                son.append({"proje": pr["id"], "ad": pr["ad"], "id": g["id"], "zaman": g["zaman"], "gorev": g["gorev"], "durum": g["durum"]})
+            for g in [x for x in tum if not x["arsiv"]][:son_adet]:
+                son.append({"proje": pr["id"], "ad": pr["ad"], "id": g["id"], "zaman": g["zaman"], "gorev": g["gorev"], "durum": g["durum"], "okunmadi": g["okunmadi"], "ozel_ad": g["ozel_ad"]})
         son.sort(key=lambda g: str(g.get("zaman") or ""), reverse=True)
         return {"projeler": gruplar, "son": son[:son_adet]}
+
+    @staticmethod
+    def _olay_yolu(klasor: Path, kimlik: str) -> Path:
+        return _kayit_klasoru(klasor) / "olaylar" / f"{kimlik}.json"  # alt klasor: kayit listesi (*.json) bunlari kayit sanmasin
+
+    def _olaylari_kaydet(self, oturum: ProjeOturumu, kosu: Kosu) -> None:
+        """Gorevin konusmasi (plan, adimlar, arac kartlari, yanit, fark, sonuc) kayitla birlikte saklanir: gecmis gorev AYNEN yeniden oynatilir."""
+        if not kosu.kayit_kimligi or not kosu.olaylar or not re.fullmatch(r"[0-9a-zA-Z_-]{1,64}", kosu.kayit_kimligi):
+            return
+        try:
+            yol = self._olay_yolu(oturum.klasor, kosu.kayit_kimligi)
+            yol.parent.mkdir(parents=True, exist_ok=True)
+            yol.write_text(json.dumps(kosu.olaylar, ensure_ascii=False), encoding="utf-8")
+        except (OSError, TypeError, ValueError):
+            pass
 
     def gecmis_kaydi(self, kimlik: object) -> dict:
         if not isinstance(kimlik, str) or not re.fullmatch(r"[0-9a-zA-Z_-]{1,64}", kimlik):
             raise UygulamaHatasi("Gecersiz kayit kimligi")
-        yol = _kayit_klasoru(self._klasor()) / f"{kimlik}.json"
+        klasor = self._klasor()
+        yol = _kayit_klasoru(klasor) / f"{kimlik}.json"
         try:
-            return json.loads(yol.read_text(encoding="utf-8"))
+            k = json.loads(yol.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             raise UygulamaHatasi("Kayit bulunamadi", 404) from None
+        olaylar = None
+        try:
+            ham = json.loads(self._olay_yolu(klasor, kimlik).read_text(encoding="utf-8"))
+            if isinstance(ham, list) and ham:
+                olaylar = [o for o in ham if isinstance(o, dict)]
+        except (OSError, ValueError):
+            pass
+        k["olaylar"] = olaylar or _olaylar_uret(k)  # eski kayitlarda olay gunlugu yok: kayittan uretilir
+        k["oturum"] = next((a.get("oturum") for a in reversed(k.get("adimlar") or []) if isinstance(a, dict) and a.get("oturum")), None)
+        return k
+
+    # --- gorev (konusma) islemleri: sabitle, arsivle, okunmadi, yeniden adlandir, sil; klasoru ac; Claude Code'da devam et ---
+    def _kayit_var_mi(self, kimlik: object) -> str:
+        if not isinstance(kimlik, str) or not re.fullmatch(r"[0-9a-zA-Z_-]{1,64}", kimlik):
+            raise UygulamaHatasi("Gecersiz gorev kimligi")
+        if not (_kayit_klasoru(self._klasor()) / f"{kimlik}.json").is_file():
+            raise UygulamaHatasi("Gorev bulunamadi", 404)
+        return kimlik
+
+    def gorev_meta(self, kimlik: object, veri: object) -> dict:
+        self._kayit_var_mi(kimlik)
+        if not isinstance(veri, dict):
+            raise UygulamaHatasi("Govde bir nesne olmali")
+        alanlar = {k: veri[k] for k in ("sabit", "arsiv", "okunmadi", "ad") if k in veri}
+        try:
+            return gorevmeta.ayarla(self._oturum().kimlik, kimlik, **alanlar)
+        except gorevmeta.GorevMetaHatasi as hata:
+            raise UygulamaHatasi(str(hata)) from None
+
+    def gorev_sil(self, kimlik: object) -> dict:
+        self._kayit_var_mi(kimlik)
+        klasor = self._klasor()
+        for yol in (_kayit_klasoru(klasor) / f"{kimlik}.json", self._olay_yolu(klasor, kimlik)):
+            try:
+                yol.unlink(missing_ok=True)
+            except OSError as hata:
+                raise UygulamaHatasi(f"Silinemedi: {hata.strerror or type(hata).__name__}", 500) from None
+        gorevmeta.sil(self._oturum().kimlik, kimlik)
+        return {"tamam": True}
+
+    @staticmethod
+    def _program_ac(argv: list[str]) -> None:
+        subprocess.Popen(argv, close_fds=True)
+
+    @staticmethod
+    def _gezgini_ac(yol: str) -> None:
+        if sys.platform == "win32":
+            os.startfile(yol)  # noqa: S606 (yol kayitli projeden gelir, istemciden degil)
+        else:
+            subprocess.Popen(["xdg-open", yol])
+
+    def klasor_ac(self, hedef: object) -> dict:
+        klasor = str(self._klasor())
+        if hedef == "gezgin":
+            try:
+                self._gezgini_ac(klasor)
+            except OSError as hata:
+                raise UygulamaHatasi(f"Dosya Gezgini acilamadi: {hata.strerror or type(hata).__name__}", 500) from None
+            return {"tamam": True}
+        if hedef == "vscode":
+            adaylar = [os.environ.get("AKTAPOKUS_VSCODE"), shutil.which("code")]
+            for kok in filter(None, (os.environ.get("LOCALAPPDATA"), os.environ.get("PROGRAMFILES"))):
+                adaylar.append(str(Path(kok) / "Programs" / "Microsoft VS Code" / "Code.exe"))
+                adaylar.append(str(Path(kok) / "Microsoft VS Code" / "Code.exe"))
+            program = next((a for a in adaylar if a and Path(a).is_file()), None)
+            if not program:
+                raise UygulamaHatasi("VS Code bulunamadi (kurulu degil ya da PATH'te yok)", 404)
+            try:
+                self._program_ac([program, klasor])
+            except OSError as hata:
+                raise UygulamaHatasi(f"VS Code acilamadi: {hata.strerror or type(hata).__name__}", 500) from None
+            return {"tamam": True}
+        raise UygulamaHatasi("hedef 'gezgin' ya da 'vscode' olmali")
+
+    def claude_devam(self, kimlik: object) -> dict:
+        """Gorevin Claude Code konusmasini bu projenin klasorunde terminalde surdurur (`claude --resume <kimlik>`): ayni konusma, iki yonlu."""
+        self._kayit_var_mi(kimlik)
+        oturum = self.gecmis_kaydi(kimlik).get("oturum")
+        if not isinstance(oturum, str) or not re.fullmatch(r"[0-9a-fA-F-]{36}", oturum):
+            raise UygulamaHatasi("Bu gorevin Claude Code konusmasi yok (Claude rolu kullanilmadi ya da konusma kaydedilmedi)", 404)
+        cli = claude_bul()
+        if not cli:
+            raise UygulamaHatasi("Claude Code CLI bulunamadi", 404)
+        t = self.terminal_ac()
+        komut = "& '" + cli.replace("'", "''") + "' --resume " + oturum + "\r"
+        self.terminal_girdi(t["id"], base64.b64encode(komut.encode("utf-8")).decode("ascii"))
+        return {"terminal": t["id"]}
 
     # --- istatistik: gorev kayitlarindan harcama, hata siniflari, model degistirme onerileri (yalniz okur) ---
     def istatistik(self, kapsam: str = "proje") -> dict:
@@ -1198,6 +1358,8 @@ class Uygulama:
                 oturum.son_hat = {"once": e["once"], "sonra": e["sonra"], "degisen": e["degisen"], "durum": e.get("durum")}
             if e.get("tur") == "adim-basladi":
                 kosu.simdiki_rol = e.get("rol")
+            if e.get("tur") == "basladi" and isinstance(e.get("kimlik"), str):
+                kosu.kayit_kimligi = e["kimlik"]
             if e.get("tur") == "bitti":
                 kosu.durum = "bitti"  # istemci 'bitti' olayini gorunce /api/durum'u okuyacak: onceden guncel olmali
             yayinla({**e, "kosu": kosu.kimlik})
@@ -1213,6 +1375,7 @@ class Uygulama:
             yayinla({"tur": "bitti", "durum": "hata", "mesaj": f"Beklenmeyen hata: {type(hata).__name__}: {hata}", "kosu": kosu.kimlik})
         finally:
             kosu.durum = "bitti"
+            self._olaylari_kaydet(oturum, kosu)
             r, oturum.aktif_calistirici = oturum.aktif_calistirici, None
             if r is not None and hasattr(r, "ilerleme"):
                 r.ilerleme = None
@@ -1588,6 +1751,14 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.otomasyon_sil(g.get("ad")))
                 if yol == "/api/otomasyon-calistir":
                     return self._gonder(200, app.otomasyon_calistir(g.get("ad")))
+                if yol == "/api/gorev-meta":
+                    return self._gonder(200, app.gorev_meta(g.get("id"), g))
+                if yol == "/api/gorev-sil":
+                    return self._gonder(200, app.gorev_sil(g.get("id")))
+                if yol == "/api/klasor-ac":
+                    return self._gonder(200, app.klasor_ac(g.get("hedef")))
+                if yol == "/api/claude-devam":
+                    return self._gonder(200, app.claude_devam(g.get("id")))
                 if yol == "/api/uzak":
                     return self._gonder(200, app.uzak_ayarla(g))
                 if yol == "/api/uzak/anahtar-yenile":

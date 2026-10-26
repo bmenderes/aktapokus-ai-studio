@@ -201,9 +201,16 @@ def test_arayuz_kodu_otomatik_onayda_durumu_ezmez_ve_test_kapsulu_tiklanir():
     assert 'x.dogrulama&&S.ayar.testi_atla' in html  # pasif gorunum
 
 
-def test_gecmis_karti_tekrar_acilinca_ust_uste_yigilmaz():
-    """Gercek hata: soldaki listeden ayni goreve her tiklayista 'Gecmis gorev' karti akisa EKLENIYORDU (3-4 kopya)."""
+def test_gecmis_gorev_ozet_karti_degil_konusma_olarak_yeniden_oynatilir():
+    """Gecmis gorev canli gorevle ayni akis ekraninda ayni cizimle acilir; 'Gecmis gorev' ozet karti yok (ust uste yigilan kartlar da yok)."""
     from pathlib import Path
 
     html = (Path(__file__).parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
-    assert 'querySelectorAll("#akis .gecmis-karti").forEach(x=>x.remove())' in html and 'class:"card gecmis-karti"' in html
+    assert 'text:"Geçmiş görev"' not in html and "gecmis-karti" not in html
+    assert 'for(const o of r.olaylar||[])' in html and "olayIsle(Object.assign({},o,{proje:S.projeId}))" in html
+    for ad in ("gorevMenusu", "gorevSatiri", "menuKapat", "acilisParametreleri"):
+        assert f"function {ad}" in html or f"async function {ad}" in html
+    for yol in ("/gorev-meta", "/gorev-sil", "/klasor-ac", "/claude-devam"):
+        assert yol in html
+    for etiket in ("Sabitle", "Okunmadı işaretle", "Yeniden adlandır", "Çatalla", "Arşivle", "Sil", "Yeni pencere", "Dosya Gezgini", "VS Code", "Claude Code'da devam et"):
+        assert etiket in html

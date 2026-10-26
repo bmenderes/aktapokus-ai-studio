@@ -79,4 +79,5 @@ def mcp_ve_beceri_yalitimi(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("AKTAPOKUS_BECERILER", str(tmp_path_factory.mktemp("beceriler") / "skills"))
     monkeypatch.setenv("AKTAPOKUS_MOTOR_TERCIH", "opencode-sunucu")  # test sonuclari bu bilgisayarda hangi CLI'in kurulu oldugundan bagimsiz olsun
     monkeypatch.setenv("AKTAPOKUS_OTOMASYON", str(tmp_path_factory.mktemp("otomasyon") / "otomasyonlar.json"))  # testler gercek otomasyon tanimlarina dokunmasin
+    monkeypatch.setenv("AKTAPOKUS_GOREV_META", str(tmp_path_factory.mktemp("gorevmeta") / "gorev-meta.json"))  # sabitle/arsivle bilgileri gercek ~/.aktapokus altina yazilmasin
     monkeypatch.setenv("AKTAPOKUS_GOLGE", str(tmp_path_factory.mktemp("golge")))  # golge (git'siz) yedek depolari gercek ~/.aktapokus altina yazilmasin

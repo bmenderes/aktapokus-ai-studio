@@ -82,7 +82,7 @@ def test_degisiklik_yoksa_soru_sorulmaz(proje):
     sorular = []
     s = calistir_hat(proje, "g", ayar(), lambda ad: sahte, lambda q: sorular.append(q) or True)
     assert s.durum == "degisiklik_yok" and sorular == []
-    assert "hicbir dosya degismedi" in s.mesaj.lower() and "disinda" in s.mesaj  # sessizce basari sanilmasin
+    assert "dosya degismedi" in s.mesaj.lower() and "inceleme" in s.mesaj and "ciktiyi" in s.mesaj  # sessizce basari sanilmasin: inceleme/soru gorevinde yanit adim ciktisindadir
 
 
 def test_dogrulama_basarisiz_duzeltme_dongusu(proje):

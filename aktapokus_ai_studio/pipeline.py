@@ -45,6 +45,7 @@ class AdimKaydi:
     sure_sn: float
     hata: str | None = None
     dogrulama: str | None = None  # basarili | basarisiz | belirsiz
+    oturum: str | None = None  # Claude Code konusma kimligi (varsa)
 
 
 @dataclass
@@ -190,6 +191,7 @@ def calistir_hat(
             token_onbellek=r.token_onbellek,
             sure_sn=round(r.sure_sn, 1),
             hata=r.hata,
+            oturum=r.oturum,
         )
         sonuc.adimlar.append(adim)
         olay({"tur": "adim-bitti", "sira": adim.sira, "rol": rol.ad, "ok": r.ok, "hata": r.hata, "token_girdi": r.token_girdi, "token_cikti": r.token_cikti, "token_toplam": sonuc.token_toplam, "sure_sn": adim.sure_sn, "metin": _kisalt(r.metin, 20000)})  # ajan yaniti ekranda GORUNUR (inceleme/soru gorevlerinde asil sonuc budur)

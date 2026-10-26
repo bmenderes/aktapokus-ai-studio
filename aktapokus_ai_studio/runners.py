@@ -36,6 +36,7 @@ class CalistirmaSonucu:
     token_onbellek: int = 0
     sure_sn: float = 0.0
     hata: str | None = None
+    oturum: str | None = None  # Claude Code konusma kimligi (kayitta saklanir: 'Claude Code'da devam et')
 
     @property
     def token_yeni(self) -> int:
@@ -475,8 +476,10 @@ class ClaudeCodeCalistirici(Calistirici):
             sonuc.ok = False
             sonuc.hata = f"Claude Code cikis kodu {kod}: {hata_metni.strip()[-300:]}"
         kimlik = olay.get("session_id")
-        if self.oturum_kipi == "tek" and isinstance(kimlik, str) and re.fullmatch(r"[0-9a-fA-F-]{36}", kimlik):
-            self._oturum_yaz(klasor, kimlik)
+        if isinstance(kimlik, str) and re.fullmatch(r"[0-9a-fA-F-]{36}", kimlik) and self.oturum_kipi != "hic":
+            sonuc.oturum = kimlik  # kaydedilen konusma: kayitta durur, Claude Code'da --resume ile surdurulebilir
+            if self.oturum_kipi == "tek":
+                self._oturum_yaz(klasor, kimlik)
         return sonuc
 
 
