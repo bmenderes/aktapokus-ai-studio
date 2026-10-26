@@ -27,7 +27,7 @@ Calisma kaydi: zaman, otomasyon, sonuc ("plan-olustu"|"atlandi"|"kacirildi"|"hat
 
 ## Aşamalar (her biri ayrı test + mutasyon + commit)
 
-- **A. Şablonlar + "Şimdi çalıştır":** kayıt defteri, doğrulama, değişken doldurma, plan üretme, Ayarlar > Otomasyonlar (CRUD), Telegram `/sablon`, uzak politika.
+- **A. Şablonlar + "Şimdi çalıştır" — VAR (2026-10-26):** kayıt defteri, doğrulama, değişken doldurma, plan üretme, Ayarlar > Otomasyonlar (CRUD), Telegram `/sablon`, uzak politika.
 - **B. Zamanlayıcı:** aralık/günlük/haftalık, enjekte edilebilir saat, çalışma kaydı, kaçırılan politikası, atlama kuralları, günlük token tavanı.
 - **C. Zincir:** adım bitince (korundu/değişiklik yok) sonraki adımın planı; hata/geri alma/ret zinciri durdurur ve bildirir.
 - **D. Olay tetikleyiciler:** dosya değişimi (imza yoklaması + bekleme süresi), yeni commit/uzak değişiklik (git), yeni issue/PR (`gh` yoklaması; webhook yok, yerel çalışır), "görev bitti".

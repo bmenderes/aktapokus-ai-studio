@@ -45,6 +45,8 @@ Bu belge, kullanıcının listelediği fikirlerin **hiçbirini düşürmemek** i
 | Kimlik doğrulama: Tailscale + token | VAR (3) | Sabit, yenilenebilir uzak anahtar; yetki daraltma; Tailscale yoksa açılmaz |
 | Telegram'da model seçimi | YAPILACAK (5) | Yalnız kurulu CLI/modeller arasından düğmeyle |
 | Telegram `/projeler` çalışmadı | NEDEN BULUNDU | Eski bot ayarı açılışta bir kez okuyor; süreç kapatılıp yeniden başlatılacak (1) |
+| Otomasyon: şablon + "Şimdi çalıştır" + Telegram `/sablon` | VAR (A) | Yalnız plan üretir, onay ister. Tasarım: `otomasyon-tasarimi.md` |
+| Otomasyon: zamanlayıcı, zincir, olay tetikleyici, bildirim/geçmiş | YAPILACAK (B–E) | Kullanıcı dördünü de istedi; onay her zaman şart |
 | Windows açılışında otomatik başlatma | YAPILACAK | Onaylı ve geri alınabilir |
 | Temiz bilgisayarda kurulum denemesi | KULLANICI | Hafta başı kullanıcı yapacak |
 | OpenCode olmadan çalışma | VAR | Motor denetimi; temiz bilgisayarda gerçek deneme bekliyor |

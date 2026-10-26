@@ -30,7 +30,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import beceriler, ciktilar, clitanim, github, gityonet, guard, motorlar, uzak, istatistik, mcptanim, projeler, snapshot, terminal
+from . import beceriler, ciktilar, clitanim, github, gityonet, guard, motorlar, otomasyon, uzak, istatistik, mcptanim, projeler, snapshot, terminal
 from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
 from .pipeline import HatHatasi, _kayit_klasoru, calistir_hat, son_kayit
@@ -669,6 +669,67 @@ class Uygulama:
 
     def github_issue_yorum(self, no: object, metin: object) -> dict:
         return self._github(lambda k: github.issue_yorum(k, no, metin))
+
+    # --- Otomasyonlar: tanim/duzenleme yerel arayuzden (uzaktan varsayilan kapali, Telegram'dan HIC); calistirma yalniz PLAN uretir, onay yine istenir ---
+    def otomasyon_listele(self) -> dict:
+        kayitli = {p["id"]: p for p in projeler.listele()}
+        liste = []
+        for o in otomasyon.yukle().values():
+            p = kayitli.get(o.proje)
+            liste.append({**o.sozluk(), "proje_ad": p["ad"] if p else None, "proje_var": bool(p and p["var"])})
+        return {"otomasyonlar": liste, "projeler": [{"id": p["id"], "ad": p["ad"], "yol": p["yol"], "var": p["var"]} for p in projeler.listele()], "gecmis": otomasyon.gecmis_oku(30)}
+
+    def otomasyon_kaydet(self, veri: object) -> dict:
+        if isinstance(veri, dict) and veri.get("proje") not in {p["id"] for p in projeler.listele()}:
+            raise UygulamaHatasi("Proje kayitli degil; once projeyi acin (kenar cubugu > + Proje)", 404)
+        try:
+            return otomasyon.kaydet(veri).sozluk()
+        except otomasyon.OtomasyonHatasi as hata:
+            raise UygulamaHatasi(str(hata)) from None
+
+    def otomasyon_sil(self, ad: object) -> dict:
+        if not isinstance(ad, str) or not otomasyon.sil(ad):
+            raise UygulamaHatasi("Boyle bir otomasyon yok", 404)
+        return {"tamam": True}
+
+    def otomasyon_calistir(self, ad: object, tetikleyen: str = "elle", yalniz_acik: bool = False) -> dict:
+        """Otomasyonun gorev metnini doldurup kendi PROJESINDE bir PLAN olusturur (secili projeyi degistirmez). Plan onay bekler; onaysiz hicbir sey calismaz."""
+        o = otomasyon.bul(ad)
+        if o is None:
+            raise UygulamaHatasi("Boyle bir otomasyon yok", 404)
+        if yalniz_acik and not o.acik:
+            raise UygulamaHatasi("Bu otomasyon kapali (Ayarlar > Otomasyonlar'dan acilabilir)", 409)
+        p = next((x for x in projeler.listele() if x["id"] == o.proje), None)
+
+        def kayit(sonuc: str, neden: str = "", gorev: str | None = None) -> None:
+            otomasyon.gecmis_ekle(o.ad, sonuc, neden, tetikleyen, gorev, o.proje)
+
+        if p is None or not p["var"]:
+            kayit("hata", "proje artik kayitli degil ya da klasoru yok")
+            raise UygulamaHatasi("Otomasyonun projesi artik kayitli degil ya da klasoru yok", 404)
+        try:
+            self.proje_ac(p["yol"], sec=False)
+        except UygulamaHatasi as hata:
+            kayit("hata", str(hata))
+            raise
+        with self.proje_baglami(o.proje):
+            oturum = self._oturum()
+            if oturum.kosu and oturum.kosu.durum in AKTIF_KOSU:
+                kayit("atlandi", f"projede gorev var ({oturum.kosu.durum})")
+                raise UygulamaHatasi(f"Atlandi: '{p['ad']}' projesinde bir gorev var ({oturum.kosu.durum}); once onu bitirin ya da onaylayin", 409)
+            baglam = {"tarih": time.strftime("%Y-%m-%d"), "saat": time.strftime("%H:%M"), "proje": p["ad"]}
+            if "{dal}" in o.gorev:
+                try:
+                    baglam["dal"] = github._git(oturum.klasor, "branch", "--show-current", kontrol=False).strip() or "(dal yok)"
+                except github.GithubHatasi:
+                    baglam["dal"] = "(dal yok)"
+            try:
+                plan = self.gorev_olustur(otomasyon.degiskenleri_doldur(o.gorev, baglam))
+            except UygulamaHatasi as hata:
+                kayit("hata", str(hata))
+                raise
+        kayit("plan-olustu", gorev=plan["kosu"])
+        return {"plan": plan, "proje": o.proje, "proje_ad": p["ad"]}
 
     # --- Uzak erisim: YALNIZ yerel arayuzden yonetilir (uzak istemci /api/uzak'a erisemez: uzak.politika) ---
     def _sunucu(self) -> "ArayuzSunucusu":
@@ -1387,6 +1448,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     d = app.durum()
                     d["baglanti"] = {"uzak": dinleyici is not None, "terminal": dinleyici is None or sunucu.uzak_ayar.terminal, "yonetim": dinleyici is None or sunucu.uzak_ayar.yonetim}
                     return self._gonder(200, d)
+                if yol == "/api/otomasyonlar":
+                    return self._gonder(200, app.otomasyon_listele())
                 if yol == "/api/uzak":
                     return self._gonder(200, app.uzak_durum())
                 if yol == "/api/proje-gruplari":
@@ -1470,6 +1533,12 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.saglayici_baglan(g.get("saglayici"), g.get("anahtar"), g.get("etiket")))
                 if yol == "/api/saglayicilar/kaldir":
                     return self._gonder(200, app.saglayici_kaldir(g.get("baglanti")))
+                if yol == "/api/otomasyonlar":
+                    return self._gonder(200, app.otomasyon_kaydet(g))
+                if yol == "/api/otomasyonlar/sil":
+                    return self._gonder(200, app.otomasyon_sil(g.get("ad")))
+                if yol == "/api/otomasyon-calistir":
+                    return self._gonder(200, app.otomasyon_calistir(g.get("ad")))
                 if yol == "/api/uzak":
                     return self._gonder(200, app.uzak_ayarla(g))
                 if yol == "/api/uzak/anahtar-yenile":

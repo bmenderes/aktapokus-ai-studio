@@ -31,6 +31,7 @@ import urllib.request
 from pathlib import Path
 from typing import Callable
 
+from . import otomasyon
 from . import projeler as proje_kayit
 from . import snapshot
 from .arayuz import Uygulama, UygulamaHatasi
@@ -53,6 +54,7 @@ YARDIM = (
     "/klasor <tam yol>  elle sec (yalniz izinli proje klasorlerinin altinda)\n"
     "/gorev <metin>  yeni gorev (duz metin de gorev sayilir); once plan gelir, siz onaylarsiniz\n"
     "/durdur  calisan gorevi durdur\n"
+    "/sablon [ad]  kayitli gorev sablonlarini listele / calistir (plan onayi yine istenir; sablonlari yalniz bilgisayardan tanimlarsiniz)\n"
     "/fark <dosya>  degisikligi goster (yalniz /gizlilik acik ise)\n"
     "/gizlilik acik|kapali  dosya iceriginin Telegram'a gonderilmesi (varsayilan: kapali)\n"
     "Not: Telegram bulutta; icerik gonderimi kapaliyken yalniz dosya adlari ve durum gider."
@@ -248,6 +250,8 @@ class Bot:
             return self._projeler(chat)
         if ad == "/yeni":
             return self._yeni(chat, arg)
+        if ad == "/sablon":
+            return self._sablon(chat, arg)
         if ad == "/kokler":
             k = self.ayar["kokler"]
             return self._gonder(chat, ("Izinli proje klasorleri:\n" + "\n".join(f"  {x}" for x in k) + f"\nGizli: {', '.join(self.ayar['gizli']) or '-'}\n(Degistirmek yalniz bilgisayardan: telegram-baslat.bat --kok <yol>)") if k else "Proje klasoru tanimli degil. Bilgisayarda: telegram-baslat.bat --kok <klasor yolu>")
@@ -351,6 +355,27 @@ class Bot:
         self.proje_tablosu = [*self.proje_tablosu, hedef] if hedef not in self.proje_tablosu else self.proje_tablosu
         self._proje_sec(chat, hedef, git=True)
 
+    def _sablon(self, chat: int, arg: str) -> None:
+        """Yalniz KAYITLI ve ACIK otomasyon adlarini calistirir (telefon tanimlayamaz/duzenleyemez); sonuc yine plan + onay dugmeleridir."""
+        ad = arg.strip().lower()
+        if not ad:
+            acik = [o for o in otomasyon.yukle().values() if o.acik]
+            if not acik:
+                return self._gonder(chat, "Kayitli sablon yok. Bilgisayarda Ayarlar > Otomasyonlar'dan ekleyebilirsiniz.")
+            dugmeler = [{"text": o.ad[:40], "callback_data": f"s:{o.ad}"} for o in acik[:40]]
+            satirlar = [f"{o.ad}" + (f" - {o.aciklama}" if o.aciklama else "") for o in acik[:40]]
+            return self._gonder(chat, "Sablonlar (dokunun ya da /sablon <ad>):\n" + "\n".join(satirlar), [dugmeler[i:i + 2] for i in range(0, len(dugmeler), 2)])
+        self._sablon_calistir(chat, ad)
+
+    def _sablon_calistir(self, chat: int, ad: str) -> None:
+        if not otomasyon.AD_DESENI.match(ad):
+            return self._gonder(chat, "Gecersiz sablon adi.")
+        try:
+            sonuc = self.app.otomasyon_calistir(ad, "telegram", yalniz_acik=True)
+            self._gonder(chat, f"Sablon '{ad}' icin plan olusturuldu ({sonuc['proje_ad']}); onayinizi bekliyor.")
+        except UygulamaHatasi as hata:
+            self._gonder(chat, f"Sablon calistirilamadi: {hata}")
+
     def _gorev(self, chat: int, metin: str) -> None:
         if not metin.strip():
             return self._gonder(chat, "Gorev metni bos. Ornek: /gorev ana sayfadaki basligi degistir")
@@ -427,6 +452,9 @@ class Bot:
                     return yanit("Liste eskimis, /projeler yazin")
                 yanit("Tamam")
                 self._proje_sec(chat["id"], yol, git=parcalar[0] == "g")
+            elif len(parcalar) == 2 and parcalar[0] == "s":
+                yanit("Sablon calistiriliyor")
+                self._sablon_calistir(chat["id"], parcalar[1])
             elif len(parcalar) == 3 and parcalar[0] == "k" and parcalar[2] in ("0", "1"):
                 with self._kosu_baglami(parcalar[1]):
                     self.app.karar_ver(parcalar[1], parcalar[2] == "1")
