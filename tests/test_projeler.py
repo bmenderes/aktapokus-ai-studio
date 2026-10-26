@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan import projeler
-from aktapokus_ajan.arayuz import ArayuzSunucusu, Uygulama
+from aktapokus_ai_studio import projeler
+from aktapokus_ai_studio.arayuz import ArayuzSunucusu, Uygulama
 from test_arayuz import Istemci, klasor_sec
 
 

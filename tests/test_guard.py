@@ -5,10 +5,10 @@ import subprocess
 
 import pytest
 
-from aktapokus_ajan import guard, snapshot
-from aktapokus_ajan.config import VARSAYILAN_AYAR, ayar_coz
-from aktapokus_ajan.pipeline import HatHatasi, calistir_hat
-from aktapokus_ajan.runners import opencode_bul, OpenCodeCalistirici
+from aktapokus_ai_studio import guard, snapshot
+from aktapokus_ai_studio.config import VARSAYILAN_AYAR, ayar_coz
+from aktapokus_ai_studio.pipeline import HatHatasi, calistir_hat
+from aktapokus_ai_studio.runners import opencode_bul, OpenCodeCalistirici
 from conftest import SahteCalistirici, sonuc
 
 
@@ -148,7 +148,7 @@ def test_gercek_opencode_klasor_disi_ve_env_engellenir(proje, tmp_path):
 @pytest.mark.skipif(os.environ.get("AKTAPOKUS_GERCEK") != "1" or not opencode_bul(), reason="gercek OpenCode denemesi: AKTAPOKUS_GERCEK=1 ve kurulu OpenCode gerekir")
 def test_gercek_sunucu_modu_koruyucu_ve_ilerleme(proje, tmp_path):
     """Kalici `opencode serve` uzerinden: izinli is yapilir, klasor disi/.env engellenir, sunucu iki cagri arasi acik kalir."""
-    from aktapokus_ajan.sunucu import SunucuCalistirici
+    from aktapokus_ai_studio.sunucu import SunucuCalistirici
 
     (proje / ".env").write_text("SECRET=abc123\n", encoding="utf-8")
     disari = tmp_path / "disari"

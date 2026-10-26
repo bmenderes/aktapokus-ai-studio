@@ -5,9 +5,9 @@ import time
 
 import pytest
 
-from aktapokus_ajan import cli
-from aktapokus_ajan import telegram as tg
-from aktapokus_ajan.arayuz import Uygulama
+from aktapokus_ai_studio import cli
+from aktapokus_ai_studio import telegram as tg
+from aktapokus_ai_studio.arayuz import Uygulama
 from conftest import SahteCalistirici
 from sahte_telegram import TOKEN, SahteTelegram
 from test_arayuz import BASARILI, Engelli, yaz
@@ -242,7 +242,7 @@ def test_bilgisayar_tarafinda_ilerleme_gunlugu_yazilir_icerik_ve_token_yazilmaz(
 def kok_kur(tmp_path):
     """kok1: hazir (git+koruyucu) proje, gitsiz proje, gizli klasor, nokta klasoru, dosya; kok2: bir proje; kok3: bir git deposu (ic ice depo yasagi)."""
     import subprocess as sp
-    from aktapokus_ajan import guard
+    from aktapokus_ai_studio import guard
 
     k1, k2, k3 = tmp_path / "kok1", tmp_path / "kok2", tmp_path / "kok3"
     for p in (k1 / "hazir", k1 / "gitsiz", k1 / "aktapokus-ajan", k1 / ".gizli", k2 / "ikinci", k3 / "ustte-depo-icinde"):
@@ -576,7 +576,7 @@ def test_ctrl_c_uzun_yoklamayi_beklemeden_cikar(monkeypatch, capsys):
         time.sleep(0.01)
 
     kapandi = []
-    from aktapokus_ajan import runners
+    from aktapokus_ai_studio import runners
 
     monkeypatch.setattr(runners, "hepsini_kapat", lambda: kapandi.append(1))
     basla = time.monotonic()
@@ -626,7 +626,7 @@ def test_token_yoksa_komut_yonerge_verir(monkeypatch, tmp_path, capsys):
 
 # ---------- coklu proje P4: sohbet basina aktif proje ----------
 def _iki_proje(kur, tmp_path):
-    from aktapokus_ajan import projeler
+    from aktapokus_ai_studio import projeler
     from test_arayuz import _ikinci_proje
 
     b = _ikinci_proje(tmp_path)

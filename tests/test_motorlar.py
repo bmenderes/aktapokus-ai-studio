@@ -6,10 +6,10 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan import clitanim, config, motorlar
-from aktapokus_ajan.arayuz import ArayuzSunucusu, Uygulama
-from aktapokus_ajan.config import AYAR_KLASORU, ROLLER_DOSYASI, VARSAYILAN_AYAR, ayar_coz
-from aktapokus_ajan.proje import hazirla
+from aktapokus_ai_studio import clitanim, config, motorlar
+from aktapokus_ai_studio.arayuz import ArayuzSunucusu, Uygulama
+from aktapokus_ai_studio.config import AYAR_KLASORU, ROLLER_DOSYASI, VARSAYILAN_AYAR, ayar_coz
+from aktapokus_ai_studio.proje import hazirla
 from test_arayuz import Engelli, Istemci
 
 
@@ -157,7 +157,7 @@ def test_mevcut_ayar_dosyasi_motor_degisse_de_ezilmez(monkeypatch, tmp_path):
 
 # ---------- hata mesajlari ----------
 def test_bulunamayan_cli_mesajlari_ne_yapilacagini_soyler(monkeypatch):
-    from aktapokus_ajan import runners, sunucu
+    from aktapokus_ai_studio import runners, sunucu
 
     monkeypatch.setattr(runners, "claude_bul", lambda: None)
     monkeypatch.setattr(runners, "codex_bul", lambda: None)
@@ -246,12 +246,12 @@ def test_gorev_surerken_roller_gecirilemez(proje, monkeypatch):
 
 
 def test_telegram_motor_gecisine_dokunmaz():
-    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "telegram.py").read_text(encoding="utf-8")
+    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "telegram.py").read_text(encoding="utf-8")
     assert "motor_rolleri_gecir" not in kaynak and "motorlar" not in kaynak
 
 
 def test_arayuz_motor_uyarisini_icerir():
-    html = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     for parca in ('id="motorUyari"', "function motorUyarisi", "/api/motorlar", "/api/motorlar/rolleri-gecir", "hiçbir ajan CLI'ı bulunamadı", "Yeniden kontrol et"):
         assert parca in html, parca
     govde = html.split("async function motorUyarisi")[1].split("(async()=>{if(!T)")[0]
@@ -259,7 +259,7 @@ def test_arayuz_motor_uyarisini_icerir():
 
 
 def test_durum_komutu_uc_cli_icin_de_bulunamadiysa_uyarir(monkeypatch, capsys, tmp_path):
-    from aktapokus_ajan import cli
+    from aktapokus_ai_studio import cli
 
     for ad in ("opencode_bul", "claude_bul", "codex_bul"):
         monkeypatch.setattr(cli, ad, lambda: None)

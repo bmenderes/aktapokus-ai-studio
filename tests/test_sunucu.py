@@ -8,12 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan import guard
-from aktapokus_ajan.config import BILINEN_CALISTIRICILAR, VARSAYILAN_AYAR, ayar_coz
-from aktapokus_ajan.pipeline import calistir_hat
-from aktapokus_ajan.runners import calistirici_olustur, hepsini_kapat
-from aktapokus_ajan.sunucu import Istemci, Sunucu, SunucuCalistirici, SunucuHatasi, mesajlardan_metin, model_coz
-from aktapokus_ajan import sunucu as sunucu_modulu
+from aktapokus_ai_studio import guard
+from aktapokus_ai_studio.config import BILINEN_CALISTIRICILAR, VARSAYILAN_AYAR, ayar_coz
+from aktapokus_ai_studio.pipeline import calistir_hat
+from aktapokus_ai_studio.runners import calistirici_olustur, hepsini_kapat
+from aktapokus_ai_studio.sunucu import Istemci, Sunucu, SunucuCalistirici, SunucuHatasi, mesajlardan_metin, model_coz
+from aktapokus_ai_studio import sunucu as sunucu_modulu
 from sahte_sunucu import SahteSunucu
 
 SAHTE = str(Path(__file__).with_name("sahte_sunucu.py"))
@@ -202,7 +202,7 @@ def test_ebeveyn_zorla_olunce_sunucu_yetim_kalmaz(tmp_path):
     betik = (
         "import sys,time\n"
         f"sys.path.insert(0, {str(kok)!r})\n"
-        "from aktapokus_ajan.sunucu import Sunucu\n"
+        "from aktapokus_ai_studio.sunucu import Sunucu\n"
         f"sv = Sunucu(komut_oneki=[sys.executable, {SAHTE!r}], baslangic_klasoru={str(tmp_path)!r}, hazir_zaman_asimi=30)\n"
         "sv.baslat(); print(sv.islem.pid, flush=True); time.sleep(120)\n"
     )
@@ -248,7 +248,7 @@ def test_sunucu_hazir_olmazsa_zaman_asimi_ve_temizlik(tmp_path):
 
 
 def test_sunucu_cli_yoksa_anlamli_hata(monkeypatch):
-    from aktapokus_ajan import sunucu
+    from aktapokus_ai_studio import sunucu
 
     monkeypatch.setattr(sunucu, "opencode_bul", lambda: None)
     with pytest.raises(SunucuHatasi, match="bulunamadi"):
@@ -291,7 +291,7 @@ def test_hat_sunucu_modunda_koruyucu_sart(tmp_path):
     veri = copy.deepcopy(VARSAYILAN_AYAR)
     for r in veri["roller"].values():
         r["calistirici"] = "opencode-sunucu"
-    from aktapokus_ajan.pipeline import HatHatasi
+    from aktapokus_ai_studio.pipeline import HatHatasi
 
     with pytest.raises(HatHatasi, match="Koruyucu"):  # sunucu modunda koruyucusuz klasor disi yazma SORUSUZ olur (gercek denemede goruldu)
         calistir_hat(k, "g", ayar_coz(veri), lambda ad: None, lambda q: True)

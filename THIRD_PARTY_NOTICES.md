@@ -1,7 +1,7 @@
 # Third-party notices
 
 Aktapokus AI Studio itself is MIT licensed (see `LICENSE`). It bundles the following third-party files under
-`aktapokus_ajan/web/vendor/` (full license texts are in the same folder):
+`aktapokus_ai_studio/web/vendor/` (full license texts are in the same folder):
 
 | Component | Version | License | Source |
 | --- | --- | --- | --- |
@@ -9,7 +9,7 @@ Aktapokus AI Studio itself is MIT licensed (see `LICENSE`). It bundles the follo
 | xterm-addon-fit (`addon-fit.js`) | 0.11.0 | MIT | https://github.com/xtermjs/xterm.js |
 | Inter variable font (`inter-*.woff2`) | 5.3.0 (@fontsource-variable/inter) | SIL Open Font License 1.1 | https://github.com/rsms/inter |
 
-Integrity hashes and download details: `aktapokus_ajan/web/vendor/SURUMLER.txt`.
+Integrity hashes and download details: `aktapokus_ai_studio/web/vendor/SURUMLER.txt`.
 
 ## Tools this project drives but does NOT include
 

@@ -4,10 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan import clitanim, runners
-from aktapokus_ajan.clitanim import CliTanim, TanimHatasi, TanimliCalistirici, tanim_coz
-from aktapokus_ajan.config import AyarHatasi, ayar_coz
-from aktapokus_ajan.runners import CalistiriciHatasi
+from aktapokus_ai_studio import clitanim, runners
+from aktapokus_ai_studio.clitanim import CliTanim, TanimHatasi, TanimliCalistirici, tanim_coz
+from aktapokus_ai_studio.config import AyarHatasi, ayar_coz
+from aktapokus_ai_studio.runners import CalistiriciHatasi
 
 SAHTE = str(Path(__file__).with_name("sahte_cli.py"))
 

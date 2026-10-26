@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from aktapokus_ajan import uygulama, cli
+from aktapokus_ai_studio import uygulama, cli
 
 
 @pytest.fixture(autouse=True)
@@ -142,7 +142,7 @@ def test_pencere_acilamazsa_sunucu_yine_kapanir(proje, tmp_path, monkeypatch):
     monkeypatch.setattr(uygulama, "sessiz_alt_surecler", lambda: None)
     monkeypatch.setattr(uygulama, "hata_goster", lambda m: uygulama.log_yaz("HATA: " + m))
     kapatilan = []
-    from aktapokus_ajan import arayuz
+    from aktapokus_ai_studio import arayuz
 
     asil = arayuz.ArayuzSunucusu.kapat
     monkeypatch.setattr(arayuz.ArayuzSunucusu, "kapat", lambda self: (kapatilan.append(1), asil(self))[1])
@@ -223,7 +223,7 @@ def test_ikinci_kopya_sunucu_baslatmadan_cikar(baska_canli_surec, tmp_path, monk
     uygulama.kilit_yolu().write_text(str(baska_canli_surec.pid), encoding="utf-8")
     kutular = []
     monkeypatch.setattr(uygulama, "bilgi_goster", lambda m: kutular.append(m))
-    from aktapokus_ajan import arayuz
+    from aktapokus_ai_studio import arayuz
 
     baslayan = []
     def baslat(self):  # kilit denetimi atlanirsa burasi cagrilir: hemen OSError (sunucu hic baslamadigi icin kapat() beklemez)
@@ -361,5 +361,5 @@ def test_tolerans_SON_baglantidan_itibaren_sayilir_ilk_baglantidan_degil():
 
 
 def test_sayfa_cevirme_ve_simge_isaretlerini_icerir():
-    html = (Path(__file__).parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     assert '<html lang="tr" translate="no">' in html and '<meta name="google" content="notranslate">' in html

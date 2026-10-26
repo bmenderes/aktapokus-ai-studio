@@ -4,10 +4,10 @@ import json
 
 import pytest
 
-from aktapokus_ajan import sunucu
-from aktapokus_ajan.arayuz import ArayuzSunucusu, Uygulama, UygulamaHatasi
-from aktapokus_ajan.runners import CalistiriciHatasi
-from aktapokus_ajan.sunucu import Istemci, SunucuHatasi
+from aktapokus_ai_studio import sunucu
+from aktapokus_ai_studio.arayuz import ArayuzSunucusu, Uygulama, UygulamaHatasi
+from aktapokus_ai_studio.runners import CalistiriciHatasi
+from aktapokus_ai_studio.sunucu import Istemci, SunucuHatasi
 from test_arayuz import Istemci as HttpIstemci  # noqa: F401  (HTTP test istemcisi)
 
 ANAHTAR = "SAHTE-anahtar-0123456789"

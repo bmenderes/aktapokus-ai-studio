@@ -4,7 +4,7 @@ Bu test, test_terminal.py'nin ConPTY yokken atlanmasina ragmen bu gerilemeyi YAK
 
 import pytest
 
-from aktapokus_ajan import terminal
+from aktapokus_ai_studio import terminal
 
 
 @pytest.mark.skipif(not terminal.destekleniyor(), reason="ConPTY yalniz Windows 10 (1809+) / 11'de")

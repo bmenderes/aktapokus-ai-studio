@@ -39,7 +39,7 @@ def test_git_uclari_belirtec_ister_ve_yabanci_origin_reddedilir(gitapi):
 
 
 def test_telegram_git_istemcisine_dokunmaz():
-    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "telegram.py").read_text(encoding="utf-8")
+    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "telegram.py").read_text(encoding="utf-8")
     assert "app.git_" not in kaynak and "gityonet" not in kaynak
 
 
@@ -143,7 +143,7 @@ def test_gorev_surerken_agaci_degistiren_git_islemleri_reddedilir_okuma_ve_cekme
 
 
 def test_commit_onerisi_son_committen_beri_korunan_gorevlerden_uretilir(gitapi):
-    from aktapokus_ajan.pipeline import _kayit_klasoru
+    from aktapokus_ai_studio.pipeline import _kayit_klasoru
 
     app, _, istek, proje, _ = gitapi
     kayit_dizini = _kayit_klasoru(proje)
@@ -211,7 +211,7 @@ def test_gecmis_dallar_stash_ve_oneri_ayni_anda_istenince_hata_vermez(gitapi):
 
 
 def test_arayuz_git_sekmesi_bolumleri_ve_onaylari_icerir():
-    html = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     for parca in ('data-p="p-git"', 'id="p-git"', "function gitPaneliYukle", "/api/git/hazirla", "/api/git/hazirdan-cikar", "/api/git/degisiklik-at", "/api/git/gecmis", "/api/git/dallar",
                   "/api/git/stashler", "/api/git/stash-uygula", "/api/git/birlestir", "/api/git/commit-oneri", "yalniz_hazir:true", "Gizli görünen"):
         assert parca in html or parca == "Gizli görünen", parca

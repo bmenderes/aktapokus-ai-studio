@@ -6,7 +6,7 @@ echo Once kur.bat dosyasini calistirin ^(bir kerelik kurulum^).
 pause
 exit /b 1
 :var
-".venv\Scripts\python.exe" -u -m aktapokus_ajan ui --tarayici %*
+".venv\Scripts\python.exe" -u -m aktapokus_ai_studio ui --tarayici %*
 echo.
 echo Arayuz durdu.
 pause

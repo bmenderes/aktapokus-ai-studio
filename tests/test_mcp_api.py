@@ -8,10 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan import beceriler, mcptanim, projeler
-from aktapokus_ajan.arayuz import ArayuzSunucusu, Uygulama
-from aktapokus_ajan.runners import ClaudeCodeCalistirici, CodexCalistirici
-from aktapokus_ajan.sunucu import SunucuCalistirici, SunucuHatasi
+from aktapokus_ai_studio import beceriler, mcptanim, projeler
+from aktapokus_ai_studio.arayuz import ArayuzSunucusu, Uygulama
+from aktapokus_ai_studio.runners import ClaudeCodeCalistirici, CodexCalistirici
+from aktapokus_ai_studio.sunucu import SunucuCalistirici, SunucuHatasi
 from test_arayuz import Istemci
 
 GIZLI = "super-gizli-anahtar-9876"
@@ -84,7 +84,7 @@ def test_yabanci_origin_reddedilir(api):
 
 
 def test_telegram_mcp_ve_becerilere_dokunmaz():
-    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "telegram.py").read_text(encoding="utf-8")
+    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "telegram.py").read_text(encoding="utf-8")
     assert "mcp_kaydet" not in kaynak and "mcp_sil" not in kaynak and "beceri_kaydet" not in kaynak and "beceri_sil" not in kaynak and "mcptanim" not in kaynak
 
 
@@ -235,7 +235,7 @@ def test_claude_komutu_yalniz_mcp_varsa_bayrak_ekler_ve_yalniz_o_sunuculari_izin
 
 
 def test_claude_calistir_gecici_mcp_dosyasi_yazar_ve_kullanici_ayarina_dokunmaz(monkeypatch, tmp_path):
-    from aktapokus_ajan import runners
+    from aktapokus_ai_studio import runners
 
     yakalanan = {}
 
@@ -379,7 +379,7 @@ def test_beceri_yolu_kisa_8_3_adla_gelse_de_duzenlenebilir_sayilir(api, monkeypa
 
 
 def test_ayarlar_sayfasi_mcp_ve_beceri_bolumlerini_icerir():
-    html = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     for parca in ('["mcp","MCP sunucuları"]', '["beceriler","Beceriler"]', "function mcpBolumu", "function mcpFormu", "function beceriBolumu", "function beceriFormu",
                   "/api/mcp-sunuculari/dene", "/api/mcp-sunuculari/proje", "/api/beceriler/sil"):
         assert parca in html, parca

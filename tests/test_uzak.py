@@ -10,8 +10,8 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan import uzak
-from aktapokus_ajan.arayuz import ArayuzSunucusu, Uygulama
+from aktapokus_ai_studio import uzak
+from aktapokus_ai_studio.arayuz import ArayuzSunucusu, Uygulama
 from test_arayuz import Istemci
 
 SAHTE_TS = str(Path(__file__).with_name("sahte_tailscale.py"))
@@ -393,12 +393,12 @@ def test_sunucu_kapaninca_uzak_dinleyici_de_kapanir(ortam, proje):
 
 
 def test_telegram_uzak_erisime_dokunmaz():
-    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "telegram.py").read_text(encoding="utf-8")
+    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "telegram.py").read_text(encoding="utf-8")
     assert "uzak_ayarla" not in kaynak and "uzak_anahtar" not in kaynak and "import uzak" not in kaynak and "from . import uzak" not in kaynak
 
 
 def test_kaynakta_tum_arayuzlere_baglanma_yok():
-    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "arayuz.py").read_text(encoding="utf-8")
+    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "arayuz.py").read_text(encoding="utf-8")
     assert '"0.0.0.0"' not in kaynak and '("", ' not in kaynak and "YEREL_ISTEMCILER" in kaynak
 
 
@@ -435,7 +435,7 @@ def test_reddedilen_istegin_govdesi_ayni_baglantidaki_sonraki_istegi_bozmaz(sunu
 
 
 def test_arayuz_uzak_erisim_bolumu_ve_telefon_duzeni():
-    html = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     for parca in ('["uzak","Uzak erişim"]', "function uzakBolumu", "function uzakDuzen", "/api/uzak/anahtar-yenile", 'id="mobilGezinme"', "function mobilGoster", "@media (max-width:900px)",
                   'data-m="sol"', 'data-m="orta"', 'data-m="sag"', 'id="motorUyari"'):
         assert parca in html, parca
@@ -447,5 +447,5 @@ def test_arayuz_uzak_erisim_bolumu_ve_telefon_duzeni():
 
 
 def test_politika_tablosu_politika_uygulanmadan_once_govdeyi_tuketir():
-    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "arayuz.py").read_text(encoding="utf-8")
+    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "arayuz.py").read_text(encoding="utf-8")
     assert "_govdeyi_bosalt" in kaynak and "def _yol_ic" in kaynak

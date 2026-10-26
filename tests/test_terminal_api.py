@@ -7,8 +7,8 @@ import time
 
 import pytest
 
-from aktapokus_ajan import terminal
-from aktapokus_ajan.arayuz import ArayuzSunucusu, Uygulama
+from aktapokus_ai_studio import terminal
+from aktapokus_ai_studio.arayuz import ArayuzSunucusu, Uygulama
 from test_arayuz import Istemci, bekle
 
 CONPTY = terminal.kontrol()
@@ -158,7 +158,7 @@ def test_sunucu_kapanirken_terminaller_de_kapanir(proje):
     pid = t.pid
     sv.kapat()
     assert bekle(lambda: not t.canli, 10)
-    from aktapokus_ajan import uygulama
+    from aktapokus_ai_studio import uygulama
 
     assert bekle(lambda: not uygulama.surec_canli_mi(pid), 10)
     assert app.terminaller == {}
@@ -176,7 +176,7 @@ def test_bitmis_terminal_yeni_acilista_temizlenir(api):
 
 
 def test_arayuz_sayfasi_terminal_dugmesini_ve_vendor_yollarini_icerir():
-    from aktapokus_ajan.arayuz import WEB
+    from aktapokus_ai_studio.arayuz import WEB
 
     html = (WEB / "index.html").read_text(encoding="utf-8")
     for parca in ('id="terminalDugme"', 'id="terminalSayfa"', "/vendor/xterm.js", "/vendor/addon-fit.js", "/api/terminal/ac"):
@@ -184,7 +184,7 @@ def test_arayuz_sayfasi_terminal_dugmesini_ve_vendor_yollarini_icerir():
 
 
 def test_inter_yazi_tipi_sunulur_ve_arayuzde_tanimlidir(api):
-    from aktapokus_ajan.arayuz import WEB
+    from aktapokus_ai_studio.arayuz import WEB
 
     _, sv, _ = api
     for ad in ("inter-latin-wght-normal.woff2", "inter-latin-ext-wght-normal.woff2"):

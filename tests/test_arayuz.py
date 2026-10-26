@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan import guard
-from aktapokus_ajan.arayuz import ArayuzSunucusu, OlayAkisi, Uygulama, gizli_mi, guvenli_goreli
-from aktapokus_ajan.runners import Calistirici, CalistirmaSonucu
+from aktapokus_ai_studio import guard
+from aktapokus_ai_studio.arayuz import ArayuzSunucusu, OlayAkisi, Uygulama, gizli_mi, guvenli_goreli
+from aktapokus_ai_studio.runners import Calistirici, CalistirmaSonucu
 from conftest import SahteCalistirici, sonuc
 
 BASARILI = lambda k, i, n: sonuc("tamam\nSONUC: BASARILI")  # noqa: E731
@@ -123,7 +123,7 @@ def test_token_ve_host_zorunlu(kur):
 
 
 def test_arayuz_dis_kaynak_yuklemez():
-    html = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     assert "cdn" not in html.lower() and "googleapis" not in html and 'src="http' not in html and "https://" not in html.replace("rel=\"noopener", "")
 
 
@@ -438,7 +438,7 @@ def test_cli_rolde_kullaniliyorsa_silinmez(kur):
 
 
 def test_cli_dene_modelsizse_onerilenlerin_ilkini_kullanir_yazma_izni_vermez(kur, monkeypatch):
-    from aktapokus_ajan import arayuz
+    from aktapokus_ai_studio import arayuz
 
     gorulen = {}
 
@@ -460,7 +460,7 @@ def test_cli_dene_modelsizse_onerilenlerin_ilkini_kullanir_yazma_izni_vermez(kur
 
 def test_eklenen_cli_ile_gercek_hat_calisir(kur, tmp_path):
     """Rol ayari eklenen CLI'i secebilir ve hat onu genel calistirici uzerinden surer (sahte yerine gercek calistirici)."""
-    from aktapokus_ajan.runners import calistirici_olustur
+    from aktapokus_ai_studio.runners import calistirici_olustur
 
     app, sv, api, _ = kur(uret=calistirici_olustur)
     klasor_sec(api, kur.proje)
@@ -520,7 +520,7 @@ def test_gecmis_klasor_secilmeden_hata(kur):
 
 # ---------- ayarlar sayfasi (iskelet) ----------
 def test_arayuz_sayfasi_ayarlar_iskeletini_icerir():
-    html = (Path(__file__).parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     assert 'id="ayarlar"' in html and 'id="ayarDugme"' in html and 'id="ayarMenu"' in html and 'id="ayarIcerik"' in html
     for bolum in ("genel", "saglayicilar", "modeller", "clilar", "roller", "kullanim", "hakkinda"):
         assert f'["{bolum}",' in html, bolum
@@ -528,7 +528,7 @@ def test_arayuz_sayfasi_ayarlar_iskeletini_icerir():
 
 
 def test_ana_ekran_hermes_duzeni_ogelerini_icerir():
-    html = (Path(__file__).parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     for kimlik in ("yeniGorev", "ortamCipi", "gecmis", "rolCipleri", "durumCubugu", "durumMetni", "tokenYazi", "baglanti", "gitRozet", "korRozet", "ayarDugme"):
         assert f'id="{kimlik}"' in html, kimlik
     assert 'id="roller"' not in html and 'id="akisCipi"' not in html  # eski rol listesi ve duz yazi cipi kalktı
@@ -541,7 +541,7 @@ def test_favicon_tokensiz_servis_edilir_ve_sayfa_ona_baglanir(kur):
     app, sv, api, _ = kur()
     st, ham = api("GET", "/favicon.ico", token=None)  # token YOK: tarayici simgeyi belirtecsiz ister
     assert st == 200 and isinstance(ham, bytes) and ham[:4] == bytes([0, 0, 1, 0])  # gecerli ICO baslik
-    html = (Path(__file__).parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     assert '<link rel="icon" href="/favicon.ico"' in html
     assert api("GET", "/favicon.ico", token=None, host="evil.example")[0] == 403  # Host denetimi simge icin de gecerli
     assert api("GET", "/baska.ico", token=None)[0] == 404
@@ -593,12 +593,12 @@ def test_onizleme_proje_degisince_yeni_klasoru_sunar(kur, tmp_path):
 
 
 def test_cikti_sekmesi_ve_paneli_sayfada_var():
-    html = (Path(__file__).parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     assert 'data-p="p-ciktilar"' in html and 'id="p-ciktilar"' in html and "function ciktilariYukle" in html and "/api/ciktilar" in html
 
 
 def test_esnek_paneller_bolucu_dugme_ve_izgara_yerlesimi():
-    html = (Path(__file__).parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")  # text modu satir sonlarini zaten LF yapar
+    html = (Path(__file__).parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")  # text modu satir sonlarini zaten LF yapar
     for kimlik in ("solDugme", "sagDugme", "bolucuSol", "bolucuSag", "onizAyri"):
         assert f'id="{kimlik}"' in html, kimlik
     # izgara sirasi: sol | bolucu | orta | bolucu | sag (bolucular ARADA)
@@ -613,7 +613,7 @@ def test_esnek_paneller_bolucu_dugme_ve_izgara_yerlesimi():
 
 
 def test_ayarlar_telegram_bolumu_sayfada_var():
-    html = (Path(__file__).parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     assert '["telegram","Telegram"]' in html and "function telegramBolumu" in html and "/api/telegram" in html
     assert "clearInterval(S.telegramZ)" in html  # bolumden cikinca yoklama durur (arka planda bosuna istek atmaz)
 
@@ -630,7 +630,7 @@ def _ikinci_proje(tmp_path):
 
 
 def test_olaylar_proje_kimligiyle_etiketlenir(kur):
-    from aktapokus_ajan import projeler
+    from aktapokus_ai_studio import projeler
 
     app, sv, api, _ = kur()
     tam_kosu(app, api, kur.proje)
@@ -640,7 +640,7 @@ def test_olaylar_proje_kimligiyle_etiketlenir(kur):
 
 
 def test_kosu_baslatildigi_projeye_bagli_kalir_secili_proje_degisse_bile(kur, tmp_path):
-    from aktapokus_ajan import projeler
+    from aktapokus_ai_studio import projeler
 
     serbest, basladi = threading.Event(), threading.Event()
 
@@ -685,7 +685,7 @@ def test_ayni_klasor_yeniden_secilince_yeni_bos_oturum_olur(kur):
 # ---------- coklu proje P2: es zamanli projeler ----------
 def _iki_proje_calisan(kur, tmp_path):
     """A ve B projelerinde ayni anda birer gorev baslatir; her gorevin kendi (ayri) calistirici ornegi vardir."""
-    from aktapokus_ajan import projeler
+    from aktapokus_ai_studio import projeler
 
     ornekler = []
 
@@ -755,7 +755,7 @@ def test_proje_oneki_bilinmeyen_projeye_404_ve_klasor_secemez(kur):
     klasor_sec(api, kur.proje)
     assert api("GET", "/api/p/0123456789/durum")[0] == 404
     assert api("GET", "/api/p/ZZZ/durum")[0] == 404
-    from aktapokus_ajan import projeler
+    from aktapokus_ai_studio import projeler
 
     a = projeler.proje_kimligi(kur.proje)
     assert api("POST", f"/api/p/{a}/klasor", {"yol": str(kur.proje)})[0] == 400
@@ -764,7 +764,7 @@ def test_proje_oneki_bilinmeyen_projeye_404_ve_klasor_secemez(kur):
 
 
 def test_proje_baglami_secili_projeyi_degistirmez(kur, tmp_path):
-    from aktapokus_ajan import projeler
+    from aktapokus_ai_studio import projeler
 
     app, sv, api, _ = kur()
     ikinci = _ikinci_proje(tmp_path)
@@ -793,7 +793,7 @@ def test_projenin_sonraki_adimi_secili_proje_baskayken_basliyorsa_yine_kendi_otu
 
 # ---------- coklu proje P3: kenar cubugu gruplari ----------
 def test_proje_gruplari_son_gorevler_ve_durum(kur, tmp_path):
-    from aktapokus_ajan import projeler
+    from aktapokus_ai_studio import projeler
 
     app, sv, api, _ = kur()
     ikinci = _ikinci_proje(tmp_path)
@@ -811,7 +811,7 @@ def test_proje_gruplari_son_gorevler_ve_durum(kur, tmp_path):
 
 
 def test_proje_gruplari_calisan_projeyi_gosterir_ve_acik_olmayani_da_listeler(kur, tmp_path):
-    from aktapokus_ajan import projeler
+    from aktapokus_ai_studio import projeler
 
     app, api, ornekler, (a, ka), (b, kb) = _iki_proje_calisan(kur, tmp_path)
     try:
@@ -834,7 +834,7 @@ def test_proje_gruplari_belirtec_ister(kur):
 
 
 def test_arayuz_kenar_cubugu_proje_gruplari_icin_gerekli_parcalari_icerir():
-    html = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     for parca in ('id="kenarAra"', 'id="yeniProje"', "/api/proje-gruplari", "projeGorunumuKur", "Son görevler", "Daha fazla göster", "arkaPlanOlayi"):
         assert parca in html, parca
     assert "görev çalışırken proje değiştirilemez" not in html  # P2'den beri proje degistirmek serbest
@@ -842,7 +842,7 @@ def test_arayuz_kenar_cubugu_proje_gruplari_icin_gerekli_parcalari_icerir():
 
 # ---------- coklu proje P5: proje basina onizleme ----------
 def test_her_projenin_onizlemesi_kendi_portunda_ve_secim_degisse_de_sasmaz(kur, tmp_path):
-    from aktapokus_ajan import projeler
+    from aktapokus_ai_studio import projeler
 
     app, sv, api, _ = kur()
     ikinci = _ikinci_proje(tmp_path)

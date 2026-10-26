@@ -4,8 +4,8 @@ import subprocess
 
 import pytest
 
-from aktapokus_ajan import runners
-from aktapokus_ajan.runners import (
+from aktapokus_ai_studio import runners
+from aktapokus_ai_studio.runners import (
     CalistiriciHatasi,
     ClaudeCodeCalistirici,
     OpenCodeCalistirici,

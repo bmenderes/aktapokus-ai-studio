@@ -21,13 +21,13 @@ Homepage = "https://github.com/bmenderes/aktapokus-ai-studio"
 Repository = "https://github.com/bmenderes/aktapokus-ai-studio"
 
 [project.scripts]
-aktapokus = "aktapokus_ajan.cli:main_giris"
+aktapokus = "aktapokus_ai_studio.cli:main_giris"
 
 [tool.setuptools]
-packages = ["aktapokus_ajan"]
+packages = ["aktapokus_ai_studio"]
 
 [tool.setuptools.package-data]
-aktapokus_ajan = ["web/*.html", "web/*.ico", "web/vendor/*"]
+aktapokus_ai_studio = ["web/*.html", "web/*.ico", "web/vendor/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

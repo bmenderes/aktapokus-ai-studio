@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan import ciktilar
-from aktapokus_ajan.arayuz import ArayuzSunucusu, Uygulama, guvenli_goreli
+from aktapokus_ai_studio import ciktilar
+from aktapokus_ai_studio.arayuz import ArayuzSunucusu, Uygulama, guvenli_goreli
 from test_arayuz import BASARILI, Istemci, klasor_sec
 from conftest import SahteCalistirici, sonuc
 

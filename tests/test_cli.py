@@ -1,8 +1,8 @@
 import json
 import subprocess
 
-from aktapokus_ajan import cli
-from aktapokus_ajan.config import AYAR_KLASORU
+from aktapokus_ai_studio import cli
+from aktapokus_ai_studio.config import AYAR_KLASORU
 from conftest import SahteCalistirici, sonuc
 
 
@@ -104,7 +104,7 @@ def test_calistir_ayar_yoksa_ve_git_yoksa_net_hata(tmp_path, proje, capsys):
     k = tmp_path / "gitsiz"
     k.mkdir()
     (k / AYAR_KLASORU).mkdir()
-    from aktapokus_ajan.config import VARSAYILAN_AYAR
+    from aktapokus_ai_studio.config import VARSAYILAN_AYAR
 
     (k / AYAR_KLASORU / "roller.json").write_text(json.dumps(VARSAYILAN_AYAR), encoding="utf-8")
     assert cli.main(["calistir", "g", "--klasor", str(k), "--evet"]) == cli.CIKIS_HATA

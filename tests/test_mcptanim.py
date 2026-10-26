@@ -3,7 +3,7 @@ import sys
 
 import pytest
 
-from aktapokus_ajan import mcptanim as m
+from aktapokus_ai_studio import mcptanim as m
 
 SAHTE = {"ad": "sahte", "tur": "local", "komut": [sys.executable, "sunucu.py", "--x"], "ortam": {"ANAHTAR": "gizli-deger-123"}}
 P1, P2 = "a" * 10, "b" * 10

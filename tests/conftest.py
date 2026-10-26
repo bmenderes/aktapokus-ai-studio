@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan import guard, snapshot
-from aktapokus_ajan.runners import Calistirici, CalistirmaSonucu
+from aktapokus_ai_studio import guard, snapshot
+from aktapokus_ai_studio.runners import Calistirici, CalistirmaSonucu
 
 
 @pytest.fixture
@@ -66,7 +66,7 @@ def proje_kayit_yalitimi(tmp_path_factory, monkeypatch):
 @pytest.fixture(autouse=True)
 def telegram_yonetici_yalitimi(tmp_path_factory, monkeypatch):
     """Arayuz ayari gecici; yoneticinin varsayilan token'i YOK: hicbir test gercek token'la gercek Telegram'a baglanmaz."""
-    from aktapokus_ajan import telegram_yonetici
+    from aktapokus_ai_studio import telegram_yonetici
 
     monkeypatch.setenv("AKTAPOKUS_ARAYUZ_AYAR", str(tmp_path_factory.mktemp("arayuzayar") / "arayuz-ayar.json"))
     monkeypatch.setattr(telegram_yonetici, "_varsayilan_token", lambda: None)

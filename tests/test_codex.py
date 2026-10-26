@@ -5,10 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan import runners
-from aktapokus_ajan.config import BILINEN_CALISTIRICILAR, VARSAYILAN_AYAR, ayar_coz
-from aktapokus_ajan.pipeline import calistir_hat
-from aktapokus_ajan.runners import CalistiriciHatasi, CodexCalistirici, calistirici_olustur, codex_bul, codex_olaylarini_coz
+from aktapokus_ai_studio import runners
+from aktapokus_ai_studio.config import BILINEN_CALISTIRICILAR, VARSAYILAN_AYAR, ayar_coz
+from aktapokus_ai_studio.pipeline import calistir_hat
+from aktapokus_ai_studio.runners import CalistiriciHatasi, CodexCalistirici, calistirici_olustur, codex_bul, codex_olaylarini_coz
 
 SAHTE = str(Path(__file__).with_name("sahte_codex.py"))
 
@@ -173,8 +173,8 @@ def test_hat_codex_kodcu_opencode_test_karisik_roller(proje):
 
 
 # ---------- Codex'in OpenCode koruyucusu YOK: gizli dosya taramasi (gercek denemede .env okundu ve yanitta gorundu) ----------
-from aktapokus_ajan import guard
-from aktapokus_ajan.pipeline import HatHatasi
+from aktapokus_ai_studio import guard
+from aktapokus_ai_studio.pipeline import HatHatasi
 
 
 def codex_ayari(**rol_ek):

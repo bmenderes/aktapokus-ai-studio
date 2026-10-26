@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan import terminal, uygulama
+from aktapokus_ai_studio import terminal, uygulama
 
 pytestmark = pytest.mark.skipif(
     not terminal.kontrol(),
@@ -155,7 +155,7 @@ def test_uygulama_zorla_oldurulunce_terminal_surecleri_de_olur(tmp_path):
     kok = str(Path(__file__).resolve().parent.parent)
     kod = (
         "import sys, time; sys.path.insert(0, sys.argv[1]);"
-        "from aktapokus_ajan import terminal;"
+        "from aktapokus_ai_studio import terminal;"
         "t = terminal.Terminal(['cmd.exe']); t.yaz(b'ping -n 120 127.0.0.1 > nul\\r\\n');"
         "print(t.pid, flush=True); time.sleep(120)"
     )

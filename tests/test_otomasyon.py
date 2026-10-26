@@ -9,9 +9,9 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan import otomasyon as oto
-from aktapokus_ajan import projeler, uzak
-from aktapokus_ajan.arayuz import ArayuzSunucusu, Uygulama
+from aktapokus_ai_studio import otomasyon as oto
+from aktapokus_ai_studio import projeler, uzak
+from aktapokus_ai_studio.arayuz import ArayuzSunucusu, Uygulama
 from conftest import SahteCalistirici
 from test_arayuz import Istemci, _ikinci_proje, bekle
 from test_telegram import UID, kur as telegram_kur, son_klavye  # noqa: F401  (telegram_kur: pytest fixture'i)
@@ -88,7 +88,7 @@ def test_otomasyon_tanimlari_proje_klasorunden_okunmaz(proje):
     (proje / ".aktapokus").mkdir(exist_ok=True)
     (proje / ".aktapokus" / "otomasyonlar.json").write_text(json.dumps({"otomasyonlar": [sablon(ad="zehirli", gorev="rm -rf")]}), encoding="utf-8")
     assert oto.yukle() == {}
-    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "otomasyon.py").read_text(encoding="utf-8")
+    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "otomasyon.py").read_text(encoding="utf-8")
     assert "klasor" not in kaynak.split('"""', 2)[2].replace("kullanici klasorunde", "")  # modul hicbir proje klasorune bakmaz
 
 
@@ -254,14 +254,14 @@ def test_telegram_tanimlayamaz_gecersiz_kapali_ve_bilinmeyen_adlar_reddedilir(te
 
 
 def test_telegram_otomasyon_tanimlama_koduna_sahip_degil():
-    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "telegram.py").read_text(encoding="utf-8")
+    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "telegram.py").read_text(encoding="utf-8")
     for yasak in ("otomasyon_kaydet", "otomasyon_sil", "otomasyon.kaydet", "otomasyon.sil", "otomasyon.coz"):
         assert yasak not in kaynak, yasak
 
 
 # ---------- arayuz ----------
 def test_arayuz_otomasyon_bolumu():
-    html = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     for parca in ('["otomasyon","Otomasyonlar"]', "function otomasyonBolumu", "function otomasyonFormu", "/api/otomasyonlar", "/api/otomasyon-calistir", "Şimdi çalıştır", "yalnızca PLAN"):
         assert parca in html, parca
     govde = html.split("async function otomasyonBolumu")[1].split("(async()=>{if(!T)")[0]

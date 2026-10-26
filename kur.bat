@@ -58,7 +58,7 @@ echo QR kod destegi atlandi ^(isteginize bagli; baglanti yine yazdirilir^).
 
 echo.
 echo --- Kurulum denetimi ---
-".venv\Scripts\python.exe" -m aktapokus_ajan durum --arac
+".venv\Scripts\python.exe" -m aktapokus_ai_studio durum --arac
 if errorlevel 1 goto :denetim_hata
 
 echo.

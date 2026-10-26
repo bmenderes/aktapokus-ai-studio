@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan.config import VARSAYILAN_AYAR, AyarHatasi, ayar_coz, ayar_yukle, ayar_yolu
-from aktapokus_ajan.klasor import KlasorHatasi, guvenli_klasor
+from aktapokus_ai_studio.config import VARSAYILAN_AYAR, AyarHatasi, ayar_coz, ayar_yukle, ayar_yolu
+from aktapokus_ai_studio.klasor import KlasorHatasi, guvenli_klasor
 
 
 def ayar(**degisim):

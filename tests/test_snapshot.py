@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan import snapshot
+from aktapokus_ai_studio import snapshot
 
 
 def oku(p: Path) -> str:

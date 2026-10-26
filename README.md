@@ -2,7 +2,7 @@
 
 OpenCode, Claude Code ve Codex gibi **kod ajanı CLI'ları için yerel kontrol katmanı**: rol/model bazlı çalıştırma, plan onayı, otomatik anlık görüntü ve geri alma (git deposu gerekmez), çoklu proje, ortak MCP, Telegram'dan kontrol ve GitHub Desktop benzeri Git yönetimi. Yalnızca standart kütüphane; ek bağımlılık yok.
 
-> Depo eskiden `aktapokus-ajan` adındaydı (GitHub eski adresi yeni adrese yönlendirir). Python paketi ve komutlar aynı kaldı: `python -m aktapokus_ajan ...`, `aktapokus ...`.
+> Depo eskiden `aktapokus-ajan` adındaydı (GitHub eski adresi yeni adrese yönlendirir). Python paketi de `aktapokus_ajan` iken `aktapokus_ai_studio` oldu (`python -m aktapokus_ai_studio ...`); `aktapokus ...` komutu aynı kaldı.
 
 ## Gereksinimler
 
@@ -21,10 +21,10 @@ OpenCode, Claude Code ve Codex gibi **kod ajanı CLI'ları için yerel kontrol k
 ## Kullanım
 
 ```bat
-python -m aktapokus_ajan ac C:\yol\proje --git-baslat   :: klasörü hazırla (ayar dosyası + git)
-python -m aktapokus_ajan calistir "görev metni" --klasor C:\yol\proje
-python -m aktapokus_ajan geri-al --klasor C:\yol\proje
-python -m aktapokus_ajan durum --klasor C:\yol\proje
+python -m aktapokus_ai_studio ac C:\yol\proje --git-baslat   :: klasörü hazırla (ayar dosyası + git)
+python -m aktapokus_ai_studio calistir "görev metni" --klasor C:\yol\proje
+python -m aktapokus_ai_studio geri-al --klasor C:\yol\proje
+python -m aktapokus_ai_studio durum --klasor C:\yol\proje
 ```
 
 (`pip install -e .` sonrası `aktapokus ...`.) Roller, modeller, bütçe `<proje>\.aktapokus\roller.json` içinde. Varsayılan hat: **kodcu → test**; test `SONUC: BASARILI/BASARISIZ` demezse düzeltme döngüsü (en fazla `azami_duzeltme`), token bütçesi aşılınca durur, bitişte sesli bildirim.
@@ -111,7 +111,7 @@ Yazı kutusunun altındaki rol akışı çipine ve sol listedeki rollere tıklam
 
 ## Masaüstü uygulaması modu (kendi penceresi, kısayol)
 
-`kisayol-olustur.bat` masaüstüne **Aktapokus** kısayolu koyar (kendi simgesiyle). Çift tıklayınca: siyah pencere olmadan arayüz sunucusu arka planda başlar, Edge (yoksa Chrome) adres çubuğu olmayan **kendi uygulama penceresinde** açar; **pencereyi kapatınca sunucu ve alttaki OpenCode süreci de kapanır**. Elle: `python -m aktapokus_ajan ui --uygulama [--klasor C:\proje]`.
+`kisayol-olustur.bat` masaüstüne **Aktapokus** kısayolu koyar (kendi simgesiyle). Çift tıklayınca: siyah pencere olmadan arayüz sunucusu arka planda başlar, Edge (yoksa Chrome) adres çubuğu olmayan **kendi uygulama penceresinde** açar; **pencereyi kapatınca sunucu ve alttaki OpenCode süreci de kapanır**. Elle: `python -m aktapokus_ai_studio ui --uygulama [--klasor C:\proje]`.
 
 - **Son proje hatırlanır** (`~/.aktapokus/uygulama.json`); `--klasor` verilmezse o açılır.
 - **Tek kopya:** kısayola ikinci kez tıklanırsa "zaten açık" bilgisi gösterilir (aynı tarayıcı profiline bağlanıp anında kapanan ikinci sunucuyu önler). Kilit dosyası `~/.aktapokus/uygulama.kilit`; ölü süreçten kalan kilit yok sayılır. Yanlışlıkla "zaten açık" derse o dosyayı silin.
@@ -174,7 +174,7 @@ Token'ı **siz** `~/.aktapokus/telegram.token` dosyasına (ya da `AKTAPOKUS_TELE
 
 Bilgisayara özgü olanlar (taşınmaz, her yerde ayrı kurulur): Telegram token'ı ve eşleşme (`~\.aktapokus\telegram.*`), proje kökleri, `aktapokus-klon` bilgi birikimi (`~\.aktapokus\klon`). Başlatma dosyaları klasörün kendi `.venv`'ini kullanır, sabit yol yoktur. Test: kopya bir klasörde dört senaryo denendi (temiz kurulum, tekrar çalıştırma + QR paketi, git yok, python yok).
 
-## Canlı arayüz: `python -m aktapokus_ajan ui [--klasor C:\proje] [--tarayici]`
+## Canlı arayüz: `python -m aktapokus_ai_studio ui [--klasor C:\proje] [--tarayici]`
 
 Terminalde yazdırılan adresi (`http://127.0.0.1:PORT/#t=TOKEN`) tarayıcıda açın; yalnızca bu bilgisayardan erişilir. Düzen: solda roller/model/klon, ortada görev akışı (plan kartı → **Onayla** → canlı ilerleme → fark kartı → **Korunsun / Geri al**), sağda **Önizleme** (proje dosyaları ya da yerel sunucu URL'si; dosya değişince kendiliğinden yenilenir), **Belgeler** (işlenmiş Markdown), **Dosyalar** (değişenler M/A işaretli, tıklayınca içerik), **Günlük**. Rol/model değiştirmek için soldaki role tıklayın.
 
@@ -182,14 +182,14 @@ Güvenlik: tüm API çağrıları rastgele token ister; `Host` yalnız 127.0.0.1
 
 Sınırlar: tek görev aynı anda; sayfa yenilenince geçmiş olaylar (bellekteki son 800) yeniden oynatılır, sunucu yeniden başlarsa geçmiş silinir (kalıcı kayıt `.aktapokus/kayit/` altında); önizleme sunucusunu (npm run dev vb.) arayüz **başlatmaz**, siz çalıştırıp URL'yi yazarsınız; klon önerileri yalnız sayılır (onay `aktapokus-klon` komutuyla); görsel/ses rolleri için özel panel yok; Windows'ta arayüz zorla kapatılsa bile OpenCode sunucusu (job nesnesiyle) yetim kalmaz.
 
-## Telegram botu: `python -m aktapokus_ajan telegram [--klasor C:\proje]`
+## Telegram botu: `python -m aktapokus_ai_studio telegram [--klasor C:\proje]`
 
 Telefondan görev ver, planı/farkı onayla, ilerlemeyi izle. Aynı motoru (`Uygulama`) kullanır, yani arayüzle birlikte aynı görevi yönetebilirsiniz. Bilgisayar açık olmalı (bot onda çalışır).
 
 **Kurulum (token'ı SİZ girersiniz, bana/komut satırına yazmayın):**
 1. Telegram'da `@BotFather` → `/newbot` → verdiği token'ı kopyalayın.
 2. Token'ı ortam değişkenine (`AKTAPOKUS_TELEGRAM_TOKEN`) ya da `%USERPROFILE%\.aktapokus\telegram.token` dosyasına (tek satır) yazın.
-3. `python -m aktapokus_ajan telegram` → token'ı doğrular (bot adını yazar) ve eşleştirme verir: **telefonda açacağınız bir `t.me` bağlantısı** (Telegram botun sohbetini kod hazır yazılmış açar, "Başlat"a basmanız yeter). İsteğe bağlı `segno` paketi kuruluysa (`pip install segno`) aynı bağlantı **QR kod** olarak tarayıcıda açılır, telefonla okutursunuz; eşleşince sayfa silinir. Elle yöntem de var: botunuza `/eslestir KOD` yazın (10 dk, tek kullanımlık). Eşleşen kullanıcı `~/.aktapokus/telegram.json` içine kaydedilir. **BotFather adımı atlanamaz:** Telegram her botun token'ını yalnızca oradan verir; QR yalnızca eşleştirmeyi kolaylaştırır.
+3. `python -m aktapokus_ai_studio telegram` → token'ı doğrular (bot adını yazar) ve eşleştirme verir: **telefonda açacağınız bir `t.me` bağlantısı** (Telegram botun sohbetini kod hazır yazılmış açar, "Başlat"a basmanız yeter). İsteğe bağlı `segno` paketi kuruluysa (`pip install segno`) aynı bağlantı **QR kod** olarak tarayıcıda açılır, telefonla okutursunuz; eşleşince sayfa silinir. Elle yöntem de var: botunuza `/eslestir KOD` yazın (10 dk, tek kullanımlık). Eşleşen kullanıcı `~/.aktapokus/telegram.json` içine kaydedilir. **BotFather adımı atlanamaz:** Telegram her botun token'ını yalnızca oradan verir; QR yalnızca eşleştirmeyi kolaylaştırır.
 4. Komutlar: `/projeler` (proje klasörlerini **düğme** olarak gösterir, dokunup seçersiniz; git'siz klasörde "Git başlat" düğmesi sorar), `/yeni <ad>` (ilk proje köküne yeni klasör açar, git + koruyucu kurar), `/kokler`, `/klasor <tam yol>`, `/gorev <metin>` (düz metin de görev sayılır), `/durum`, `/durdur`, `/fark <dosya>`, `/gizlilik acik|kapali`. Plan ve fark **Onayla/Reddet** ve **Korunsun/Geri al** düğmeleriyle gelir.
 5. **Proje kökleri** (telefondan seçilebilecek klasörlerin kapsamı): bilgisayarda `telegram-baslat.bat --kok C:\yol\kok1 --kok C:\yol\kok2` ile eklenir (kaydedilir). Telefon bu kapsamı **genişletemez**; `/klasor` ve düğmeler yalnız köklerin altındakini kabul eder (kökün kendisi, nokta ile başlayanlar ve `gizli` listesi — varsayılan `aktapokus-ajan`, botun kendi kodu — hariç). `/yeni` yalnız git deposu olmayan ilk kökte çalışır; iç içe git deposu oluşturulmaz. Ad: harf/rakam/-/_ (en çok 41), `con`/`nul` gibi Windows aygıt adları ve yol işaretleri reddedilir.
 
@@ -197,7 +197,7 @@ Güvenlik: bot Telegram'ı uzun yoklama ile dinler (dışarıdan bağlantı/port
 
 Sınırlar (dürüstçe): **gerçek Telegram ile denenmedi** (token bende olmamalı); Bot API'yi taklit eden yerel sunucuyla ve gerçek davranışa göre (son güncelleme onaylanana dek kalır) test edildi. Tek kullanıcı. Telegram'dan klasör içeriği gezme/dosya gönderme yok. Bot, onay istemeyen bir işi kendiliğinden başlatmaz ama planı onaylayan kişi bilgisayardaki ajana klasör içinde komut çalıştırma yetkisi vermiş olur (aynı koruyucu kuralları geçerli).
 
-## OpenCode sunucu istemcisi (SDK): `aktapokus_ajan/sunucu.py`
+## OpenCode sunucu istemcisi (SDK): `aktapokus_ai_studio/sunucu.py`
 
 `opencode serve` sürecini yönetir (yalnız 127.0.0.1, rastgele port, rastgele parola — parola komut satırında değil ortam değişkeninde) ve v2 HTTP API'sini sürer: `Istemci` (oturum aç/sil, mesaj gönder, aktif oturumlar, durdur, izinleri listele/yanıtla, SSE olay akışı), `Sunucu` (süreç yaşam döngüsü, ağaç sonlandırma), `SunucuCalistirici` (kalıcı sunucu; her çağrı yeni oturum; izin sorularını reddeder; zaman aşımında oturumu durdurur; `ilerleme` geri çağırımı canlı metin/araç/bitiş olayları verir — UI ve Telegram bunun üstüne kurulacak). Rolde `"calistirici": "opencode-sunucu"` yazın. Sunucu çağrılar arası açık kalır (süreç başı ~5 sn başlatma bedeli ödenmez) ve program çıkışında kapatılır.
 

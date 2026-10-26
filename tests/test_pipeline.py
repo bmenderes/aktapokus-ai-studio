@@ -3,8 +3,8 @@ import json
 
 import pytest
 
-from aktapokus_ajan.config import VARSAYILAN_AYAR, ayar_coz
-from aktapokus_ajan.pipeline import (
+from aktapokus_ai_studio.config import VARSAYILAN_AYAR, ayar_coz
+from aktapokus_ai_studio.pipeline import (
     HatHatasi,
     calistir_hat,
     dogrulama_sonucu,
@@ -12,7 +12,7 @@ from aktapokus_ajan.pipeline import (
     istem_olustur,
     son_kayit,
 )
-from aktapokus_ajan.config import Rol
+from aktapokus_ai_studio.config import Rol
 from conftest import SahteCalistirici, sonuc
 
 
@@ -203,7 +203,7 @@ def test_kayit_kimlikleri_ayni_saniyede_bile_olusturma_sirasiyla_siralanir():
     """GERCEK HATA: kimlik saniye cozunurlukluydu + rastgele ek; ayni saniyedeki iki kayit rastgele siralaniyor, son_kayit/geri-al yanlis kaydi secebiliyordu."""
     import time as zaman
 
-    from aktapokus_ajan import pipeline
+    from aktapokus_ai_studio import pipeline
 
     idler = []
     for _ in range(40):

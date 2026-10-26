@@ -1,6 +1,6 @@
 import pytest
 
-from aktapokus_ajan import beceriler as b
+from aktapokus_ai_studio import beceriler as b
 
 
 def yeni(**kw):

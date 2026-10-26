@@ -5,10 +5,10 @@ import subprocess
 
 import pytest
 
-from aktapokus_ajan import baglam, cli
-from aktapokus_ajan.config import VARSAYILAN_AYAR, ayar_coz
-from aktapokus_ajan.pipeline import calistir_hat, istem_olustur
-from aktapokus_ajan.proje import hazirla
+from aktapokus_ai_studio import baglam, cli
+from aktapokus_ai_studio.config import VARSAYILAN_AYAR, ayar_coz
+from aktapokus_ai_studio.pipeline import calistir_hat, istem_olustur
+from aktapokus_ai_studio.proje import hazirla
 from conftest import SahteCalistirici, sonuc
 
 
@@ -126,7 +126,7 @@ def test_hazirla_kural_dosyasini_olusturur_ama_ezmez(tmp_path):
 
 
 def test_istem_durum_dosyasini_gosterir():
-    from aktapokus_ajan.config import Rol
+    from aktapokus_ai_studio.config import Rol
 
     assert ".aktapokus/DURUM.md" in istem_olustur(Rol("kodcu", "opencode", None, "Kod yaz."), "g", None, None)
 

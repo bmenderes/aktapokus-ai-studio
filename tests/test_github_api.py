@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan import projeler
-from aktapokus_ajan.arayuz import ArayuzSunucusu, Uygulama
+from aktapokus_ai_studio import projeler
+from aktapokus_ai_studio.arayuz import ArayuzSunucusu, Uygulama
 from test_arayuz import Engelli, Istemci, bekle
 
 SAHTE_GH = str(Path(__file__).with_name("sahte_gh.py"))
@@ -72,7 +72,7 @@ def test_yabanci_origin_yazan_istekleri_reddeder(api):
 
 
 def test_telegram_githuba_dokunmaz():
-    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "telegram.py").read_text(encoding="utf-8").lower()
+    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "telegram.py").read_text(encoding="utf-8").lower()
     assert "github_commit" not in kaynak and "github_push" not in kaynak and "github_pr" not in kaynak and "github_klonla" not in kaynak and "import github" not in kaynak and "from . import github" not in kaynak
 
 
@@ -222,7 +222,7 @@ def test_klonla_projeyi_acar_ve_secer(api, tmp_path):
 
 
 def test_klonlanan_ama_acilamayan_depo_icin_anlasilir_hata(api, tmp_path, monkeypatch):
-    from aktapokus_ajan import arayuz
+    from aktapokus_ai_studio import arayuz
 
     app, _, istek, _, _ = api
     ust = tmp_path / "k2"
@@ -237,7 +237,7 @@ def test_klonlanan_ama_acilamayan_depo_icin_anlasilir_hata(api, tmp_path, monkey
 
 
 def test_arayuz_github_sekmesi_ve_ayar_bolumunu_icerir_ve_onay_ister():
-    html = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     for parca in ('data-p="p-github"', 'id="p-github"', '["github","GitHub"]', "function githubPaneliYukle", "function githubBolumu", "/api/github/commit", "/api/github/push", "/api/github/pr", "/api/github/klonla", "/api/github/issue-gorev"):
         assert parca in html, parca
     govde = html.split("const ghUrlGuvenli")[1].split("(async()=>{if(!T)")[0]
@@ -247,5 +247,5 @@ def test_arayuz_github_sekmesi_ve_ayar_bolumunu_icerir_ve_onay_ister():
 
 
 def test_e_yardimcisi_mantiksal_ozniteliklerde_false_yazmaz():
-    html = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "web" / "index.html").read_text(encoding="utf-8")
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     assert "a[k]===false||a[k]==null" in html  # disabled:false => 'disabled=\"false\"' (dugme hep devre disi) gercek hatasi

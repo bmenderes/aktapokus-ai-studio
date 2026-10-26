@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan import github as g
+from aktapokus_ai_studio import github as g
 
 SAHTE_GH = str(Path(__file__).with_name("sahte_gh.py"))
 
@@ -270,7 +270,7 @@ def test_push_detached_head_ve_origin_yoksa(depo):
 
 
 def test_kaynakta_zorla_push_ve_kabuk_kullanimi_yok():
-    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "github.py").read_text(encoding="utf-8")
+    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "github.py").read_text(encoding="utf-8")
     kod = kaynak.split('"""', 2)[2]  # modul aciklamasi hariç (orada '--force' yok demek icin gecer)
     assert "--force" not in kod and '"-f"' not in kod and "+refs" not in kod and "shell=True" not in kod
 
@@ -335,7 +335,7 @@ def test_gizli_yol_mu_hayir(yol):
 
 
 def test_gizli_desen_arayuzdekini_kapsar():
-    from aktapokus_ajan import arayuz
+    from aktapokus_ai_studio import arayuz
 
     for uz in arayuz.GIZLI_UZANTILAR:
         assert g.gizli_yol_mu("x" + uz), uz

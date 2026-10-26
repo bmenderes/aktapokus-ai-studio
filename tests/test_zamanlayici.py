@@ -7,10 +7,10 @@ from datetime import datetime, timedelta
 
 import pytest
 
-from aktapokus_ajan import otomasyon as oto
-from aktapokus_ajan import projeler
-from aktapokus_ajan.arayuz import ArayuzSunucusu, Uygulama
-from aktapokus_ajan.zamanlayici import Zamanlayici
+from aktapokus_ai_studio import otomasyon as oto
+from aktapokus_ai_studio import projeler
+from aktapokus_ai_studio.arayuz import ArayuzSunucusu, Uygulama
+from aktapokus_ai_studio.zamanlayici import Zamanlayici
 from conftest import SahteCalistirici
 from test_arayuz import _ikinci_proje
 from test_otomasyon import P1, sablon
@@ -214,7 +214,7 @@ def test_durum_calistirmadan_once_yazilir_calistirma_cokse_bile_tekrar_denenmez(
 
 
 def test_uygulama_hatasi_ikinci_kez_kayda_yazilmaz(kur):
-    from aktapokus_ajan.arayuz import UygulamaHatasi
+    from aktapokus_ai_studio.arayuz import UygulamaHatasi
     uret, saat, _ = kur
 
     def atlayan(ad):

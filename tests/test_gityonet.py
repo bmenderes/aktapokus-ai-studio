@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan import github as g
-from aktapokus_ajan import gityonet as y
+from aktapokus_ai_studio import github as g
+from aktapokus_ai_studio import gityonet as y
 
 
 def git(k, *a, kontrol=True):
@@ -439,6 +439,6 @@ def test_commit_yalniz_hazir_hicbir_sey_hazir_degilse_reddeder(depo):
 
 
 def test_kaynakta_tehlikeli_git_secenekleri_yok():
-    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ajan" / "gityonet.py").read_text(encoding="utf-8").split('"""', 2)[2]
+    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "gityonet.py").read_text(encoding="utf-8").split('"""', 2)[2]
     for yasak in ("--hard", "--force", "--force-with-lease", '"-D"', "shell=True", '"reset"', '"clean"', '"-f"', '"push", "origin"', "+refs"):
         assert yasak not in kaynak, yasak

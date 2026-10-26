@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan import snapshot
-from aktapokus_ajan.proje import hazirla
+from aktapokus_ai_studio import snapshot
+from aktapokus_ai_studio.proje import hazirla
 from test_arayuz import kur, tam_kosu  # noqa: F401  (kur: pytest fixture'i)
 
 

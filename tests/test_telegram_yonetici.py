@@ -4,9 +4,9 @@ import time
 
 import pytest
 
-from aktapokus_ajan import telegram_yonetici as ty
-from aktapokus_ajan.arayuz import ArayuzSunucusu, Uygulama
-from aktapokus_ajan.telegram_yonetici import TelegramYoneticisi, YoneticiHatasi
+from aktapokus_ai_studio import telegram_yonetici as ty
+from aktapokus_ai_studio.arayuz import ArayuzSunucusu, Uygulama
+from aktapokus_ai_studio.telegram_yonetici import TelegramYoneticisi, YoneticiHatasi
 from conftest import SahteCalistirici
 from sahte_telegram import TOKEN, SahteTelegram
 from test_arayuz import BASARILI, Istemci, yaz

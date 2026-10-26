@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ajan import istatistik
-from aktapokus_ajan.arayuz import ArayuzSunucusu, Uygulama
+from aktapokus_ai_studio import istatistik
+from aktapokus_ai_studio.arayuz import ArayuzSunucusu, Uygulama
 from test_arayuz import Istemci, klasor_sec
 
 SIMDI = datetime(2026, 10, 22, 15, 0, 0)
