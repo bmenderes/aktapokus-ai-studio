@@ -65,7 +65,7 @@ def test_kayit_defteri_kaydet_yukle_sil_ve_bozuk_olanlari_atlar(tmp_path):
     clitanim.kaydet(tanim_coz(tanim(ad="a1", modeller=["m1"])))
     clitanim.kaydet(tanim_coz(tanim(ad="b2")))
     assert set(clitanim.yukle()) == {"a1", "b2"} and clitanim.yukle()["a1"].modeller == ("m1",)
-    assert clitanim.bilinen_adlar() == ["opencode", "opencode-sunucu", "claude", "codex", "a1", "b2"]
+    assert clitanim.bilinen_adlar() == ["opencode", "opencode-sunucu", "claude", "codex", "gemini", "mistral", "a1", "b2"]
     # bir tanimin programi silinirse yalniz o atlanir
     ham = json.loads(clitanim.kayit_yolu().read_text(encoding="utf-8"))
     ham["clilar"][0]["komut"][0] = str(tmp_path / "silindi.exe")

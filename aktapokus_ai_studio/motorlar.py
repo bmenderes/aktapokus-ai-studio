@@ -11,7 +11,7 @@ import copy
 import os
 
 from .config import VARSAYILAN_AYAR, VARSAYILAN_MODEL
-from .runners import claude_bul, codex_bul, opencode_bul
+from .runners import claude_bul, codex_bul, gemini_bul, opencode_bul, vibe_bul
 
 TERCIH_ORTAMI = "AKTAPOKUS_MOTOR_TERCIH"  # testler/ileri kullanim: varsayilan motoru zorla (kurulu olup olmadigina bakmaz)
 
@@ -19,12 +19,16 @@ MOTORLAR = (
     {"ad": "opencode-sunucu", "gorunen": "OpenCode", "kurulum": "https://opencode.ai (masaustu uygulamasi ya da: npm install -g opencode-ai)", "modeller": {"kodcu": VARSAYILAN_MODEL, "test": VARSAYILAN_MODEL}},
     {"ad": "claude", "gorunen": "Claude Code", "kurulum": "npm install -g @anthropic-ai/claude-code  (sonra terminalde bir kez 'claude' yazip giris yapin)", "modeller": {"kodcu": "sonnet", "test": "haiku"}},
     {"ad": "codex", "gorunen": "Codex", "kurulum": "npm install -g @openai/codex  (sonra terminalde 'codex login')", "modeller": {}},
+    {"ad": "gemini", "gorunen": "Gemini CLI", "kurulum": "npm install -g @google/gemini-cli  (sonra terminalde bir kez 'gemini' yazip Google ile giris yapin)", "modeller": {}},
+    {"ad": "mistral", "gorunen": "Mistral Vibe", "kurulum": "uv tool install mistral-vibe  (sonra terminalde 'vibe --setup')", "modeller": {}},
 )
 _BULUCULAR = {
     "opencode-sunucu": lambda: opencode_bul(),
     "opencode": lambda: opencode_bul(),
     "claude": lambda: claude_bul(),
     "codex": lambda: codex_bul(),
+    "gemini": lambda: gemini_bul(),
+    "mistral": lambda: vibe_bul(),
 }
 
 

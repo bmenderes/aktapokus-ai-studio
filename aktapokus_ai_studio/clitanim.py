@@ -28,11 +28,13 @@ from .runners import (
     _alt_surec_ortami,
     claude_bul,
     codex_bul,
+    gemini_bul,
     opencode_bul,
+    vibe_bul,
 )
 
 KAYIT_ORTAMI = "AKTAPOKUS_CLILAR"
-YERLESIK = ("opencode", "opencode-sunucu", "claude", "codex")
+YERLESIK = ("opencode", "opencode-sunucu", "claude", "codex", "gemini", "mistral")
 AD_DESENI = re.compile(r"^[a-z0-9][a-z0-9_-]{0,30}$")
 YASAK_UZANTILAR = {".cmd", ".bat", ".ps1", ".vbs"}
 CIKTI_BICIMLERI = ("metin", "json", "jsonl")
@@ -194,6 +196,8 @@ def listele() -> list[dict]:
         ("opencode-sunucu", "OpenCode (sunucu)", opencode_bul(), ["opencode/deepseek-v4.1-flash-free"], "Koruyuculu, canli ilerleme"),
         ("codex", "Codex", codex_bul(), [], "Klasor disi yazma engelli; gizli dosyalari OKUYABILIR"),
         ("claude", "Claude Code", claude_bul(), ["haiku", "sonnet", "opus"], "Klasor disi yazma ve gizli dosya okuma engelli; komut calistiramaz"),
+        ("gemini", "Gemini CLI", gemini_bul(), ["auto", "pro", "flash"], "Koruyucusuz: klasor disi erisim ve gizli dosya okuma engeli YOK; onayli adimlarda araclar sormadan calisir"),
+        ("mistral", "Mistral Vibe", vibe_bul(), [], "Koruyucusuz: klasor disi erisim ve gizli dosya okuma engeli YOK; model Vibe'in kendi ayarindan secilir"),
     ]
     cikti = [
         {"ad": ad, "gorunen_ad": g, "yerlesik": True, "kurulu": bool(yol), "modeller": m, "aciklama": a}

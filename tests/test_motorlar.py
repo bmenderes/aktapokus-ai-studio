@@ -25,7 +25,7 @@ def kurulu(monkeypatch, opencode=False, claude=False, codex=False, tercih_zorla=
 def test_durum_uc_motoru_ve_kurulum_komutunu_listeler(monkeypatch):
     kurulu(monkeypatch, claude=True)
     d = {m["ad"]: m for m in motorlar.durum()}
-    assert list(d) == ["opencode-sunucu", "claude", "codex"]
+    assert list(d) == ["opencode-sunucu", "claude", "codex", "gemini", "mistral"]
     assert (d["opencode-sunucu"]["kurulu"], d["claude"]["kurulu"], d["codex"]["kurulu"]) == (False, True, False)
     assert "npm install -g @anthropic-ai/claude-code" in d["claude"]["kurulum"] and "opencode.ai" in d["opencode-sunucu"]["kurulum"]
 

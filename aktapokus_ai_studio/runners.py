@@ -617,7 +617,190 @@ class CodexCalistirici(Calistirici):
         return sonuc
 
 
-CALISTIRICILAR = {"opencode": OpenCodeCalistirici, "claude": ClaudeCodeCalistirici, "codex": CodexCalistirici}
+def gemini_bul() -> list[str] | None:
+    """Gemini CLI'yi baslatacak komut oneki: [node, gemini.js] ya da dogrudan gemini.exe. AKTAPOKUS_GEMINI ile degistirilebilir.
+    Windows'ta npm'in gemini.cmd/gemini.ps1 sarmalayicilari KULLANILMAZ (istem cmd.exe tarafindan yorumlanirdi)."""
+    ortam = os.environ.get("AKTAPOKUS_GEMINI")
+    if ortam and Path(ortam).is_file():
+        return [ortam] if Path(ortam).suffix.lower() == ".exe" else [shutil.which("node") or "node", ortam]
+    node = shutil.which("node")
+    kokler = []
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        kokler.append(Path(appdata) / "npm" / "node_modules" / "@google" / "gemini-cli")
+    npm = shutil.which("npm")
+    if npm:
+        kokler.append(Path(npm).resolve().parent / "node_modules" / "@google" / "gemini-cli")
+    if node:
+        for kok in kokler:
+            for goreli in ("bundle/gemini.js", "dist/index.js"):
+                if (kok / goreli).is_file():
+                    return [node, str(kok / goreli)]
+    exe = shutil.which("gemini")
+    if exe and Path(exe).suffix.lower() == ".exe":
+        return [exe]
+    return None
+
+
+def _sayi_bul(veri: object, anahtarlar: tuple[str, ...], derinlik: int = 0) -> int:
+    """Ic ice sozlukte, verilen anahtar adlarindan ilk sayisal degeri bulur (surum/sema degisimine dayanikli); yoksa 0."""
+    if derinlik > 6:
+        return 0
+    if isinstance(veri, dict):
+        for k in anahtarlar:
+            v = veri.get(k)
+            if isinstance(v, (int, float)) and not isinstance(v, bool):
+                return int(v)
+        for v in veri.values():
+            n = _sayi_bul(v, anahtarlar, derinlik + 1)
+            if n:
+                return n
+    elif isinstance(veri, list):
+        for v in veri[:50]:
+            n = _sayi_bul(v, anahtarlar, derinlik + 1)
+            if n:
+                return n
+    return 0
+
+
+def gemini_ciktisini_coz(cikti: str) -> CalistirmaSonucu:
+    """`gemini -p ... --output-format json`: {response, stats, error?}. BELGEYE GORE yazildi (gercek CLI ile denenmedi, kurulu degildi).
+    Token: stats.models.<ad>.tokens {prompt, candidates, cached}; bulunamazsa 0 (butce o rolde islemez)."""
+    i, j = cikti.find("{"), cikti.rfind("}")
+    try:
+        d = json.loads(cikti[i:j + 1]) if i >= 0 and j > i else None
+    except json.JSONDecodeError:
+        d = None
+    if not isinstance(d, dict):
+        return CalistirmaSonucu(False, hata=f"Gemini ciktisi JSON degil: {cikti.strip()[:200]}")
+    hata = d.get("error")
+    girdi = cikti_t = onbellek = 0
+    modeller = ((d.get("stats") or {}).get("models") or {}) if isinstance(d.get("stats"), dict) else {}
+    for m in modeller.values() if isinstance(modeller, dict) else []:
+        t = m.get("tokens") if isinstance(m, dict) and isinstance(m.get("tokens"), dict) else {}
+        onb = _sayi_bul(t, ("cached",))
+        girdi += max(0, _sayi_bul(t, ("prompt", "input")) - onb)
+        cikti_t += _sayi_bul(t, ("candidates", "output"))
+        onbellek += onb
+    metin = d.get("response") if isinstance(d.get("response"), str) else ""
+    if hata:
+        mesaj = hata.get("message") if isinstance(hata, dict) else str(hata)
+        return CalistirmaSonucu(False, metin=metin.strip(), hata=str(mesaj or "Gemini hatasi")[:300], token_girdi=girdi, token_cikti=cikti_t, token_onbellek=onbellek)
+    return CalistirmaSonucu(True, metin=metin.strip(), token_girdi=girdi, token_cikti=cikti_t, token_onbellek=onbellek)
+
+
+class GeminiCalistirici(Calistirici):
+    """Google Gemini CLI (`gemini -p`). Istem STDIN'den verilir; -p yalniz kisa bir yonerge tasir (Gemini stdin'e ekler).
+    Onayli calisma `--approval-mode yolo` (araclar sormadan calisir; Gemini'nin kendi sandbox'i kapali: KORUYUCUSUZ), salt okunur `--approval-mode plan`.
+    BELGEYE GORE yazildi; kurulu olmadigi icin gercek CLI ile denenmedi."""
+
+    ad = "gemini"
+    YONERGE = "Yukaridaki istegi (standart girdi) yerine getir."
+
+    def __init__(self, komut_oneki: list[str] | None = None):
+        self.komut_oneki = komut_oneki
+
+    def komut(self, model: str | None, onayli: bool) -> list[str]:
+        onek = self.komut_oneki or gemini_bul()
+        if not onek:
+            raise CalistiriciHatasi("Gemini CLI bulunamadi (npm install -g @google/gemini-cli) ya da AKTAPOKUS_GEMINI ile yol verin.")
+        komut = [*onek, "-p", self.YONERGE, "--output-format", "json", "--approval-mode", "yolo" if onayli else "plan"]
+        if model:
+            if model.startswith("-"):
+                raise CalistiriciHatasi("Model adi '-' ile baslayamaz")
+            komut += ["-m", model]
+        return komut
+
+    def calistir(self, istem, klasor, model=None, agent=None, zaman_asimi_sn=900, onayli=True):
+        if not istem.strip():
+            raise CalistiriciHatasi("Bos istem gonderilemez")
+        if len(istem) > 1_000_000:
+            raise CalistiriciHatasi("Istem cok uzun (1 milyon karakter siniri)")
+        komut = self.komut(model, onayli)
+        baslangic = time.monotonic()
+        try:
+            islem = _stdinli_calistir(komut, istem, Path(klasor), zaman_asimi_sn)
+        except subprocess.TimeoutExpired:
+            return CalistirmaSonucu(False, hata=f"Zaman asimi ({zaman_asimi_sn} sn)", sure_sn=time.monotonic() - baslangic)
+        except OSError as hata:
+            return CalistirmaSonucu(False, hata=f"Gemini baslatilamadi: {hata}", sure_sn=time.monotonic() - baslangic)
+        sonuc = gemini_ciktisini_coz(islem.stdout)
+        sonuc.sure_sn = time.monotonic() - baslangic
+        if islem.returncode != 0 and (sonuc.ok or not islem.stdout.strip()):  # cikti yoksa asil bilgi cikis kodu ve stderr'dir
+            sonuc.ok = False
+            sonuc.hata = f"Gemini cikis kodu {islem.returncode}: {(islem.stderr or islem.stdout).strip()[-300:]}"
+        return sonuc
+
+
+def vibe_bul() -> str | None:
+    """Mistral Vibe (`vibe`) programi: AKTAPOKUS_VIBE, PATH'te vibe.exe, uv'nin arac klasoru (~/.local/bin). Yalniz .exe (sarmalayici .cmd/.bat degil)."""
+    ortam = os.environ.get("AKTAPOKUS_VIBE")
+    if ortam and Path(ortam).is_file():
+        return ortam
+    yol = shutil.which("vibe")
+    if yol and Path(yol).suffix.lower() == ".exe":
+        return yol
+    for aday in (Path.home() / ".local" / "bin" / "vibe.exe", Path.home() / ".local" / "bin" / "vibe"):
+        if aday.is_file():
+            return str(aday)
+    return None
+
+
+class VibeCalistirici(Calistirici):
+    """Mistral Vibe CLI (`vibe -p`). Istem gecici bir dosyadan verilir (--prompt-file; komut satiri uzunlugu/tirnak sorunu yok), cikti duz metin.
+    Onayli calisma `--agent accept-edits` (yalniz dosya duzenlemeleri otomatik onaylanir; baska arac cagrilari programli kipte onay bekler/reddedilir),
+    salt okunur `--agent plan`. Model secimi Vibe'in kendi ayarindadir (active_model): rolde model verilirse hata. KORUYUCUSUZ.
+    Token kullanimi `--output-dir` ile yazilan export.json'dan okunur (sema belgelenmemis: bulunamazsa 0).
+    BELGEYE GORE yazildi; kurulu olmadigi icin gercek CLI ile denenmedi."""
+
+    ad = "mistral"
+
+    def __init__(self, komut_oneki: list[str] | None = None):
+        self.komut_oneki = komut_oneki
+
+    def komut(self, istem_dosyasi: str, cikti_klasoru: str, model: str | None, onayli: bool) -> list[str]:
+        program = self.komut_oneki or ([vibe_bul()] if vibe_bul() else None)
+        if not program:
+            raise CalistiriciHatasi("Mistral Vibe bulunamadi (uv tool install mistral-vibe) ya da AKTAPOKUS_VIBE ile yol verin.")
+        if model:
+            raise CalistiriciHatasi("Mistral Vibe'de model Vibe'in kendi ayarindan (~/.vibe/config.toml active_model) secilir; rolde 'model'i bos birakin")
+        return [*program, "--prompt-file", istem_dosyasi, "--output", "text", "--agent", "accept-edits" if onayli else "plan", "--output-dir", cikti_klasoru]
+
+    def calistir(self, istem, klasor, model=None, agent=None, zaman_asimi_sn=900, onayli=True):
+        if not istem.strip():
+            raise CalistiriciHatasi("Bos istem gonderilemez")
+        if len(istem) > 1_000_000:
+            raise CalistiriciHatasi("Istem cok uzun (1 milyon karakter siniri)")
+        import tempfile
+
+        baslangic = time.monotonic()
+        with tempfile.TemporaryDirectory(prefix="aktapokus-vibe-") as gecici:
+            istem_yolu = Path(gecici) / "istem.txt"
+            istem_yolu.write_bytes(istem.encode("utf-8"))
+            komut = self.komut(str(istem_yolu), str(Path(gecici) / "cikti"), model, onayli)
+            try:
+                islem = subprocess.run(komut, cwd=str(klasor), env=_alt_surec_ortami(Path(klasor)), capture_output=True, stdin=subprocess.DEVNULL, timeout=zaman_asimi_sn)
+            except subprocess.TimeoutExpired:
+                return CalistirmaSonucu(False, hata=f"Zaman asimi ({zaman_asimi_sn} sn)", sure_sn=time.monotonic() - baslangic)
+            except OSError as hata:
+                return CalistirmaSonucu(False, hata=f"Mistral Vibe baslatilamadi: {hata}", sure_sn=time.monotonic() - baslangic)
+            girdi = cikti_t = 0
+            try:
+                disa = json.loads((Path(gecici) / "cikti" / "export.json").read_text(encoding="utf-8"))
+                girdi = _sayi_bul(disa, ("prompt_tokens", "input_tokens", "session_prompt_tokens"))
+                cikti_t = _sayi_bul(disa, ("completion_tokens", "output_tokens", "session_completion_tokens"))
+            except (OSError, ValueError):
+                pass
+        stdout, stderr = _metin(islem.stdout), _metin(islem.stderr)
+        sure = time.monotonic() - baslangic
+        # cikis kodlari (belgeye gore): 0 bitti; 1 kullanim/ayar hatasi; 2 altyapi hatasi; 3 ajan bitirmeden durdu (tur/token/fiyat siniri...)
+        if islem.returncode != 0:
+            return CalistirmaSonucu(False, metin=stdout.strip(), token_girdi=girdi, token_cikti=cikti_t, sure_sn=sure,
+                                    hata=f"Mistral Vibe cikis kodu {islem.returncode}: {(stderr or stdout).strip()[-300:]}")
+        return CalistirmaSonucu(True, metin=stdout.strip(), token_girdi=girdi, token_cikti=cikti_t, sure_sn=sure)
+
+
+CALISTIRICILAR = {"opencode": OpenCodeCalistirici, "claude": ClaudeCodeCalistirici, "codex": CodexCalistirici, "gemini": GeminiCalistirici, "mistral": VibeCalistirici}
 _KALICI: dict[str, object] = {}  # kalici kaynak (tek OpenCode sunucusu, cagrilar arasi acik); calistiriciler ise cagri basina AYRI ornektir
 _KALICI_KILIT = threading.Lock()
 

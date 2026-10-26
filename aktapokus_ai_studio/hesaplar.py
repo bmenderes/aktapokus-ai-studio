@@ -7,9 +7,11 @@ from __future__ import annotations
 
 import getpass
 import json
+import os
 import platform
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 from . import runners
 
@@ -61,11 +63,41 @@ def codex() -> dict:
     return {"kurulu": True, "giris": giris, "detay": ilk or None}
 
 
+def _dolu_dosya(yol: Path) -> bool:
+    try:
+        return yol.is_file() and yol.stat().st_size > 0
+    except OSError:
+        return False
+
+
+def gemini() -> dict:
+    """Gemini CLI: yalniz oturum DOSYASININ VARLIGI ya da ortam anahtari (icerik/anahtar OKUNMAZ). Google hesabiyla giris ~/.gemini/oauth_creds.json yazar."""
+    if not runners.gemini_bul():
+        return {"kurulu": False, "giris": False}
+    if _dolu_dosya(Path.home() / ".gemini" / "oauth_creds.json"):
+        return {"kurulu": True, "giris": True, "yontem": "Google hesabı"}
+    if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
+        return {"kurulu": True, "giris": True, "yontem": "API anahtarı (ortam değişkeni)"}
+    return {"kurulu": True, "giris": False, "hata": "Giriş için bir terminalde `gemini` yazıp Google ile giriş yapın (ya da GEMINI_API_KEY tanımlayın)."}
+
+
+def mistral() -> dict:
+    """Mistral Vibe: ortam anahtari ya da ~/.vibe/.env dosyasinin varligi (icerik OKUNMAZ). Anahtar isletim sistemi anahtar deposundaysa 'giris yok' gorunebilir."""
+    if not runners.vibe_bul():
+        return {"kurulu": False, "giris": False}
+    if os.environ.get("MISTRAL_API_KEY"):
+        return {"kurulu": True, "giris": True, "yontem": "API anahtarı (ortam değişkeni)"}
+    kok = Path(os.environ.get("VIBE_HOME") or Path.home() / ".vibe")
+    if _dolu_dosya(kok / ".env"):
+        return {"kurulu": True, "giris": True, "yontem": "Vibe kurulumu (~/.vibe/.env)"}
+    return {"kurulu": True, "giris": False, "hata": "Giriş için bir terminalde `vibe --setup` çalıştırın (anahtar işletim sistemi anahtar deposundaysa bu durum yanlış görünebilir)."}
+
+
 def hepsi(github_durum, telegram_durum, uzak_acik: bool) -> dict:
     """Yavas olan (alt surec calistiran) sorgular paralel yurur."""
     with ThreadPoolExecutor(max_workers=3) as havuz:
         c, x, g = havuz.submit(claude), havuz.submit(codex), havuz.submit(github_durum)
-        sonuc = {"yerel": yerel(), "claude": c.result(), "codex": x.result(), "github": g.result()}
+        sonuc = {"yerel": yerel(), "claude": c.result(), "codex": x.result(), "github": g.result(), "gemini": gemini(), "mistral": mistral()}
     try:
         t = telegram_durum() or {}
         sonuc["telegram"] = {"calisiyor": bool(t.get("calisiyor")), "bot": t.get("bot"), "eslesmis": int(t.get("eslesmis") or 0)}

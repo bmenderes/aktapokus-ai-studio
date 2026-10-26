@@ -8,7 +8,7 @@ from pathlib import Path
 
 AYAR_KLASORU = ".aktapokus"
 ROLLER_DOSYASI = "roller.json"
-BILINEN_CALISTIRICILAR = ("opencode", "opencode-sunucu", "claude", "codex")
+BILINEN_CALISTIRICILAR = ("opencode", "opencode-sunucu", "claude", "codex", "gemini", "mistral")
 # Anlik goruntuye girmeyen ve git'e (yerel exclude ile) eklenmeyen yollar
 SNAPSHOT_DISI = (AYAR_KLASORU, ".opencode/opencode.json")
 VARSAYILAN_MODEL = "opencode/deepseek-v4.1-flash-free"
