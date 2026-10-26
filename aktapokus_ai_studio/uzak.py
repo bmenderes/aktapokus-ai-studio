@@ -178,6 +178,7 @@ YONETIM_KAPALIYKEN_YASAK = (
     ({"POST", "PUT", "DELETE"}, "/api/otomasyonlar"),  # zamanlanmis calistirma tanimlamak; '/api/otomasyon-calistir' (yalniz plan uretir) serbest
     ({"POST"}, "/api/github/klonla"),
     ({"GET"}, "/api/klasorler"),
+    ({"GET"}, "/api/beceri-kaynak"),  # bilgisayardan internete cikis tetikler
 )
 
 

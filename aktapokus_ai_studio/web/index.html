@@ -27,7 +27,8 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 .row{display:flex;align-items:center;gap:6px}
 #top{display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:var(--panel);border-bottom:1px solid var(--line)}
 #main{flex:1;min-height:0;display:grid;--sol-w:190px;--sag-w:46%;--b1:6px;--b2:6px;grid-template-columns:var(--sol-w) var(--b1) minmax(0,1fr) var(--b2) var(--sag-w);grid-template-rows:minmax(0,1fr)}
-#sol{background:var(--panel2);border-right:1px solid var(--line);padding:8px 10px;overflow:auto;min-height:0}
+#sol{background:var(--panel2);border-right:1px solid var(--line);padding:8px 10px;overflow:hidden;min-height:0}
+#solKaydir{flex:1;min-height:0;overflow:auto}#solAlt{flex:none;display:flex;flex-direction:column;gap:4px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
 #orta{display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--line);background:var(--panel)}
 #akis{flex:1;overflow:auto;padding:10px}
 #girdi{border-top:1px solid var(--line);padding:8px 10px}
@@ -50,7 +51,9 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 details>summary{cursor:pointer;color:var(--tx2)}
 pre.yama{background:var(--panel2);border-radius:6px;padding:6px;overflow:auto;max-height:240px;font:12px/1.45 var(--mono);margin:6px 0 0}
 .y-ekle{color:var(--ok)}.y-sil{color:var(--err)}.y-baslik{color:var(--tx3)}
-#sekmeler{display:flex;border-bottom:1px solid var(--line);padding:0 6px}
+#sekmeler{display:flex;border-bottom:1px solid var(--line);padding:0 6px;align-items:center}
+.sekme-araclar{margin-left:auto;display:flex;gap:2px;flex:none}.sk-x{margin-left:6px;opacity:.45;cursor:pointer;border-radius:4px;padding:0 3px}.sk-x:hover{opacity:1;background:var(--panel2)}
+#sekmeMenu{position:fixed;z-index:200;min-width:160px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.16);padding:4px;display:none;font-size:13px}#sekmeMenu .m{padding:6px 10px;border-radius:6px;cursor:pointer;color:var(--tx)}#sekmeMenu .m:hover{background:var(--panel2)}
 .sekme{background:none;border:none;border-bottom:2px solid transparent;border-radius:0;padding:7px 9px;color:var(--tx2)}
 .sekme.on{color:var(--tx);border-bottom-color:var(--tx)}
 .panel{flex:1;min-height:0;overflow:auto;padding:8px;display:none}
@@ -170,15 +173,17 @@ body.suruklenir iframe{pointer-events:none}
 <body>
 <div id="top">
   <div class="row"><b>Aktapokus</b><span id="klasorAd" class="mut"></span></div>
-  <div class="row" style="gap:2px"><button id="solDugme" class="panel-dugme on" title="Sol paneli aç/kapat (Alt+1)">◧</button><button id="sagDugme" class="panel-dugme on" title="Sağ paneli aç/kapat (Alt+2)">◨</button></div>
+  <div class="row" style="gap:2px"><button id="terminalUst" class="panel-dugme" title="Terminal aç/kapat (Ctrl+`)">⌨</button><button id="ayarUst" class="panel-dugme" title="Ayarlar aç/kapat">⚙</button><button id="solDugme" class="panel-dugme on" title="Sol paneli aç/kapat (Alt+1)">◧</button><button id="sagDugme" class="panel-dugme on" title="Sağ paneli aç/kapat (Alt+2)">◨</button></div>
 </div>
 <div id="main">
   <div id="sol">
+    <div id="solKaydir">
     <div class="row" style="gap:6px"><button id="yeniGorev" class="pri" style="flex:1" title="Seçili projede yeni görev">+ Yeni görev</button><button id="yeniProje" title="Yeni proje: bir klasör ekle">+ Proje</button></div>
     <input id="kenarAra" placeholder="Görev ya da proje ara…" style="width:100%;margin-top:8px" autocomplete="off">
     <div id="gecmis" class="mut3" style="margin-top:6px">-</div>
     <div class="sec">Klon</div><div id="klon" class="mut">-</div>
-    <div style="margin-top:auto;padding-top:10px;display:flex;flex-direction:column;gap:4px"><button id="hesapChip" class="hesap-chip" title="Hesaplar: kim olarak, hangi hizmette giriş yapıldı"><span class="av" id="hesapAv">?</span><span class="hc"><b id="hesapAd">…</b><small id="hesapAlt">yerel kullanıcı</small></span></button><button id="terminalDugme" style="width:100%" title="PowerShell terminali ve Telegram günlüğü (Alt+3)">⌨ Terminal</button><button id="ayarDugme" style="width:100%" title="Sağlayıcılar, modeller, roller, CLI'lar, kullanım">⚙ Ayarlar</button></div>
+    </div>
+    <div id="solAlt"><button id="hesapChip" class="hesap-chip" title="Hesaplar: kim olarak, hangi hizmette giriş yapıldı"><span class="av" id="hesapAv">?</span><span class="hc"><b id="hesapAd">…</b><small id="hesapAlt">yerel kullanıcı</small></span></button><button id="terminalDugme" style="width:100%" title="PowerShell terminali ve Telegram günlüğü (Alt+3)">⌨ Terminal</button><button id="ayarDugme" style="width:100%" title="Sağlayıcılar, modeller, roller, CLI'lar, kullanım">⚙ Ayarlar</button></div>
   </div>
   <div class="bolucu" id="bolucuSol" title="Sürükleyin: genişliği değiştirin · çift tıklayın: sıfırla"></div>
   <div id="orta">
@@ -236,8 +241,25 @@ function md(src){
     if(!l.trim()){i++;continue}
     let p=[];while(i<L.length&&L[i].trim()&&!/^(```|#{1,3}\s|\s*[-*]\s|\s*\d+\.\s|\s*>|\|)/.test(L[i]))p.push(L[i++]);if(!p.length){p.push(L[i++])}h+="<p>"+satir(p.join(" "))+"</p>"}
   return h}
-function sekme(id){document.querySelectorAll(".sekme").forEach(b=>b.classList.toggle("on",b.dataset.p===id));document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("on",p.id===id));if(id==="p-ciktilar")ciktilariYukle();if(id==="p-git")gitPaneliYukle();if(id==="p-github")githubPaneliYukle();sagiAc()}
+function sekme(id){if((S.gizliSekme||[]).includes(id)){S.gizliSekme=S.gizliSekme.filter(x=>x!==id);sekmeleriCiz()}document.querySelectorAll(".sekme").forEach(b=>b.classList.toggle("on",b.dataset.p===id));document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("on",p.id===id));if(id==="p-ciktilar")ciktilariYukle();if(id==="p-git")gitPaneliYukle();if(id==="p-github")githubPaneliYukle();sagiAc()}
 document.querySelectorAll(".sekme").forEach(b=>b.onclick=()=>sekme(b.dataset.p));
+/* ---- sag panel sekmeleri Claude uygulamasi gibi: her sekme kapatilabilir (x), + ile geri acilir, genislet ve paneli kapat dugmeleri ---- */
+try{S.gizliSekme=JSON.parse(localStorage.getItem("aktapokus-gizli-sekmeler")||"[]").filter(x=>/^p-[a-z]+$/.test(x))}catch(x){S.gizliSekme=[]}
+function sekmeleriCiz(){const bar=$("#sekmeler");const gizli=S.gizliSekme||[];
+  bar.querySelectorAll(".sekme").forEach(b=>{b.style.display=gizli.includes(b.dataset.p)?"none":"";if(!b.querySelector(".sk-x"))b.append(e("span",{class:"sk-x",title:"Sekmeyi kapat",text:"×",onclick:ev=>{ev.stopPropagation();sekmeKapat(b.dataset.p)}}))});
+  try{localStorage.setItem("aktapokus-gizli-sekmeler",JSON.stringify(gizli))}catch(x){}
+  const acik=[...bar.querySelectorAll(".sekme")].filter(b=>b.style.display!=="none");if(acik.length&&!acik.some(b=>b.classList.contains("on")))sekme(acik[0].dataset.p)}
+function sekmeKapat(id){const acik=[...document.querySelectorAll("#sekmeler .sekme")].filter(b=>b.style.display!=="none");if(acik.length<=1)return;S.gizliSekme=[...(S.gizliSekme||[]),id];sekmeleriCiz()}
+function sekmeMenusuKapat(){const m=$("#sekmeMenu");if(m)m.remove()}
+{const arac=e("span",{class:"sekme-araclar"},
+  e("button",{id:"sekmeEkle",class:"panel-dugme",title:"Kapatılan sekmeyi geri aç",text:"+",onclick:ev=>{ev.stopPropagation();if($("#sekmeMenu")){sekmeMenusuKapat();return}const gizli=S.gizliSekme||[];const m=e("div",{id:"sekmeMenu",class:"acilir"});
+    if(!gizli.length)m.append(e("div",{class:"m",text:"Kapalı sekme yok"}));
+    for(const id of gizli){const b=document.querySelector('#sekmeler .sekme[data-p="'+id+'"]');m.append(e("div",{class:"m",text:b?b.firstChild.textContent:id,onclick:()=>{sekmeMenusuKapat();sekme(id)}}))}
+    document.body.append(m);const r=ev.currentTarget.getBoundingClientRect();m.style.display="block";m.style.top=(r.bottom+4)+"px";m.style.left=Math.max(4,Math.min(r.left,innerWidth-m.offsetWidth-8))+"px";setTimeout(()=>document.addEventListener("mousedown",function k(e2){if(!m.contains(e2.target)){sekmeMenusuKapat();document.removeEventListener("mousedown",k)}}),0)}}),
+  e("button",{id:"sagGenis",class:"panel-dugme",title:"Paneli genişlet / daralt",text:"⤢",onclick:()=>{S.duzen.sagGenis=!S.duzen.sagGenis;duzenUygula();duzenYaz()}}),
+  e("button",{class:"panel-dugme",title:"Sağ paneli kapat (Alt+2)",text:"✕",onclick:sagDegis}));
+  $("#sekmeler").append(arac)}
+sekmeleriCiz();
 function akisaEkle(n){const a=$("#akis");const alta=a.scrollTop+a.clientHeight>=a.scrollHeight-40;a.append(n);if(alta)a.scrollTop=a.scrollHeight;return n}
 /* Otomatik asagi kaydirma: kullanici en alttaysa (ya da kendisi yeni gorev yolladiysa) akis her degisiklikte (arac karti, canli metin, yanit, karar dugmeleri) alta iner; yukari kaydirinca durur */
 S.altaYapisik=true;(()=>{const a=$("#akis");a.addEventListener("scroll",()=>{S.altaYapisik=a.scrollTop+a.clientHeight>=a.scrollHeight-70});new MutationObserver(()=>{if(S.altaYapisik)a.scrollTop=a.scrollHeight}).observe(a,{childList:true,subtree:true,characterData:true})})();
@@ -360,8 +382,8 @@ async function istatistikYukle(hedef){const p=hedef||S.istHedef||$("#ayarIcerik"
 function kapsamSecici(){const b=(ad,v)=>e("button",{class:S.istKapsam===v?"pri":"",text:ad,onclick:()=>{S.istKapsam=v;istatistikYukle()}});return e("div",{class:"row"},b("Bu proje","proje"),b("Tüm projeler","tum"),e("button",{text:"Yenile",onclick:()=>istatistikYukle()}))}
 /* ---- AYARLAR: sol menulu tam sayfa (OpenCode Desktop gibi). Bolumler: Genel, Saglayicilar, Modeller, CLI'lar, Roller, Kullanim, Hakkinda ---- */
 const AYAR_BOLUMLERI=[["hesaplar","Hesaplar"],["genel","Genel"],["saglayicilar","Sağlayıcılar"],["modeller","Modeller"],["clilar","CLI'lar"],["mcp","MCP sunucuları"],["beceriler","Beceriler"],["github","GitHub"],["roller","Roller"],["telegram","Telegram"],["otomasyon","Otomasyonlar"],["uzak","Uzak erişim"],["kullanim","Kullanım"],["hakkinda","Hakkında"]];
-function ayarAc(id){$("#ayarlar").classList.add("on");ayarGit(id||S.ayarBolum||"genel")}
-function ayarKapat(){$("#ayarlar").classList.remove("on")}
+function ayarAc(id){$("#ayarlar").classList.add("on");$("#ayarUst").classList.add("on");ayarGit(id||S.ayarBolum||"genel")}
+function ayarKapat(){$("#ayarlar").classList.remove("on");$("#ayarUst").classList.remove("on");hesapOzetYukle()}
 async function clilarYukle(){S.clilar=(await api("/api/clilar")).clilar;return S.clilar}
 async function canliModelleriYukle(){try{S.canliModeller=(await api("/api/modeller")).modeller;(S.modelListeleri||[]).forEach(x=>modelOnerileri(x.liste,x.sel.value))}catch(x){}}
 function ayarMenusuCiz(){const m=$("#ayarMenu");m.textContent="";m.append(e("button",{class:"geri",text:"← Uygulamaya dön",onclick:ayarKapat}));
@@ -389,7 +411,7 @@ async function hesaplarBolumu(h){const kap=e("div",{style:"max-width:760px"});h.
   const git=(ad,b)=>e("button",{text:b||"Ayrıntı",onclick:()=>ayarGit(ad)});
   const ciz=async()=>{kap.textContent="";kap.append(e("div",{class:"mut3",text:"hesaplar sorgulanıyor… (Claude ve Codex oturumları birkaç saniye alabilir)"}));
     let d;try{d=await api("/api/hesaplar")}catch(x){kap.textContent="";kap.append(e("div",{class:"badge b-err",style:"white-space:normal",text:x.message}));return}
-    kap.textContent="";kap.append(e("div",{class:"row",style:"justify-content:flex-end;margin-bottom:6px"},e("button",{text:"Yenile",onclick:ciz})));
+    S.hesaplar=d;hesapChipCiz();kap.textContent="";kap.append(e("div",{class:"row",style:"justify-content:flex-end;margin-bottom:6px"},e("button",{text:"Yenile",onclick:ciz})));
     const y=d.yerel||{};
     kap.append(kart("Aktapokus","giriş yok","b-warn",["Yerel kullanıcı: "+(y.kullanici||"?")+(y.bilgisayar?" @ "+y.bilgisayar:""),"Aktapokus'un kendi kullanıcı hesabı yoktur: bu bilgisayarda yerel çalışır, verileriniz burada kalır, giriş gerekmez. (Google ile giriş planlanıyor.) Aşağıdakiler, Aktapokus'un kullandığı araçlardaki kimliklerinizdir."]));
     const g=d.github||{};kap.append(kart("GitHub",g.giris?"@"+g.hesap:(g.kurulu?"giriş yok":"gh kurulu değil"),g.giris?"b-ok":"b-err",[g.giris?"Depo listesi, klonlama, pull request ve issue işlemleri bu hesapla yapılır (bilgisayardaki gh oturumu).":(g.hata||"Giriş için bir terminalde `gh auth login` çalıştırın.")],git("github","GitHub bölümü")));
@@ -448,7 +470,13 @@ async function hakkindaBolumu(h){let cl=[];try{cl=await clilarYukle()}catch(x){}
 
 $("#ayarDugme").onclick=()=>ayarAc();document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&$("#ayarlar").classList.contains("on"))ayarKapat()});
 /* ---- Ana ekran (Hermes tarzi): rol/model cipleri + hizli model menusu, alt durum cubugu, yeni gorev, gorev listesi ---- */
-function hesapChipCiz(){const y=S.yerel||{};const ad=y.kullanici||"yerel kullanıcı";$("#hesapAd").textContent=ad;$("#hesapAv").textContent=(ad[0]||"?");$("#hesapAlt").textContent="yerel · hesap girişi yok"}
+function hesapChipCiz(){const y=S.yerel||{};const h=S.hesaplar;let ad=y.kullanici||"yerel kullanıcı",alt="yerel · hesap girişi yok",ipucu="Aktapokus'un kendi hesabı yok; yerel çalışır.";
+  if(h){const g=h.github||{},c=h.claude||{},x=h.codex||{};const girisler=[];if(c.giris)girisler.push("Claude"+(c.abonelik?" "+c.abonelik:""));if(g.giris&&g.hesap)girisler.push("GitHub @"+g.hesap);if(x.giris)girisler.push("Codex");
+    if(c.giris&&c.eposta)ad=c.eposta;else if(g.giris&&g.hesap)ad="@"+g.hesap;
+    if(girisler.length){alt="giriş: "+girisler.join(" · ");ipucu=ad+"\n"+girisler.join("\n")+"\n(Windows kullanıcısı: "+(y.kullanici||"?")+")"}}
+  $("#hesapAd").textContent=ad;$("#hesapAv").textContent=(ad.replace(/^@/,"")[0]||"?");$("#hesapAlt").textContent=alt;$("#hesapChip").title=ipucu+"\nAyrıntı için tıklayın."}
+let hesapOzetZ=0;
+async function hesapOzetYukle(){if(Date.now()-hesapOzetZ<30000)return;hesapOzetZ=Date.now();try{S.hesaplar=await api("/api/hesaplar");hesapChipCiz()}catch(x){hesapOzetZ=0}}
 $("#hesapChip").onclick=()=>ayarAc("hesaplar");
 function rolleriCiz(){const r=$("#rolCipleri");r.textContent="";
   if(!S.ayar||S.ayar.hata){r.append(e("span",{class:"mut3",text:S.ayar&&S.ayar.hata?S.ayar.hata:"klasör seçilmedi"}));durumMetniGuncelle();return}
@@ -596,17 +624,17 @@ const DUZEN_ANAHTAR="aktapokus.duzen";
 const BOLUCU_PX=6,SOL_AZ=140,SOL_COK=420,SAG_AZ=280;
 S.duzen={sol:190,sag:0,solKapali:false,sagKapali:false};
 try{Object.assign(S.duzen,JSON.parse(localStorage.getItem(DUZEN_ANAHTAR)||"{}"))}catch(x){}
-S.duzen.sol=Math.min(SOL_COK,Math.max(SOL_AZ,+S.duzen.sol||190));S.duzen.sag=+S.duzen.sag>=SAG_AZ?+S.duzen.sag:0;S.duzen.solKapali=!!S.duzen.solKapali;S.duzen.sagKapali=!!S.duzen.sagKapali;
+S.duzen.sagGenis=!!S.duzen.sagGenis;S.duzen.sol=Math.min(SOL_COK,Math.max(SOL_AZ,+S.duzen.sol||190));S.duzen.sag=+S.duzen.sag>=SAG_AZ?+S.duzen.sag:0;S.duzen.solKapali=!!S.duzen.solKapali;S.duzen.sagKapali=!!S.duzen.sagKapali;
 function duzenYaz(){try{localStorage.setItem(DUZEN_ANAHTAR,JSON.stringify(S.duzen))}catch(x){}}
 function duzenUygula(){const m=$("#main");const g=m.clientWidth;const d=S.duzen;if(g<400)return;  // gizli/cok kucuk pencerede olcum anlamsiz: kayitli duzeni bozma
  
   const sol=d.solKapali?0:Math.max(SOL_AZ,Math.min(SOL_COK,+d.sol||190));
   const sagEnCok=Math.max(SAG_AZ,Math.round(g*0.8)-sol);
-  const sag=d.sagKapali?0:Math.max(SAG_AZ,Math.min(sagEnCok,+d.sag||Math.round(g*0.46)));
+  const sag=d.sagKapali?0:(d.sagGenis?sagEnCok:Math.max(SAG_AZ,Math.min(sagEnCok,+d.sag||Math.round(g*0.46))));
   m.style.setProperty("--sol-w",sol+"px");m.style.setProperty("--sag-w",sag+"px");
   m.style.setProperty("--b1",d.solKapali?"0px":BOLUCU_PX+"px");m.style.setProperty("--b2",d.sagKapali?"0px":BOLUCU_PX+"px");
   m.classList.toggle("sol-kapali",!!d.solKapali);m.classList.toggle("sag-kapali",!!d.sagKapali);
-  $("#solDugme").classList.toggle("on",!d.solKapali);$("#sagDugme").classList.toggle("on",!d.sagKapali)}
+  $("#solDugme").classList.toggle("on",!d.solKapali);$("#sagDugme").classList.toggle("on",!d.sagKapali);const gb=$("#sagGenis");if(gb)gb.classList.toggle("on",!!d.sagGenis)}
 function solDegis(){S.duzen.solKapali=!S.duzen.solKapali;duzenUygula();duzenYaz()}
 function sagDegis(){S.duzen.sagKapali=!S.duzen.sagKapali;duzenUygula();duzenYaz()}
 function sagiAc(){if(S.duzen.sagKapali){S.duzen.sagKapali=false;duzenUygula();duzenYaz()}}
@@ -882,7 +910,7 @@ async function trmYeni(){await xtYukle();const kutu=$("#trmGovde");const g=Math.
   const d=await api("/api/terminal/ac",{method:"POST",body:{satir:g,sutun:w}});trmBagla(d.id,d);trmSec(d.id)}
 async function trmKapat(id){const t=TRM.t[id];if(!t)return;t.kapali=true;try{await api("/api/terminal/"+id+"/kapat",{method:"POST",body:{}})}catch(x){}
   try{t.term.dispose()}catch(x){}t.kutu.remove();delete TRM.t[id];const kalan=Object.keys(TRM.t);trmSec(kalan.length?kalan[0]:"tg")}
-async function terminalAc(){$("#terminalSayfa").classList.add("on");trmMesaj("");
+async function terminalAc(){$("#terminalSayfa").classList.add("on");$("#terminalUst").classList.add("on");trmMesaj("");
   try{await xtYukle()}catch(x){trmMesaj("Terminal ekranı yüklenemedi: "+x.message);trmSekmeler();return}
   let d;try{d=await api("/api/terminal")}catch(x){trmMesaj(x.message);trmSekmeler();return}
   const kl=$("#trmKlasor");if(kl)kl.textContent=d.klasor||"";
@@ -890,8 +918,10 @@ async function terminalAc(){$("#terminalSayfa").classList.add("on");trmMesaj("")
   for(const o of d.acik)if(!TRM.t[o.id])trmBagla(o.id,o);
   const ids=Object.keys(TRM.t);if(!ids.length){try{await trmYeni()}catch(x){trmMesaj(x.message)}}else trmSec(TRM.aktif&&TRM.t[TRM.aktif]?TRM.aktif:ids[0]);
   const k2=$("#trmKlasor");if(k2)k2.textContent=d.klasor||""}
-function terminalKapat(){$("#terminalSayfa").classList.remove("on");if(TRM.tgZ){clearInterval(TRM.tgZ);TRM.tgZ=null}}
+function terminalKapat(){$("#terminalSayfa").classList.remove("on");$("#terminalUst").classList.remove("on");if(TRM.tgZ){clearInterval(TRM.tgZ);TRM.tgZ=null}}
 $("#terminalDugme").onclick=()=>$("#terminalSayfa").classList.contains("on")?terminalKapat():terminalAc();
+$("#terminalUst").onclick=()=>$("#terminalDugme").click();$("#ayarUst").onclick=()=>$("#ayarlar").classList.contains("on")?ayarKapat():ayarAc();
+document.addEventListener("keydown",ev=>{if(ev.ctrlKey&&!ev.altKey&&!ev.metaKey&&(ev.key==="`"||ev.code==="Backquote")){ev.preventDefault();ev.stopPropagation();$("#terminalDugme").click()}},true);
 document.addEventListener("keydown",ev=>{if(ev.altKey&&ev.key==="3"){ev.preventDefault();$("#terminalDugme").click()}});
 /* ---- Ayarlar > MCP sunucuları ve Beceriler ---- */
 function mcpOzet(s){return s.tur==="remote"?s.url:s.komut.join(" ")}
@@ -943,8 +973,24 @@ async function beceriBolumu(h){const kap=e("div");h.append(kap);
           e("div",{class:"mut3",style:"margin-top:2px",text:b.aciklama||"(açıklama yok: model bu beceriyi görmez)"})))}
       if(!n)liste.append(e("div",{class:"mut3",text:q?"Eşleşen beceri yok.":"Henüz beceri yok."}))};
     ara.oninput=ciz;ciz();
-    kap.append(e("button",{class:"pri",style:"margin-top:6px",text:"+ Beceri ekle",onclick:()=>beceriFormu(kap,null,yukle)}),e("div",{class:"mut3",style:"margin-top:6px",text:"Klasör: "+d.kok}))};
+    kap.append(e("div",{class:"row",style:"margin-top:6px"},e("button",{class:"pri",text:"+ Beceri ekle",onclick:()=>beceriFormu(kap,null,yukle)}),e("button",{text:"↓ Çevrimiçi kaynaktan ekle",title:"GitHub deposundaki becerileri listeler; indirmeden önce içeriği gösterir",onclick:()=>beceriKaynakFormu(kap,yukle)})),e("div",{class:"mut3",style:"margin-top:6px",text:"Klasör: "+d.kok}))};
   await yukle()}
+/* Çevrimiçi kaynak: GitHub deposu seç (hazır liste ya da sahip/depo), beceriyi önizle, onayla, indir. İçerik güvenilmeyen veridir: önizleme zorunlu. */
+function beceriKaynakFormu(kap,bitti){const eski=$("#beceriKaynakForm");if(eski)eski.remove();const k=e("div",{class:"card",id:"beceriKaynakForm"});
+  const sec=e("select",{style:"max-width:260px"});const kaynak=e("input",{placeholder:"sahip/depo (örn. anthropics/skills)",style:"width:260px",autocomplete:"off"});
+  const getir=e("button",{class:"pri",text:"Listele"});const durum=e("div",{class:"mut3",style:"margin-top:5px;white-space:normal"});const liste=e("div",{style:"margin-top:6px"});const onizle=e("div");
+  const hata=m=>{durum.className="badge b-err";durum.style.display="block";durum.textContent=m};
+  sec.append(e("option",{value:"",text:"Hazır kaynak seç…"}),e("option",{value:"anthropics/skills",text:"Anthropic resmi beceri deposu (anthropics/skills)"}));sec.onchange=()=>{if(sec.value)kaynak.value=sec.value};
+  const q=()=>encodeURIComponent(kaynak.value.trim());
+  const listele=async()=>{liste.textContent="";onizle.textContent="";durum.className="mut3";durum.style.display="";durum.textContent="yükleniyor…";let d;try{d=await api("/api/beceri-kaynak?kaynak="+q())}catch(x){hata(x.message);return}
+    durum.textContent=d.beceriler.length+" beceri bulundu"+(d.kesildi?" (liste kısaltıldı)":"")+". Becerilerin içeriği modele talimat olarak gider; yalnızca güvendiğiniz kaynaklardan ekleyin.";
+    for(const b of d.beceriler)liste.append(e("div",{class:"row",style:"justify-content:space-between;padding:2px 0"},e("span",{class:"row"},e("b",{text:b.kimlik}),b.kurulu?e("span",{class:"badge",text:"kurulu"}):null,b.ek_dosya?e("span",{class:"badge b-warn",title:"Yalnızca SKILL.md indirilir; scripts/ gibi ek dosyalar alınmaz",text:"ek dosyaları var"}):null),e("button",{text:"Önizle",onclick:()=>onizleGoster(d.kaynak,b)})))};
+  const onizleGoster=async(kay,b)=>{onizle.textContent="";let o;try{o=await api("/api/beceri-kaynak/onizle?kaynak="+encodeURIComponent(kay)+"&yol="+encodeURIComponent(b.yol))}catch(x){hata(x.message);return}
+    const ind=e("button",{class:"pri",text:b.kurulu?"Üzerine yaz ve indir":"İndir",onclick:async()=>{if(!confirm(o.kimlik+" becerisi "+kay+" deposundan indirilsin mi?\n\nİçeriği yukarıda gösterildi; modele talimat olarak verilecek."+(b.kurulu?"\nKurulu olan beceri DEĞİŞTİRİLECEK.":"")))return;try{await api("/api/beceriler/indir",{method:"POST",body:{kaynak:kay,yol:b.yol,uzerine_yaz:!!b.kurulu}});k.remove();await bitti()}catch(x){hata(x.message)}}});
+    onizle.append(e("div",{class:"card",style:"margin-top:6px"},e("b",{text:o.ad||o.kimlik}),e("div",{class:"mut3",text:o.aciklama||"(açıklama yok: indirilemez)"}),e("pre",{style:"max-height:260px;overflow:auto;white-space:pre-wrap;margin:6px 0",text:o.govde}),e("div",{class:"row"},ind)));onizle.scrollIntoView({block:"nearest"})};
+  getir.onclick=listele;kaynak.onkeydown=ev=>{if(ev.key==="Enter")listele()};
+  k.append(e("b",{text:"Çevrimiçi kaynaktan beceri ekle"}),e("div",{class:"mut3",text:"Herkese açık bir GitHub deposundaki SKILL.md becerileri (yalnızca github.com'a bağlanılır)."}),e("div",{class:"row",style:"margin-top:5px"},sec,kaynak,getir),durum,liste,onizle,e("div",{class:"row",style:"margin-top:6px"},e("button",{text:"Kapat",onclick:()=>k.remove()})));
+  kap.append(k);k.scrollIntoView({block:"nearest"})}
 function beceriFormu(kap,b,bitti){const eski=$("#beceriForm");if(eski)eski.remove();const duzenle=!!b;b=b||{otomatik:true,govde:""};const k=e("div",{class:"card",id:"beceriForm"});
   const al=(etiket,ad,deger,ipucu,cok)=>{const g=cok?e("textarea",{rows:String(cok),style:"width:100%"}):e("input",{style:"width:100%"});g.value=deger==null?"":deger;if(ipucu)g.placeholder=ipucu;g.dataset.a=ad;return e("label",{class:"mut",style:"display:block;margin-top:5px"},etiket,g)};
   const kimlik=al("Kimlik (küçük harf ve tire, örn. sunum-hazirla)","kimlik",b.kimlik,"sunum-hazirla");if(duzenle)kimlik.querySelector("input").readOnly=true;
@@ -1114,7 +1160,7 @@ async function motorUyarisi(){const k=$("#motorUyari");if(!k)return;let d;try{d=
     kutu("b-warn",e("b",{text:"Bu projenin rolleri kurulu olmayan bir CLI'a bağlı: "+adlar+". "})," Görev şu haliyle hata verir. Kurulu olanlar: "+kurulu.map(m=>m.gorunen).join(", ")+".",e("div",{style:"margin-top:6px"},...dugmeler,e("button",{text:"Roller ayarına git",onclick:()=>ayarAc("roller")})))}
   else k.style.display="none"}
 /* ---- Uzak erişim (Ayarlar > Uzak erişim) + uzak bağlantıda arayüz uyumu ---- */
-function uzakDuzen(){const b=S.baglanti||{};document.body.classList.toggle("uzak",!!b.uzak);const t=$("#terminalDugme");if(t)t.style.display=(b.uzak&&!b.terminal)?"none":"";
+function uzakDuzen(){const b=S.baglanti||{};document.body.classList.toggle("uzak",!!b.uzak);const t=$("#terminalDugme");if(t)t.style.display=(b.uzak&&!b.terminal)?"none":"";const tu=$("#terminalUst");if(tu)tu.style.display=(b.uzak&&!b.terminal)?"none":"";
   let r=$("#uzakRozet");if(b.uzak&&!r){r=e("span",{id:"uzakRozet",class:"badge b-warn",title:"Bu arayüze uzaktan bağlısınız (Tailscale). Bazı işlemler yalnızca bilgisayardan yapılabilir.",text:"uzak bağlantı"});$("#klasorAd").after(" ",r)}else if(!b.uzak&&r)r.remove()}
 async function uzakBolumu(h){const kap=e("div");h.append(kap);
   if(S.baglanti&&S.baglanti.uzak){kap.append(e("div",{class:"badge b-warn",style:"display:block;white-space:normal",text:"Uzak erişim ayarları yalnızca bilgisayarın kendisinden değiştirilebilir."}));return}
@@ -1195,7 +1241,7 @@ function otomasyonFormu(kap,d,o,yenile,mesaj){const eski=$("#otoForm");if(eski)e
   const hata=e("div",{class:"badge b-err",style:"display:none;margin-top:5px;white-space:normal"});const v=a=>k.querySelector('[data-a="'+a+'"]').value;
   const kaydet=e("button",{class:"pri",text:"Kaydet",onclick:async()=>{hata.style.display="none";try{await api("/api/otomasyonlar",{method:"POST",body:{ad:v("ad").trim(),proje:v("proje"),gorev:v("gorev"),aciklama:v("aciklama").trim(),acik:acik.checked,...zamanlamaAl()}});await yenile()}catch(x){hata.textContent=x.message;hata.style.display=""}}});
   k.append(e("div",{class:"row",style:"margin-top:6px"},kaydet,e("button",{text:"Vazgeç",onclick:()=>k.remove()})),hata);kap.append(k);k.scrollIntoView({block:"nearest"})}
-(async()=>{if(!T){document.body.textContent="Token yok: arayüzü terminalde yazdırılan adresle açın.";return}await durumYukle();if(!S.klasor)klasorSecimiAc();else{await dosyalariYukle();await onizlemeKur()}olayAkisi();acilisParametreleri()})();
+(async()=>{if(!T){document.body.textContent="Token yok: arayüzü terminalde yazdırılan adresle açın.";return}await durumYukle();if(!S.klasor)klasorSecimiAc();else{await dosyalariYukle();await onizlemeKur()}olayAkisi();acilisParametreleri();hesapOzetYukle()})();
 </script>
 </body>
 </html>

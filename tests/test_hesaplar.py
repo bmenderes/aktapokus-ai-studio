@@ -112,3 +112,20 @@ def test_arayuz_hesap_kutusu_ve_bolumu_var():
     assert 'id="hesapChip"' in html and "yerel · hesap girişi yok" in html and 'ayarAc("hesaplar")' in html
     assert 'const AYAR_BOLUMLERI=[["hesaplar","Hesaplar"],' in html and "async function hesaplarBolumu" in html
     assert "Aktapokus'un kendi kullanıcı hesabı yoktur" in html and "claude auth login" in html and "codex login" in html
+
+
+def test_sol_panelin_alti_sabit_ust_kismi_kayar_hesap_kutusu_giris_yapilani_gosterir():
+    """Gercek sikayet: Ayarlar/Terminal dugmelerine asagi kaydirarak ulasiliyordu; giris yapilan kullanici kutuda gorunmuyordu."""
+    html = (Path(__file__).parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
+    assert '<div id="solKaydir">' in html and '<div id="solAlt"><button id="hesapChip"' in html
+    assert "#solKaydir{flex:1;min-height:0;overflow:auto}#solAlt{flex:none;" in html and "padding:8px 10px;overflow:hidden;min-height:0}" in html
+    assert 'ad=c.eposta;else if(g.giris&&g.hesap)ad="@"+g.hesap' in html and 'alt="giriş: "+girisler.join(" · ")' in html
+    assert "async function hesapOzetYukle" in html and "hesapOzetYukle()})();" in html
+
+
+def test_ust_cubukta_terminal_ayarlar_ve_sag_panel_sekmeleri_kapatilip_acilabilir():
+    html = (Path(__file__).parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
+    assert 'id="terminalUst"' in html and 'id="ayarUst"' in html and 'ev.key==="`"||ev.code==="Backquote"' in html
+    for parca in ("function sekmeleriCiz", "function sekmeKapat", 'id:"sekmeEkle"', 'id:"sagGenis"', 'text:"✕",onclick:sagDegis', "if(acik.length<=1)return;"):
+        assert parca in html, parca
+    assert "d.sagGenis?sagEnCok:" in html and "(S.gizliSekme||[]).includes(id)" in html  # programatik sekme acma kapali sekmeyi geri getirir

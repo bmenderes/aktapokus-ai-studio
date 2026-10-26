@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import beceriler, ciktilar, clitanim, github, gityonet, gorevmeta, guard, hesaplar, motorlar, otomasyon, uzak, istatistik, mcptanim, projeler, snapshot, terminal
+from . import beceri_kaynak, beceriler, ciktilar, clitanim, github, gityonet, gorevmeta, guard, hesaplar, motorlar, otomasyon, uzak, istatistik, mcptanim, projeler, snapshot, terminal
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
@@ -972,6 +972,27 @@ class Uygulama:
         except beceriler.BeceriHatasi as hata:
             raise UygulamaHatasi(str(hata)) from None
 
+    def beceri_kaynak_listele(self, kaynak: object) -> dict:
+        try:
+            return {**beceri_kaynak.listele(kaynak or beceri_kaynak.ONERILEN[0]["kaynak"]), "onerilen": list(beceri_kaynak.ONERILEN)}
+        except beceriler.BeceriHatasi as hata:
+            raise UygulamaHatasi(str(hata)) from None
+
+    def beceri_kaynak_onizle(self, kaynak: object, yol: object) -> dict:
+        try:
+            b = beceri_kaynak.getir(kaynak, yol)
+        except beceriler.BeceriHatasi as hata:
+            raise UygulamaHatasi(str(hata)) from None
+        return {**b.ozet(), "govde": b.govde}
+
+    def beceri_indir(self, veri: object) -> dict:
+        if not isinstance(veri, dict):
+            raise UygulamaHatasi("Govde bir nesne olmali")
+        try:
+            return beceri_kaynak.indir(veri.get("kaynak"), veri.get("yol"), veri.get("uzerine_yaz") is True)
+        except beceriler.BeceriHatasi as hata:
+            raise UygulamaHatasi(str(hata), 409 if "zaten kurulu" in str(hata) else 400) from None
+
     def beceri_sil(self, kimlik: object) -> dict:
         try:
             beceriler.sil(kimlik)
@@ -1708,6 +1729,10 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.github_issueler())
                 if yol == "/api/beceriler":
                     return self._gonder(200, app.beceri_listele())
+                if yol == "/api/beceri-kaynak":
+                    return self._gonder(200, app.beceri_kaynak_listele(sorgu.get("kaynak")))
+                if yol == "/api/beceri-kaynak/onizle":
+                    return self._gonder(200, app.beceri_kaynak_onizle(sorgu.get("kaynak"), sorgu.get("yol")))
                 m = re.match(r"^/api/beceriler/([A-Za-z0-9-]{1,64})$", yol)
                 if m:
                     return self._gonder(200, app.beceri_oku(m.group(1)))
@@ -1817,6 +1842,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.mcp_dene(g.get("ad")))
                 if yol == "/api/beceriler":
                     return self._gonder(200, app.beceri_kaydet(g))
+                if yol == "/api/beceriler/indir":
+                    return self._gonder(200, app.beceri_indir(g))
                 if yol == "/api/beceriler/sil":
                     return self._gonder(200, app.beceri_sil(g.get("kimlik")))
                 if yol == "/api/terminal/ac":
