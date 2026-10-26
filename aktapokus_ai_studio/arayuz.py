@@ -329,9 +329,7 @@ class Uygulama:
         try:
             canli.olay(oturum.kimlik, oturum.klasor.name, str(oturum.klasor), olay)  # Claude Code kancasi icin canli durum (hata gorevi etkilemez)
             if olay.get("tur") in ("plan", "basladi", "adim-basladi", "karar-bekleniyor", "bitti"):
-                haber.opencode_yaz()  # OpenCode talimat dosyasi
-                if olay.get("tur") == "bitti":
-                    threading.Timer(3.0, haber.opencode_yaz).start()  # gorev kaydi diske yazildiktan sonra "biten" satiri da girsin
+                haber.opencode_yaz_planla(3.0, False) if olay.get("tur") == "bitti" else haber.opencode_yaz_planla(0.3)  # OpenCode talimat dosyasi (arka planda; gorevi bekletmez; "bitti"de kayit diske yazildiktan sonra)
         except Exception:
             pass
         return self.bus.yayinla({**olay, "proje": oturum.kimlik})

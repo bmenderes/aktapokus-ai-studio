@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import time
 from pathlib import Path
 
@@ -185,6 +186,28 @@ def opencode_yaz(simdi: float | None = None) -> None:
         os.replace(gecici, yol)
     except Exception:
         pass
+
+
+_planli = threading.Lock()
+_bekleyen: threading.Timer | None = None
+
+
+def opencode_yaz_planla(gecikme_sn: float, birlestir: bool = True) -> None:
+    """opencode_yaz'i arka planda `gecikme_sn` sonra calistirir; birlestir=True ise art arda olaylar tek yazima birlesir."""
+    global _bekleyen
+    if not birlestir:  # ornegin "bitti": kayit diske yazildiktan sonra mutlaka bir yazim olsun
+        t = threading.Timer(gecikme_sn, opencode_yaz)
+        t.daemon = True
+        t.start()
+        return
+    with _planli:
+        if _bekleyen is not None and _bekleyen.is_alive():
+            if gecikme_sn >= 0.3:
+                return
+            _bekleyen.cancel()
+        _bekleyen = threading.Timer(gecikme_sn, opencode_yaz)
+        _bekleyen.daemon = True
+        _bekleyen.start()
 
 
 # ---------------- kurulum: araclarin kendi ayarlarina kanca/talimat ekler (yedek alir, mevcut ayarlari korur) ----------------

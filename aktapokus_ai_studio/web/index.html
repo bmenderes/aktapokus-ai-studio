@@ -419,7 +419,7 @@ function githubKarti(g,yenile){const kart=e("div",{class:"card"});const ust=e("d
   ust.append(e("span",{class:"row",style:"gap:8px"},e("b",{text:"GitHub"}),rozet),dugmeler);kart.append(ust,alan);
   if(g.giris){alan.append(bilgi("Depo listesi, klonlama, push, pull request ve issue işlemleri bu hesapla yapılır. Bu oturum yalnızca Aktapokus'a aittir; bilgisayardaki başka gh/git hesaplarını etkilemez."));
     dugmeler.append(e("button",{text:"GitHub bölümü",onclick:()=>ayarGit("github")}),e("button",{text:"Çıkış yap",onclick:async()=>{if(!confirm("Aktapokus'un GitHub oturumu kapatılsın mı?\n\nBilgisayardaki başka hesaplar etkilenmez."))return;try{await api("/api/github/cikis",{method:"POST",body:{}});yenile()}catch(x){hata(x.message)}}}));return kart}
-  if(!g.kurulu){alan.append(bilgi(g.hata||"GitHub CLI (gh) kurulu değil. https://cli.github.com adresinden kurun, sonra bu sayfayı yenileyin."));return kart}
+  if(!g.kurulu){alan.append(bilgi(g.hata||"GitHub CLI (gh) kurulu değil. cli.github.com adresinden kurun, sonra bu sayfayı yenileyin."));return kart}
   alan.append(bilgi("Giriş yok. Aktapokus kendi GitHub oturumunu kullanır (bilgisayardaki gh hesabı kullanılmaz): tarayıcıda bir kod girerek bağlanırsınız; parola ya da belirteç Aktapokus'tan geçmez."));
   const giris=e("button",{class:"pri",text:"GitHub'a giriş yap"});dugmeler.append(giris);
   const bekleyis=async()=>{try{const d=await api("/api/github/giris/durum");if(d.durum==="tamam"){durdur();yenile()}else if(d.durum==="hata"){durdur();hata(d.hata||"Giriş başarısız");dugmeler.textContent="";dugmeler.append(giris)}else if(d.durum==="iptal"||d.durum==="yok"){durdur()}}catch(x){}};
