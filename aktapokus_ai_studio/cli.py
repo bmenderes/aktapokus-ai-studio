@@ -170,6 +170,10 @@ def komut_haber(args) -> int:
     """Aktapokus durumunu yazar. Kanca modunda HICBIR hatada Claude Code'u engellemez (sessizce 0 doner)."""
     from . import haber
 
+    if args.kur:
+        for satir in haber.kur(args.kur):
+            print(satir)
+        return CIKIS_TAMAM
     try:
         if args.kanca:
             try:
@@ -214,6 +218,7 @@ def kur_parser() -> argparse.ArgumentParser:
     t.add_argument("--kok", action="append", help="Telefondan secilebilecek proje kok klasoru (kaydedilir; birden cok kez verilebilir)")
     h = alt.add_parser("haber", help="Aktapokus'ta ne oldugunu kisa ozet olarak yaz (Claude Code kancasi icin: --kanca)")
     h.add_argument("--kanca", action="store_true", help="Claude Code UserPromptSubmit kancasi: stdin'den oturum kimligini okur, yalniz YENI olanlari yazar (yeni yoksa hicbir sey yazmaz)")
+    h.add_argument("--kur", choices=["claude", "codex", "opencode", "hepsi"], help="Araclarin kendi ayarina Aktapokus haberi kancasini/talimat dosyasini ekler (yedek alir)")
     h.add_argument("--hepsi", action="store_true", help="Son 2 saatin ozetini isaretlemeden yaz")
     u = alt.add_parser("ui", help="Canli arayuzu baslat (yalniz bu bilgisayardan erisilir)")
     u.add_argument("--klasor", help="Acilista secilecek proje klasoru")

@@ -83,4 +83,7 @@ def mcp_ve_beceri_yalitimi(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("AKTAPOKUS_CANLI", str(tmp_path_factory.mktemp("canli") / "canli.json"))  # canli durum/haber dosyalari gercek ~/.aktapokus altina yazilmasin
     monkeypatch.setenv("AKTAPOKUS_HABER_DURUM", str(tmp_path_factory.mktemp("haber") / "haber-durum.json"))
     monkeypatch.setenv("AKTAPOKUS_CLAUDE_PROJELER", str(tmp_path_factory.mktemp("claudeproje")))
+    monkeypatch.setenv("AKTAPOKUS_CODEX_OTURUMLARI", str(tmp_path_factory.mktemp("codexoturum")))
+    monkeypatch.setenv("AKTAPOKUS_OPENCODE_DB", str(tmp_path_factory.mktemp("ocdb") / "opencode.db"))
+    monkeypatch.setenv("AKTAPOKUS_OPENCODE_HABER", str(tmp_path_factory.mktemp("ochaber") / "haber.md"))
     monkeypatch.setenv("AKTAPOKUS_GOLGE", str(tmp_path_factory.mktemp("golge")))  # golge (git'siz) yedek depolari gercek ~/.aktapokus altina yazilmasin

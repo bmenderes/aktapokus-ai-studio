@@ -146,3 +146,107 @@ def kanca(oturum: object, simdi: float | None = None) -> str:
     except OSError:
         pass
     return metin
+
+
+# ---------------- OpenCode: talimat dosyasi ----------------
+# OpenCode her istemde `instructions` dosyalarini yeniden okur (denendi): Aktapokus durumu bu dosyaya yazilir, OpenCode'un genel ayarina eklenir.
+OPENCODE_HABER_ORTAMI = "AKTAPOKUS_OPENCODE_HABER"
+OPENCODE_AYAR_ORTAMI = "AKTAPOKUS_OPENCODE_AYAR"
+CODEX_KANCA_ORTAMI = "AKTAPOKUS_CODEX_KANCA"
+CLAUDE_AYAR_ORTAMI = "AKTAPOKUS_CLAUDE_AYAR"
+
+
+def opencode_haber_yolu() -> Path:
+    ortam = os.environ.get(OPENCODE_HABER_ORTAMI)
+    return Path(ortam) if ortam else Path.home() / ".aktapokus" / "haber.md"
+
+
+def _zamansiz(metin: str) -> str:
+    return "\n".join(s for s in metin.splitlines() if "guncelleme" not in s)
+
+
+def opencode_yaz(simdi: float | None = None) -> None:
+    """Aktapokus'un guncel durumunu OpenCode'un okuyacagi dosyaya yazar (degismediyse dokunmaz). Hata gorevi etkilemez."""
+    simdi = simdi or time.time()
+    try:
+        metin, _ = ozet(None, simdi)
+        zaman = time.strftime("%H:%M", time.localtime(simdi))
+        icerik = (metin + f"\n(Aktapokus durumu, guncelleme {zaman}; yalnizca bilgi: kullanici bununla ilgili bir sey sormadikca gundeme getirme.)\n") if metin else \
+            f"Aktapokus: su an calisan ya da yeni biten gorev yok (guncelleme {zaman}).\n"
+        yol = opencode_haber_yolu()
+        yol.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            if _zamansiz(yol.read_text(encoding="utf-8")) == _zamansiz(icerik):
+                return
+        except OSError:
+            pass
+        gecici = yol.with_suffix(".tmp")
+        gecici.write_text(icerik, encoding="utf-8")
+        os.replace(gecici, yol)
+    except Exception:
+        pass
+
+
+# ---------------- kurulum: araclarin kendi ayarlarina kanca/talimat ekler (yedek alir, mevcut ayarlari korur) ----------------
+def _yedekle(yol: Path) -> None:
+    if yol.is_file():
+        yedek = yol.with_name(yol.name + ".aktapokus-yedek")
+        if not yedek.exists():
+            yedek.write_bytes(yol.read_bytes())
+
+
+def _json_oku(yol: Path) -> dict:
+    try:
+        v = json.loads(yol.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return v if isinstance(v, dict) else {}
+
+
+def _json_yaz(yol: Path, veri: dict) -> None:
+    yol.parent.mkdir(parents=True, exist_ok=True)
+    _yedekle(yol)
+    yol.write_text(json.dumps(veri, indent=2, ensure_ascii=False), encoding="utf-8")
+
+
+def kanca_komutu() -> str:
+    import sys
+
+    baslatici = Path(__file__).resolve().parent.parent / "haber_kancasi.py"
+    return f'"{sys.executable}" "{baslatici}"'
+
+
+def _kanca_ekle(yol: Path) -> bool:
+    """Claude Code ve Codex ayni `hooks.UserPromptSubmit` bicimini kullanir. True: eklendi, False: zaten vardi."""
+    veri = _json_oku(yol)
+    komut = kanca_komutu()
+    liste = veri.setdefault("hooks", {}).setdefault("UserPromptSubmit", [])
+    if any("haber_kancasi.py" in str(x.get("command", "")) for g in liste if isinstance(g, dict) for x in g.get("hooks", []) if isinstance(x, dict)):
+        return False
+    liste.append({"hooks": [{"type": "command", "command": komut, "timeout": 5}]})
+    _json_yaz(yol, veri)
+    return True
+
+
+def kur(hedef: str) -> list[str]:
+    """hedef: claude | codex | opencode | hepsi. Donen: yapilanlarin kisa aciklamalari."""
+    sonuc = []
+    if hedef in ("claude", "hepsi"):
+        yol = Path(os.environ.get(CLAUDE_AYAR_ORTAMI) or Path.home() / ".claude" / "settings.json")
+        sonuc.append(f"Claude Code: kanca {'eklendi' if _kanca_ekle(yol) else 'zaten var'} ({yol})")
+    if hedef in ("codex", "hepsi"):
+        yol = Path(os.environ.get(CODEX_KANCA_ORTAMI) or Path.home() / ".codex" / "hooks.json")
+        sonuc.append(f"Codex: kanca {'eklendi' if _kanca_ekle(yol) else 'zaten var'} ({yol}). Codex'te bir kez `/hooks` ile kancayi gozden gecirip guvenin.")
+    if hedef in ("opencode", "hepsi"):
+        yol = Path(os.environ.get(OPENCODE_AYAR_ORTAMI) or Path.home() / ".config" / "opencode" / "opencode.json")
+        haber = opencode_haber_yolu().as_posix()
+        veri = _json_oku(yol)
+        talimatlar = veri.get("instructions") if isinstance(veri.get("instructions"), list) else []
+        if haber in talimatlar:
+            sonuc.append(f"OpenCode: talimat dosyasi zaten kayitli ({yol})")
+        else:
+            veri["instructions"] = [*talimatlar, haber]
+            _json_yaz(yol, veri)
+            sonuc.append(f"OpenCode: talimat dosyasi eklendi ({yol} -> {haber})")
+        opencode_yaz()
+    return sonuc

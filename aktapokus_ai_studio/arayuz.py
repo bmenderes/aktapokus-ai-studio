@@ -32,13 +32,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import beceri_kaynak, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, gorevmeta, guard, hesaplar, motorlar, otomasyon, uzak, istatistik, mcptanim, projeler, snapshot, terminal
+from . import arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, gorevmeta, guard, hesaplar, motorlar, otomasyon, uzak, istatistik, mcptanim, projeler, snapshot, terminal
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
 from .pipeline import HatHatasi, _kayit_klasoru, calistir_hat, son_kayit
 from .proje import GitGerekli, hazirla as proje_hazirla
-from .runners import Calistirici, CalistiriciHatasi, calistirici_olustur, claude_bul, hepsini_kapat
+from .runners import Calistirici, CalistiriciHatasi, calistirici_olustur, claude_bul, codex_bul, hepsini_kapat, opencode_bul
 
 ATLANAN_KLASORLER = {".git", "node_modules", "__pycache__", ".aktapokus", ".opencode", ".venv", "venv", "dist", "build", ".idea", ".vscode"}
 GIZLI_UZANTILAR = (".pem", ".key", ".pfx", ".p12", ".keystore", ".jks")
@@ -328,6 +328,10 @@ class Uygulama:
                 k.olaylar.append(kayit)
         try:
             canli.olay(oturum.kimlik, oturum.klasor.name, str(oturum.klasor), olay)  # Claude Code kancasi icin canli durum (hata gorevi etkilemez)
+            if olay.get("tur") in ("plan", "basladi", "adim-basladi", "karar-bekleniyor", "bitti"):
+                haber.opencode_yaz()  # OpenCode talimat dosyasi
+                if olay.get("tur") == "bitti":
+                    threading.Timer(3.0, haber.opencode_yaz).start()  # gorev kaydi diske yazildiktan sonra "biten" satiri da girsin
         except Exception:
             pass
         return self.bus.yayinla({**olay, "proje": oturum.kimlik})
@@ -1293,21 +1297,46 @@ class Uygulama:
         return {"png": base64.b64encode(png).decode("ascii")}
 
     # --- Claude Code konusmalari (yalniz okunur): bu projenin klasorunde yurutulen TUM konusmalar, Aktapokus gorevleri dahil ---
-    def claude_oturumlari(self) -> dict:
-        return {"oturumlar": claude_oturumlari.listele(self._klasor(), 8)}
+    def _kaynak(self, kaynak: object) -> str:
+        k = kaynak or "claude"
+        if k not in arac_oturumlari.KAYNAKLAR:
+            raise UygulamaHatasi("kaynak 'claude', 'codex' ya da 'opencode' olmali")
+        return str(k)
 
-    def claude_konusma(self, kimlik: object) -> dict:
+    def claude_oturumlari(self, kaynak: object = None) -> dict:
+        k = self._kaynak(kaynak)
+        klasor = self._klasor()
+        return {"kaynak": k, "oturumlar": claude_oturumlari.listele(klasor, 8) if k == "claude" else arac_oturumlari.listele(k, klasor, 8)}
+
+    def claude_konusma(self, kimlik: object, kaynak: object = None) -> dict:
+        k = self._kaynak(kaynak)
         try:
-            return claude_oturumlari.konusma(self._klasor(), kimlik)
+            return claude_oturumlari.konusma(self._klasor(), kimlik) if k == "claude" else arac_oturumlari.konusma(k, self._klasor(), kimlik)
         except ValueError as h:
             raise UygulamaHatasi(str(h)) from None
         except FileNotFoundError as h:
             raise UygulamaHatasi(str(h), 404) from None
 
-    def claude_surdur(self, kimlik: object) -> dict:
-        if not claude_oturumlari.var_mi(self._klasor(), kimlik):
+    def claude_surdur(self, kimlik: object, kaynak: object = None) -> dict:
+        k = self._kaynak(kaynak)
+        var = claude_oturumlari.var_mi(self._klasor(), kimlik) if k == "claude" else arac_oturumlari.var_mi(k, self._klasor(), kimlik)
+        if not var:
             raise UygulamaHatasi("Konusma bulunamadi", 404)
-        return self._claude_terminalde(str(kimlik))
+        if k == "claude":
+            return self._claude_terminalde(str(kimlik))
+        if k == "codex":
+            argv = codex_bul()
+            if not argv:
+                raise UygulamaHatasi("Codex CLI bulunamadi", 404)
+            komut = "& " + " ".join("'" + a.replace("'", "''") + "'" for a in [*argv, "resume", str(kimlik)])
+        else:
+            cli = opencode_bul()
+            if not cli:
+                raise UygulamaHatasi("OpenCode CLI bulunamadi", 404)
+            komut = "& '" + cli.replace("'", "''") + "' --session " + str(kimlik)
+        t = self.terminal_ac()
+        self.terminal_girdi(t["id"], base64.b64encode((komut + "\r").encode("utf-8")).decode("ascii"))
+        return {"terminal": t["id"]}
 
     # --- istatistik: gorev kayitlarindan harcama, hata siniflari, model degistirme onerileri (yalniz okur) ---
     def istatistik(self, kapsam: str = "proje") -> dict:
@@ -1814,9 +1843,9 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if yol == "/api/gecmis":
                     return self._gonder(200, app.gecmis_kaydi(q["id"]) if q.get("id") else {"gecmis": app.gecmis()})
                 if yol == "/api/claude-oturumlari":
-                    return self._gonder(200, app.claude_oturumlari())
+                    return self._gonder(200, app.claude_oturumlari(q.get("kaynak")))
                 if yol == "/api/claude-konusma":
-                    return self._gonder(200, app.claude_konusma(q.get("id")))
+                    return self._gonder(200, app.claude_konusma(q.get("id"), q.get("kaynak")))
                 if yol == "/api/saglayicilar":
                     return self._gonder(200, {"saglayicilar": app.saglayicilar()})
                 if yol == "/api/modeller":
@@ -1865,7 +1894,7 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if yol == "/api/onizleme-ekran":
                     return self._gonder(200, app.onizleme_ekran(g.get("url"), g.get("genislik"), g.get("yukseklik")))
                 if yol == "/api/claude-surdur":
-                    return self._gonder(200, app.claude_surdur(g.get("id")))
+                    return self._gonder(200, app.claude_surdur(g.get("id"), g.get("kaynak")))
                 if yol == "/api/uzak":
                     return self._gonder(200, app.uzak_ayarla(g))
                 if yol == "/api/uzak/anahtar-yenile":
