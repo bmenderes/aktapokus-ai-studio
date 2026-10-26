@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import beceriler, ciktilar, clitanim, github, gityonet, gorevmeta, guard, motorlar, otomasyon, uzak, istatistik, mcptanim, projeler, snapshot, terminal
+from . import beceriler, ciktilar, clitanim, github, gityonet, gorevmeta, guard, hesaplar, motorlar, otomasyon, uzak, istatistik, mcptanim, projeler, snapshot, terminal
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
@@ -366,6 +366,10 @@ class Uygulama:
             raise UygulamaHatasi("Once bir klasor secin", 409)
         return self.klasor
 
+    def hesaplar(self) -> dict:
+        """Hangi hizmette kimin girisi var (GitHub, Claude Code, Codex, Telegram, uzak erisim); Aktapokus'un kendi hesabi yoktur."""
+        return hesaplar.hepsi(github.durum, lambda: self._telegram().durum(), uzak.oku().acik)
+
     def ayar_ozeti(self) -> dict | None:
         if self.klasor is None:
             return None
@@ -392,7 +396,7 @@ class Uygulama:
             return None
 
     def durum(self) -> dict:
-        d: dict = {"klasor": str(self.klasor) if self.klasor else None, "proje": self.secili.kimlik if self.secili else None, "ayar": self.ayar_ozeti(), "klon_bekleyen": self.klon_bekleyen()}
+        d: dict = {"yerel": hesaplar.yerel(), "klasor": str(self.klasor) if self.klasor else None, "proje": self.secili.kimlik if self.secili else None, "ayar": self.ayar_ozeti(), "klon_bekleyen": self.klon_bekleyen()}
         if self.klasor:
             d["git"] = snapshot.hazir_mi(self.klasor)  # geri alma hazir (gercek git deposu YA DA golge yedek)
             d["golge"] = snapshot.golge_mi(self.klasor)
@@ -1714,6 +1718,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._terminal_akis(m.group(1), int(q.get("son", "0") or 0))
                 if yol == "/api/ciktilar":
                     return self._gonder(200, app.ciktilar())
+                if yol == "/api/hesaplar":
+                    return self._gonder(200, app.hesaplar())
                 if yol == "/api/gecmis":
                     return self._gonder(200, app.gecmis_kaydi(q["id"]) if q.get("id") else {"gecmis": app.gecmis()})
                 if yol == "/api/saglayicilar":

@@ -107,6 +107,7 @@ body{position:relative}
 .ayar-kart>.ayar-grup+.ayar-model{border-top:none}
 #sol{display:flex;flex-direction:column}
 .rol{padding:3px 5px;border-radius:6px}.rol:hover{background:var(--panel)}.rol.on{background:var(--panel);box-shadow:0 0 0 1px var(--line)}
+.hesap-chip{display:flex;gap:8px;align-items:center;width:100%;text-align:left;padding:6px 8px;margin-bottom:4px}.hesap-chip .av{flex:none;width:28px;height:28px;border-radius:50%;background:var(--accbg);color:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:700;text-transform:uppercase}.hesap-chip .hc{display:flex;flex-direction:column;min-width:0}.hesap-chip b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}.hesap-chip small{color:var(--tx3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rol .dots{opacity:0;border:0;background:transparent;cursor:pointer;padding:0 5px;color:var(--tx3);font-size:16px;line-height:1}.rol:hover .dots,.rol.menu-acik .dots{opacity:1}@media(max-width:900px){.rol .dots{opacity:1}}.rol.okunmadi .n{font-weight:700}
 #baglamMenu,#baglamAlt{position:fixed;z-index:200;min-width:200px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.16);padding:4px;display:none;font-size:13px}
 #baglamMenu .m,#baglamAlt .m{display:flex;justify-content:space-between;gap:18px;padding:6px 10px;border-radius:6px;cursor:pointer;color:var(--tx)}#baglamMenu .m:hover,#baglamAlt .m:hover{background:var(--panel2)}#baglamMenu .k,#baglamAlt .k{color:var(--tx3)}#baglamMenu .ay{height:1px;background:var(--line);margin:4px 2px}#baglamMenu .m.tehlike{color:var(--err)}
@@ -177,7 +178,7 @@ body.suruklenir iframe{pointer-events:none}
     <input id="kenarAra" placeholder="Görev ya da proje ara…" style="width:100%;margin-top:8px" autocomplete="off">
     <div id="gecmis" class="mut3" style="margin-top:6px">-</div>
     <div class="sec">Klon</div><div id="klon" class="mut">-</div>
-    <div style="margin-top:auto;padding-top:10px;display:flex;flex-direction:column;gap:4px"><button id="terminalDugme" style="width:100%" title="PowerShell terminali ve Telegram günlüğü (Alt+3)">⌨ Terminal</button><button id="ayarDugme" style="width:100%" title="Sağlayıcılar, modeller, roller, CLI'lar, kullanım">⚙ Ayarlar</button></div>
+    <div style="margin-top:auto;padding-top:10px;display:flex;flex-direction:column;gap:4px"><button id="hesapChip" class="hesap-chip" title="Hesaplar: kim olarak, hangi hizmette giriş yapıldı"><span class="av" id="hesapAv">?</span><span class="hc"><b id="hesapAd">…</b><small id="hesapAlt">yerel kullanıcı</small></span></button><button id="terminalDugme" style="width:100%" title="PowerShell terminali ve Telegram günlüğü (Alt+3)">⌨ Terminal</button><button id="ayarDugme" style="width:100%" title="Sağlayıcılar, modeller, roller, CLI'lar, kullanım">⚙ Ayarlar</button></div>
   </div>
   <div class="bolucu" id="bolucuSol" title="Sürükleyin: genişliği değiştirin · çift tıklayın: sıfırla"></div>
   <div id="orta">
@@ -358,7 +359,7 @@ async function istatistikYukle(hedef){const p=hedef||S.istHedef||$("#ayarIcerik"
   p.append(e("div",{class:"mut3",style:"margin-top:10px;white-space:normal",text:"Not: abonelik kotanızın (Claude Pro, ChatGPT/Codex) kalan miktarı CLI'lardan güvenilir okunamıyor; burada yalnızca harcanan token ve limite takılma anı görünür."}))}
 function kapsamSecici(){const b=(ad,v)=>e("button",{class:S.istKapsam===v?"pri":"",text:ad,onclick:()=>{S.istKapsam=v;istatistikYukle()}});return e("div",{class:"row"},b("Bu proje","proje"),b("Tüm projeler","tum"),e("button",{text:"Yenile",onclick:()=>istatistikYukle()}))}
 /* ---- AYARLAR: sol menulu tam sayfa (OpenCode Desktop gibi). Bolumler: Genel, Saglayicilar, Modeller, CLI'lar, Roller, Kullanim, Hakkinda ---- */
-const AYAR_BOLUMLERI=[["genel","Genel"],["saglayicilar","Sağlayıcılar"],["modeller","Modeller"],["clilar","CLI'lar"],["mcp","MCP sunucuları"],["beceriler","Beceriler"],["github","GitHub"],["roller","Roller"],["telegram","Telegram"],["otomasyon","Otomasyonlar"],["uzak","Uzak erişim"],["kullanim","Kullanım"],["hakkinda","Hakkında"]];
+const AYAR_BOLUMLERI=[["hesaplar","Hesaplar"],["genel","Genel"],["saglayicilar","Sağlayıcılar"],["modeller","Modeller"],["clilar","CLI'lar"],["mcp","MCP sunucuları"],["beceriler","Beceriler"],["github","GitHub"],["roller","Roller"],["telegram","Telegram"],["otomasyon","Otomasyonlar"],["uzak","Uzak erişim"],["kullanim","Kullanım"],["hakkinda","Hakkında"]];
 function ayarAc(id){$("#ayarlar").classList.add("on");ayarGit(id||S.ayarBolum||"genel")}
 function ayarKapat(){$("#ayarlar").classList.remove("on")}
 async function clilarYukle(){S.clilar=(await api("/api/clilar")).clilar;return S.clilar}
@@ -368,7 +369,8 @@ function ayarMenusuCiz(){const m=$("#ayarMenu");m.textContent="";m.append(e("but
 async function ayarGit(id){if(S.telegramZ){clearInterval(S.telegramZ);S.telegramZ=null}S.ayarBolum=id;ayarMenusuCiz();const h=$("#ayarIcerik");h.textContent="";h.scrollTop=0;
   const baslik=(ad,alt)=>{h.append(e("h2",{class:"ayar-baslik",text:ad}));if(alt)h.append(e("div",{class:"mut3 ayar-alt",text:alt}))};
   try{
-    if(id==="genel"){baslik("Genel","Bu projenin çalışma ayarları (.aktapokus/roller.json).");await genelBolumu(h)}
+    if(id==="hesaplar"){baslik("Hesaplar","Hangi hizmette kim olarak giriş yapıldı. Aktapokus'un kendi kullanıcı hesabı yoktur; kimlikler aşağıdaki araçların kendi oturumlarıdır.");await hesaplarBolumu(h)}
+    else if(id==="genel"){baslik("Genel","Bu projenin çalışma ayarları (.aktapokus/roller.json).");await genelBolumu(h)}
     else if(id==="saglayicilar"){baslik("Sağlayıcılar","Model sağlayıcılarına API anahtarınızla bağlanın. Anahtar yalnızca bu bilgisayardaki OpenCode'a iletilir.");h.append(modelBolumu())}
     else if(id==="modeller"){baslik("Modeller","Bağlı sağlayıcıların ve kurulu CLI'ların modelleri. Bir modeli role atayın ya da deneyin.");await modellerBolumu(h)}
     else if(id==="clilar"){baslik("CLI'lar","Modelleri çalıştıran programlar. Yeni bir CLI'ı kod yazmadan tanımlayarak ekleyebilirsiniz.");await clilarYukle();h.append(cliBolumu())}
@@ -382,6 +384,21 @@ async function ayarGit(id){if(S.telegramZ){clearInterval(S.telegramZ);S.telegram
     else if(id==="kullanim"){baslik("Kullanım","Token harcaması, hatalar ve model değiştirme önerileri.");const k=e("div");h.append(k);S.istHedef=k;await istatistikYukle(k)}
     else if(id==="hakkinda"){baslik("Hakkında");await hakkindaBolumu(h)}
   }catch(x){h.append(e("div",{class:"badge b-err",style:"white-space:normal",text:x.message}))}}
+async function hesaplarBolumu(h){const kap=e("div",{style:"max-width:760px"});h.append(kap);
+  const kart=(baslik,rozet,rozetSinif,satirlar,dugme)=>e("div",{class:"card"},e("div",{class:"row",style:"justify-content:space-between;gap:8px;flex-wrap:wrap"},e("span",{class:"row",style:"gap:8px"},e("b",{text:baslik}),e("span",{class:"badge "+rozetSinif,text:rozet})),dugme||null),...satirlar.map(s=>e("div",{class:"mut3",style:"margin-top:4px;white-space:normal",text:s})));
+  const git=(ad,b)=>e("button",{text:b||"Ayrıntı",onclick:()=>ayarGit(ad)});
+  const ciz=async()=>{kap.textContent="";kap.append(e("div",{class:"mut3",text:"hesaplar sorgulanıyor… (Claude ve Codex oturumları birkaç saniye alabilir)"}));
+    let d;try{d=await api("/api/hesaplar")}catch(x){kap.textContent="";kap.append(e("div",{class:"badge b-err",style:"white-space:normal",text:x.message}));return}
+    kap.textContent="";kap.append(e("div",{class:"row",style:"justify-content:flex-end;margin-bottom:6px"},e("button",{text:"Yenile",onclick:ciz})));
+    const y=d.yerel||{};
+    kap.append(kart("Aktapokus","giriş yok","b-warn",["Yerel kullanıcı: "+(y.kullanici||"?")+(y.bilgisayar?" @ "+y.bilgisayar:""),"Aktapokus'un kendi kullanıcı hesabı yoktur: bu bilgisayarda yerel çalışır, verileriniz burada kalır, giriş gerekmez. (Google ile giriş planlanıyor.) Aşağıdakiler, Aktapokus'un kullandığı araçlardaki kimliklerinizdir."]));
+    const g=d.github||{};kap.append(kart("GitHub",g.giris?"@"+g.hesap:(g.kurulu?"giriş yok":"gh kurulu değil"),g.giris?"b-ok":"b-err",[g.giris?"Depo listesi, klonlama, pull request ve issue işlemleri bu hesapla yapılır (bilgisayardaki gh oturumu).":(g.hata||"Giriş için bir terminalde `gh auth login` çalıştırın.")],git("github","GitHub bölümü")));
+    const c=d.claude||{};kap.append(kart("Claude Code",c.giris?"giriş yapıldı":(c.kurulu?"giriş yok":"kurulu değil"),c.giris?"b-ok":"b-err",[c.giris?[c.eposta,c.abonelik?"abonelik: "+c.abonelik:null,c.yontem?"yöntem: "+c.yontem:null].filter(Boolean).join(" · "):(c.kurulu?(c.hata||"Giriş için bir terminalde `claude auth login` çalıştırın."):"Claude Code CLI bulunamadı.")],git("roller","Roller")));
+    const x=d.codex||{};kap.append(kart("Codex",x.giris?"giriş yapıldı":(x.kurulu?"giriş yok":"kurulu değil"),x.giris?"b-ok":"b-err",[x.giris?(x.detay||""):(x.kurulu?"Giriş için bir terminalde `codex login` çalıştırın.":"Codex CLI bulunamadı.")],git("roller","Roller")));
+    kap.append(kart("OpenCode ve model sağlayıcıları","anahtarla","",["OpenCode hesapla değil, sağlayıcı API anahtarlarıyla çalışır: hangi sağlayıcıların bağlı olduğu Sağlayıcılar bölümünde görünür."],git("saglayicilar","Sağlayıcılar")));
+    const t=d.telegram||{};kap.append(kart("Telegram botu",t.calisiyor?"çalışıyor":"kapalı",t.calisiyor?"b-ok":"",[(t.bot?"Bot: "+t.bot+" · ":"")+t.eslesmis+" eşleşmiş kullanıcı"],git("telegram","Telegram")));
+    kap.append(kart("Uzak erişim",(d.uzak||{}).acik?"açık":"kapalı",(d.uzak||{}).acik?"b-warn":"",["Telefondan/başka bilgisayardan erişim (Tailscale); varsayılan kapalı."],git("uzak","Uzak erişim")))};
+  await ciz()}
 async function genelBolumu(h){let ay;try{ay=await api("/api/ayar")}catch(x){h.append(e("div",{class:"mut",text:"Ayarları görmek için önce bir proje klasörü seçin."}),e("button",{class:"pri",style:"margin-top:6px",text:"Klasör seç",onclick:()=>{ayarKapat();klasorSecimiAc()}}));return}
   const kilitli=!!S.kosuAktif;const alan=(etiket,ipucu,girdi)=>e("div",{class:"ayar-satir"},e("div",null,e("div",{text:etiket}),e("div",{class:"mut3",text:ipucu})),girdi);
   const sayi=(deger,alt,ust)=>{const g=e("input",{type:"number",min:alt,max:ust,style:"width:110px;text-align:right"});g.value=deger;g.disabled=kilitli;return g};
@@ -431,6 +448,8 @@ async function hakkindaBolumu(h){let cl=[];try{cl=await clilarYukle()}catch(x){}
 
 $("#ayarDugme").onclick=()=>ayarAc();document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&$("#ayarlar").classList.contains("on"))ayarKapat()});
 /* ---- Ana ekran (Hermes tarzi): rol/model cipleri + hizli model menusu, alt durum cubugu, yeni gorev, gorev listesi ---- */
+function hesapChipCiz(){const y=S.yerel||{};const ad=y.kullanici||"yerel kullanıcı";$("#hesapAd").textContent=ad;$("#hesapAv").textContent=(ad[0]||"?");$("#hesapAlt").textContent="yerel · hesap girişi yok"}
+$("#hesapChip").onclick=()=>ayarAc("hesaplar");
 function rolleriCiz(){const r=$("#rolCipleri");r.textContent="";
   if(!S.ayar||S.ayar.hata){r.append(e("span",{class:"mut3",text:S.ayar&&S.ayar.hata?S.ayar.hata:"klasör seçilmedi"}));durumMetniGuncelle();return}
   for(const ad of S.ayar.akis){const x=S.ayar.roller[ad];const d=S.rolDurum[ad]||"";
@@ -715,7 +734,7 @@ function olayIsle(o){
   }}
 async function karar(k){const b=$("#karar-dugmeleri");if(b)b.textContent="";try{await api("/api/gorev/"+S.kosu.kimlik+"/karar",{method:"POST",body:{korunsun:k}})}catch(x){alert(x.message)}}
 function kosuGorunumu(){const aktif=S.kosu&&["calisiyor","karar-bekliyor"].includes(S.kosu.durum);S.kosuAktif=!!aktif;const plan=S.kosu&&S.kosu.durum==="plan";$("#durdur").style.display=aktif?"":"none";$("#testiAtla").style.display=S.kosu&&S.kosu.durum==="calisiyor"&&S.testAdimi?"":"none";$("#gonder").disabled=!S.klasor||aktif||plan;$("#gorev").disabled=!S.klasor||aktif||plan;$("#girdiBilgi").textContent=!S.klasor?"önce bir klasör seçin":aktif?"çalışıyor…":plan?"plan onayınızı bekliyor":"";durumMetniGuncelle()}
-async function durumYukle(){if(S.tekrar)return;try{const d=await api("/api/durum");const onceki=S.projeId;S.projeId=d.proje||null;S.baglanti=d.baglanti||{};uzakDuzen();S.klasor=d.klasor;S.ayar=d.ayar;S.kosu=d.kosu;$("#klasorAd").textContent=d.klasor?d.klasor.split(/[\\/]/).pop():"";ortamCipiCiz();
+async function durumYukle(){if(S.tekrar)return;try{const d=await api("/api/durum");const onceki=S.projeId;S.projeId=d.proje||null;S.baglanti=d.baglanti||{};uzakDuzen();S.klasor=d.klasor;S.ayar=d.ayar;S.kosu=d.kosu;S.yerel=d.yerel;hesapChipCiz();$("#klasorAd").textContent=d.klasor?d.klasor.split(/[\\/]/).pop():"";ortamCipiCiz();
   $("#gitRozet").className="badge "+(d.git?"b-ok":"b-err");$("#gitRozet").textContent=d.klasor?(d.git?(d.golge?"geri alma hazır (gölge yedek)":"git hazır"):"geri alma hazır değil"):"";$("#gitRozet").title=d.golge?"Bu klasör git deposu değil: geri alma, klasörün dışındaki gölge yedekten çalışır (klasöre .git eklenmez).":"";
   const ke=d.koruyucu_eksik||[];$("#korRozet").className="badge "+(d.klasor?(ke.length?"b-err":"b-ok"):"");$("#korRozet").textContent=d.klasor?(ke.length?"koruyucu eksik":"koruyucu etkin"):"";$("#korRozet").title=ke.join("; ");
   $("#klon").textContent=d.klon_bekleyen==null?"kurulu değil":d.klon_bekleyen+" öneri bekliyor";if(d.klon_bekleyen)$("#klon").title="aktapokus-klon bekleyen komutuyla inceleyin";
