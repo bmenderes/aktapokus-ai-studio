@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import beceri_kaynak, beceriler, ciktilar, clitanim, github, gityonet, gorevmeta, guard, hesaplar, motorlar, otomasyon, uzak, istatistik, mcptanim, projeler, snapshot, terminal
+from . import beceri_kaynak, beceriler, canli, ciktilar, clitanim, github, gityonet, gorevmeta, guard, hesaplar, motorlar, otomasyon, uzak, istatistik, mcptanim, projeler, snapshot, terminal
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
@@ -326,6 +326,10 @@ class Uygulama:
             kayit = _olay_kaydi(olay)
             if kayit is not None and len(k.olaylar) < AZAMI_KAYITLI_OLAY:
                 k.olaylar.append(kayit)
+        try:
+            canli.olay(oturum.kimlik, oturum.klasor.name, str(oturum.klasor), olay)  # Claude Code kancasi icin canli durum (hata gorevi etkilemez)
+        except Exception:
+            pass
         return self.bus.yayinla({**olay, "proje": oturum.kimlik})
 
     # --- proje ---

@@ -166,6 +166,30 @@ def komut_durum(args) -> int:
     return CIKIS_TAMAM
 
 
+def komut_haber(args) -> int:
+    """Aktapokus durumunu yazar. Kanca modunda HICBIR hatada Claude Code'u engellemez (sessizce 0 doner)."""
+    from . import haber
+
+    try:
+        if args.kanca:
+            try:
+                veri = json.loads(sys.stdin.read() or "{}")
+            except ValueError:
+                veri = {}
+            metin = haber.kanca(veri.get("session_id") if isinstance(veri, dict) else None)
+        else:
+            pencere = 120 if args.hepsi else 30
+            metin, _ = haber.ozet(None, pencere_dk=pencere)
+            metin = metin or f"Aktapokus'ta son {pencere} dakikada yeni bir sey yok."
+        if metin:
+            print(metin)
+    except Exception as hata:
+        if not args.kanca:
+            print(f"HATA: {type(hata).__name__}: {hata}")
+            return CIKIS_HATA
+    return CIKIS_TAMAM
+
+
 def kur_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="aktapokus", description="Rol/model bazli kod ajani katmani (OpenCode, Claude Code)")
     alt = p.add_subparsers(dest="komut", required=True)
@@ -188,6 +212,9 @@ def kur_parser() -> argparse.ArgumentParser:
     t = alt.add_parser("telegram", help="Telegram botunu baslat (token: AKTAPOKUS_TELEGRAM_TOKEN ya da ~/.aktapokus/telegram.token)")
     t.add_argument("--klasor", help="Acilista secilecek proje klasoru")
     t.add_argument("--kok", action="append", help="Telefondan secilebilecek proje kok klasoru (kaydedilir; birden cok kez verilebilir)")
+    h = alt.add_parser("haber", help="Aktapokus'ta ne oldugunu kisa ozet olarak yaz (Claude Code kancasi icin: --kanca)")
+    h.add_argument("--kanca", action="store_true", help="Claude Code UserPromptSubmit kancasi: stdin'den oturum kimligini okur, yalniz YENI olanlari yazar (yeni yoksa hicbir sey yazmaz)")
+    h.add_argument("--hepsi", action="store_true", help="Son 2 saatin ozetini isaretlemeden yaz")
     u = alt.add_parser("ui", help="Canli arayuzu baslat (yalniz bu bilgisayardan erisilir)")
     u.add_argument("--klasor", help="Acilista secilecek proje klasoru")
     u.add_argument("--port", type=int, default=0)
@@ -215,6 +242,8 @@ def main(argv: list[str] | None = None, girdi: Callable[[str], str] = input, cal
             except (KlasorHatasi, AyarHatasi, OSError) as hata:
                 print(f"HATA: {hata}")
                 return CIKIS_HATA
+        if args.komut == "haber":
+            return komut_haber(args)
         if args.komut == "telegram":
             from .telegram import telegram_calistir
 
