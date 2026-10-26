@@ -42,7 +42,7 @@ def kok() -> Path:
 
 
 def _beceri_yolu(kimlik: object) -> Path:
-    if not isinstance(kimlik, str) or len(kimlik) > AZAMI_ID or not ID_DESENI.match(kimlik):
+    if not isinstance(kimlik, str) or len(kimlik) > AZAMI_ID or not ID_DESENI.fullmatch(kimlik):
         raise BeceriHatasi("Kimlik kucuk harf/rakam ve tire icermeli (ornek: sunum-hazirla), en cok 64 karakter")
     return kok() / kimlik / "SKILL.md"
 
@@ -126,7 +126,7 @@ def listele() -> list[Beceri]:
         return sonuc
     for d in sorted(k.iterdir(), key=lambda p: p.name):
         f = d / "SKILL.md"
-        if d.is_dir() and ID_DESENI.match(d.name) and f.is_file():
+        if d.is_dir() and ID_DESENI.fullmatch(d.name) and f.is_file():
             try:
                 sonuc.append(coz(d.name, f.read_text(encoding="utf-8")))
             except (OSError, UnicodeDecodeError):

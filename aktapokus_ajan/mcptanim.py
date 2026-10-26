@@ -89,7 +89,7 @@ def tanim_coz(veri: object, eski: McpTanim | None = None, program_denetle: bool 
     if not isinstance(veri, dict):
         raise McpHatasi("Tanim bir nesne olmali")
     ad = veri.get("ad")
-    if not isinstance(ad, str) or not AD_DESENI.match(ad):
+    if not isinstance(ad, str) or not AD_DESENI.fullmatch(ad):
         raise McpHatasi("'ad' kucuk harf/rakam/-/_ icermeli ve 31 karakteri gecmemeli (ornek: dosya-arama)")
     tur = veri.get("tur", "local")
     if tur not in TURLER:

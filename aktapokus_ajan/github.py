@@ -121,13 +121,13 @@ def depolar(adet: int = 50) -> list[dict]:
 
 
 def klonla(depo: object, ust_klasor: object, ad: object = None) -> Path:
-    if not isinstance(depo, str) or not DEPO_DESENI.match(depo):
+    if not isinstance(depo, str) or not DEPO_DESENI.fullmatch(depo):
         raise GithubHatasi("Depo 'sahip/ad' biciminde olmali (ornek: bmenderes/aktapokus-ai-studio)")
     ust = Path(str(ust_klasor)).expanduser()
     if not ust.is_absolute() or not ust.is_dir():
         raise GithubHatasi("Klonlanacak ust klasor TAM yol olmali ve var olmali")
     ad = ad if ad not in (None, "") else depo.split("/", 1)[1]
-    if not isinstance(ad, str) or not AD_DESENI.match(ad):
+    if not isinstance(ad, str) or not AD_DESENI.fullmatch(ad):
         raise GithubHatasi("Klasor adi harf/rakam/./-/_ icermeli (yol isareti ve bosluk yok)")
     hedef = ust / ad
     if hedef.exists():
@@ -225,7 +225,7 @@ def commit(klasor: Path, mesaj: object, yalniz_hazir: bool = False) -> dict:
 
 
 def dal_olustur(klasor: Path, ad: object) -> dict:
-    if not isinstance(ad, str) or not DAL_DESENI.match(ad) or ".." in ad or ad.endswith(("/", ".lock", ".")):
+    if not isinstance(ad, str) or not DAL_DESENI.fullmatch(ad) or ".." in ad or ad.endswith(("/", ".lock", ".")):
         raise GithubHatasi("Dal adi harf/rakam/./_/-// icermeli, '-' ile baslamamali (ornek: ozellik/giris)")
     kod, _, _ = _calistir(["git", "check-ref-format", "--branch", ad])
     if kod != 0:

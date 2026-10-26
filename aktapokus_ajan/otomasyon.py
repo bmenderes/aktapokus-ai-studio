@@ -13,7 +13,8 @@ import os
 import re
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
+from datetime import datetime, timedelta
 from pathlib import Path
 
 KAYIT_ORTAMI = "AKTAPOKUS_OTOMASYON"
@@ -21,9 +22,14 @@ AD_DESENI = re.compile(r"^[a-z0-9][a-z0-9_-]{0,30}$")
 AZAMI_OTOMASYON = 20
 AZAMI_GOREV = 4000
 AZAMI_GECMIS = 500
-TURLER = ("sablon",)  # sonraki asamalarda: zamanli, olay, zincir
+TURLER = ("sablon", "zamanli")  # sonraki asamalarda: olay, zincir
+AZAMI_ARALIK_DK = 7 * 24 * 60
+EN_KISA_ARALIK_DK = 5
+SAAT_DESENI = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
+ZAMAN_BICIMI = "%Y-%m-%d %H:%M:%S"
 DEGISKENLER = ("tarih", "saat", "proje", "dal")
 _kilit = threading.Lock()
+_durum_kilit = threading.RLock()
 
 
 class OtomasyonHatasi(Exception):
@@ -38,10 +44,11 @@ class Otomasyon:
     tur: str = "sablon"
     acik: bool = True  # kapaliysa Telegram/otomatik tetikleme calismaz (arayuzden elle 'Simdi calistir' her zaman calisir)
     aciklama: str = ""
-    olusturma: str = field(default_factory=lambda: time.strftime("%Y-%m-%d %H:%M:%S"))
+    olusturma: str = field(default_factory=lambda: time.strftime(ZAMAN_BICIMI))
+    zamanlama: dict | None = None  # yalniz tur == "zamanli": {tur: aralik|gunluk|haftalik, dakika | saat | saat+gunler(0=pazartesi)}
 
     def sozluk(self) -> dict:
-        return {"ad": self.ad, "proje": self.proje, "gorev": self.gorev, "tur": self.tur, "acik": self.acik, "aciklama": self.aciklama, "olusturma": self.olusturma}
+        return {"ad": self.ad, "proje": self.proje, "gorev": self.gorev, "tur": self.tur, "acik": self.acik, "aciklama": self.aciklama, "olusturma": self.olusturma, "zamanlama": self.zamanlama}
 
 
 def dosya_yolu() -> Path:
@@ -57,7 +64,7 @@ def coz(veri: object, eski: Otomasyon | None = None) -> Otomasyon:
     if not isinstance(veri, dict):
         raise OtomasyonHatasi("Tanim bir nesne olmali")
     ad = veri.get("ad")
-    if not isinstance(ad, str) or not AD_DESENI.match(ad):
+    if not isinstance(ad, str) or not AD_DESENI.fullmatch(ad):
         raise OtomasyonHatasi("'ad' kucuk harf/rakam/-/_ icermeli ve 31 karakteri gecmemeli (ornek: haftalik-rapor)")
     tur = veri.get("tur", "sablon")
     if tur not in TURLER:
@@ -74,8 +81,45 @@ def coz(veri: object, eski: Otomasyon | None = None) -> Otomasyon:
     aciklama = veri.get("aciklama") or ""
     if not isinstance(aciklama, str) or len(aciklama) > 300 or "\n" in aciklama:
         raise OtomasyonHatasi("'aciklama' en cok 300 karakterlik tek satir olmali")
+    zamanlama = _zamanlama_coz(veri.get("zamanlama")) if tur == "zamanli" else None
+    if tur != "zamanli" and veri.get("zamanlama") is not None:
+        raise OtomasyonHatasi("Zamanlama yalniz 'zamanli' turde olur")
     ek = {"olusturma": eski.olusturma} if eski else {}
-    return Otomasyon(ad=ad, proje=proje, gorev=gorev.strip(), tur=tur, acik=acik, aciklama=aciklama.strip(), **ek)
+    return Otomasyon(ad=ad, proje=proje, gorev=gorev.strip(), tur=tur, acik=acik, aciklama=aciklama.strip(), zamanlama=zamanlama, **ek)
+
+
+def _zamanlama_coz(z: object) -> dict:
+    if not isinstance(z, dict):
+        raise OtomasyonHatasi("'zamanlama' bir nesne olmali")
+    tur = z.get("tur")
+    if tur == "aralik":
+        dk = z.get("dakika")
+        if isinstance(dk, bool) or not isinstance(dk, int) or not EN_KISA_ARALIK_DK <= dk <= AZAMI_ARALIK_DK:
+            raise OtomasyonHatasi(f"Aralik {EN_KISA_ARALIK_DK}-{AZAMI_ARALIK_DK} dakika arasinda olmali (en kisa {EN_KISA_ARALIK_DK} dakika)")
+        return {"tur": "aralik", "dakika": dk}
+    if tur in ("gunluk", "haftalik"):
+        saat = z.get("saat")
+        if not isinstance(saat, str) or not SAAT_DESENI.fullmatch(saat):
+            raise OtomasyonHatasi("'saat' SS:DD bicimde olmali (ornek: 09:30)")
+        if tur == "gunluk":
+            return {"tur": "gunluk", "saat": saat}
+        gunler = z.get("gunler")
+        if not isinstance(gunler, list) or not gunler or any(isinstance(g, bool) or not isinstance(g, int) or not 0 <= g <= 6 for g in gunler):
+            raise OtomasyonHatasi("'gunler' 0 (pazartesi) - 6 (pazar) arasi sayilardan olusan bos olmayan liste olmali")
+        return {"tur": "haftalik", "saat": saat, "gunler": sorted(set(gunler))}
+    raise OtomasyonHatasi("Zamanlama turu aralik, gunluk ya da haftalik olmali")
+
+
+def sonraki(z: dict, ref: datetime) -> datetime:
+    """`ref`ten SONRAKI ilk planli an (yerel saat)."""
+    if z["tur"] == "aralik":
+        return ref + timedelta(minutes=z["dakika"])
+    ss, dd = (int(x) for x in z["saat"].split(":"))
+    for gun in range(0, 8):
+        aday = (ref + timedelta(days=gun)).replace(hour=ss, minute=dd, second=0, microsecond=0)
+        if aday > ref and (z["tur"] == "gunluk" or aday.weekday() in z["gunler"]):
+            return aday
+    raise OtomasyonHatasi("Zamanlama hesaplanamadi")  # ulasilamaz: gunler bos olamaz
 
 
 def yukle() -> dict[str, Otomasyon]:
@@ -90,7 +134,7 @@ def yukle() -> dict[str, Otomasyon]:
         except OtomasyonHatasi:
             continue
         if isinstance(oge, dict) and isinstance(oge.get("olusturma"), str):
-            o = Otomasyon(o.ad, o.proje, o.gorev, o.tur, o.acik, o.aciklama, oge["olusturma"])
+            o = replace(o, olusturma=oge["olusturma"])
         sonuc[o.ad] = o
     return sonuc
 
@@ -110,8 +154,11 @@ def kaydet(veri: object) -> Otomasyon:
         o = coz(veri, eski=tanimlar.get(ad) if isinstance(ad, str) else None)
         if o.ad not in tanimlar and len(tanimlar) >= AZAMI_OTOMASYON:
             raise OtomasyonHatasi(f"En cok {AZAMI_OTOMASYON} otomasyon tanimlanabilir")
+        eski = tanimlar.get(o.ad)
         tanimlar[o.ad] = o
         _yaz(tanimlar)
+        if o.tur == "zamanli" and (eski is None or eski.zamanlama != o.zamanlama or eski.tur != o.tur or (o.acik and not eski.acik)):
+            durum_yaz(o.ad, datetime.now())  # yeni/degisen/yeniden acilan zamanlama simdiden sayilir: gecmise donuk 'kacirildi' uretmez
         return o
 
 
@@ -122,6 +169,7 @@ def sil(ad: str) -> bool:
             return False
         del tanimlar[ad]
         _yaz(tanimlar)
+        durum_sil(ad)
         return True
 
 
@@ -134,10 +182,49 @@ def degiskenleri_doldur(metin: str, baglam: dict[str, str]) -> str:
     return re.sub(r"\{(" + "|".join(DEGISKENLER) + r")\}", lambda m: baglam.get(m.group(1), m.group(0)), metin)
 
 
+# ---- zamanlayici durumu: otomasyon basina "son degerlendirilen an" -----------------------------------------------------
+def durum_yolu() -> Path:
+    return dosya_yolu().with_name("otomasyon-durum.json")
+
+
+def _durum_oku() -> dict:
+    try:
+        ham = json.loads(durum_yolu().read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return ham if isinstance(ham, dict) else {}
+
+
+def durum_oku(ad: str) -> datetime | None:
+    deger = _durum_oku().get(ad)
+    try:
+        return datetime.strptime(deger, ZAMAN_BICIMI) if isinstance(deger, str) else None
+    except ValueError:
+        return None
+
+
+def durum_yaz(ad: str, an: datetime) -> None:
+    with _durum_kilit:
+        veri = _durum_oku()
+        veri[ad] = an.strftime(ZAMAN_BICIMI)
+        yol = durum_yolu()
+        yol.parent.mkdir(parents=True, exist_ok=True)
+        gecici = yol.with_suffix(".tmp")
+        gecici.write_text(json.dumps(veri, ensure_ascii=False, indent=2), encoding="utf-8")
+        os.replace(gecici, yol)
+
+
+def durum_sil(ad: str) -> None:
+    with _durum_kilit:
+        veri = _durum_oku()
+        if veri.pop(ad, None) is not None:
+            durum_yolu().write_text(json.dumps(veri, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 # ---- calisma gecmisi --------------------------------------------------------------------------------------------------
-def gecmis_ekle(otomasyon: str, sonuc: str, neden: str = "", tetikleyen: str = "elle", gorev: str | None = None, proje: str | None = None) -> dict:
+def gecmis_ekle(otomasyon: str, sonuc: str, neden: str = "", tetikleyen: str = "elle", gorev: str | None = None, proje: str | None = None, zaman: str | None = None) -> dict:
     """sonuc: plan-olustu | atlandi | hata | kacirildi. Dosya AZAMI_GECMIS satirla sinirlidir."""
-    kayit = {"zaman": time.strftime("%Y-%m-%d %H:%M:%S"), "otomasyon": otomasyon, "sonuc": sonuc, "neden": neden[:300], "tetikleyen": tetikleyen, "gorev": gorev, "proje": proje}
+    kayit = {"zaman": zaman or time.strftime(ZAMAN_BICIMI), "otomasyon": otomasyon, "sonuc": sonuc, "neden": neden[:300], "tetikleyen": tetikleyen, "gorev": gorev, "proje": proje}
     with _kilit:
         yol = gecmis_yolu()
         yol.parent.mkdir(parents=True, exist_ok=True)

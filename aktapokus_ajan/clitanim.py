@@ -91,7 +91,7 @@ def tanim_coz(veri: object) -> CliTanim:
     if not isinstance(veri, dict):
         raise TanimHatasi("Tanim bir nesne olmali")
     ad = veri.get("ad")
-    if not isinstance(ad, str) or not AD_DESENI.match(ad):
+    if not isinstance(ad, str) or not AD_DESENI.fullmatch(ad):
         raise TanimHatasi("'ad' kucuk harf/rakam/-/_ icermeli ve 31 karakteri gecmemeli (ornek: aider)")
     if ad in YERLESIK or ad.startswith("opencode"):
         raise TanimHatasi(f"'{ad}' ayrilmis bir ad (yerlesik CLI'lar ve 'opencode' ile baslayanlar kullanilamaz)")

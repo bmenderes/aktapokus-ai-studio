@@ -137,6 +137,14 @@ def test_mcp_dene_durumu_verir_ve_gecici_sunucuyu_kaldirir(api):
     assert istek("POST", "/api/mcp-sunuculari/dene", {"ad": "yok"})[0] == 404
 
 
+def test_mcp_dene_oauth_isteyen_sunucuyu_anlasilir_aciklar(api):
+    _, _, istek, oc, _ = api
+    istek("POST", "/api/mcp-sunuculari", SAHTE)
+    oc.durum_sonrasi = {"status": "needs_auth", "error": "MCP server requires a login before it can register a client"}
+    st, d = istek("POST", "/api/mcp-sunuculari/dene", {"ad": "sahte"})
+    assert st == 200 and d["durum"] == "needs_auth" and "OAuth" in d["hata"] and "requires a login" in d["hata"]
+
+
 def test_mcp_dene_hata_mesajindaki_gizli_degerler_maskelenir(api):
     _, _, istek, oc, _ = api
     istek("POST", "/api/mcp-sunuculari", SAHTE)

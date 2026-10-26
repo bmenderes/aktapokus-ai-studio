@@ -27,7 +27,7 @@ def sablon(**ek):
 
 # ---------- dogrulama / kayit ----------
 @pytest.mark.parametrize("kotu", [
-    {"ad": "Buyuk"}, {"ad": "../x"}, {"ad": ""}, {"ad": "a" * 40}, {"ad": None}, {"ad": "bosluk var"}, {"ad": "ğüş"},
+    {"ad": "Buyuk"}, {"ad": "../x"}, {"ad": ""}, {"ad": "a" * 40}, {"ad": None}, {"ad": "bosluk var"}, {"ad": "ğüş"}, {"ad": "satir\n"},
     {"proje": "xyz"}, {"proje": "../etc"}, {"proje": "A" * 10}, {"proje": None}, {"proje": "a" * 11},
     {"gorev": ""}, {"gorev": "   "}, {"gorev": None}, {"gorev": 5}, {"gorev": "x" * (oto.AZAMI_GOREV + 1)}, {"gorev": "a\x00b"},
     {"acik": "evet"}, {"acik": 1}, {"tur": "zamanli"}, {"tur": "baska"}, {"aciklama": "iki\nsatir"}, {"aciklama": "x" * 301}, {"aciklama": 5},

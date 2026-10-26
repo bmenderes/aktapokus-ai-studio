@@ -226,6 +226,7 @@ def _calistir(klasor, port, pencere_ac, bekle_sn, tarayici, baglanti_say, acilis
     sunucu = ArayuzSunucusu(app, port)
     try:
         sunucu.baslat()
+        sunucu.zamanlayici_baslat()
         try:
             sunucu.uzak_uygula()  # Ayarlar > Uzak erisim aciksa Tailscale dinleyicisi (varsayilan kapali); hata pencere acilisini engellemez
         except Exception:

@@ -46,7 +46,8 @@ Bu belge, kullanıcının listelediği fikirlerin **hiçbirini düşürmemek** i
 | Telegram'da model seçimi | YAPILACAK (5) | Yalnız kurulu CLI/modeller arasından düğmeyle |
 | Telegram `/projeler` çalışmadı | NEDEN BULUNDU | Eski bot ayarı açılışta bir kez okuyor; süreç kapatılıp yeniden başlatılacak (1) |
 | Otomasyon: şablon + "Şimdi çalıştır" + Telegram `/sablon` | VAR (A) | Yalnız plan üretir, onay ister. Tasarım: `otomasyon-tasarimi.md` |
-| Otomasyon: zamanlayıcı, zincir, olay tetikleyici, bildirim/geçmiş | YAPILACAK (B–E) | Kullanıcı dördünü de istedi; onay her zaman şart |
+| Otomasyon: zamanlayıcı (aralık/günlük/haftalık, kaçırılan kaydı, günlük tavan) | VAR (B) | Yalnız uygulama açıkken; günlük tavan = plan sayısı (12), token tavanı değil |
+| Otomasyon: zincir, olay tetikleyici, bildirim/geçmiş cilası | YAPILACAK (C–E) | Kullanıcı dördünü de istedi; onay her zaman şart |
 | Windows açılışında otomatik başlatma | YAPILACAK | Onaylı ve geri alınabilir |
 | Temiz bilgisayarda kurulum denemesi | KULLANICI | Hafta başı kullanıcı yapacak |
 | OpenCode olmadan çalışma | VAR | Motor denetimi; temiz bilgisayarda gerçek deneme bekliyor |

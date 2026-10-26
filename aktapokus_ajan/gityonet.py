@@ -44,7 +44,7 @@ def _yollar(yollar: object) -> list[str]:
 
 
 def _sha(sha: object) -> str:
-    if not isinstance(sha, str) or not SHA_DESENI.match(sha):
+    if not isinstance(sha, str) or not SHA_DESENI.fullmatch(sha):
         raise GithubHatasi("Gecersiz commit adi")
     return sha
 
@@ -210,7 +210,7 @@ def dallar(klasor: Path) -> dict:
 
 
 def _dal_adi(ad: object) -> str:
-    if not isinstance(ad, str) or not DAL_ADI_DESENI.match(ad) or ".." in ad:
+    if not isinstance(ad, str) or not DAL_ADI_DESENI.fullmatch(ad) or ".." in ad:
         raise GithubHatasi("Gecersiz dal adi")
     return ad
 

@@ -110,7 +110,7 @@ class Istemci:
         return self._veri(self._istek("GET", "/api/integration")) or []
 
     def anahtar_baglan(self, saglayici: str, anahtar: str, etiket: str | None = None) -> None:
-        if not SAGLAYICI_DESENI.match(saglayici):
+        if not SAGLAYICI_DESENI.fullmatch(saglayici):
             raise SunucuHatasi("Gecersiz saglayici kimligi")
         govde: dict = {"key": anahtar}
         if etiket:
@@ -118,7 +118,7 @@ class Istemci:
         self._istek("POST", f"/api/integration/{saglayici}/connect/key", govde)
 
     def baglanti_kaldir(self, baglanti_kimligi: str) -> None:
-        if not BAGLANTI_DESENI.match(baglanti_kimligi):
+        if not BAGLANTI_DESENI.fullmatch(baglanti_kimligi):
             raise SunucuHatasi("Gecersiz baglanti kimligi")
         self._istek("DELETE", f"/api/credential/{baglanti_kimligi}")
 

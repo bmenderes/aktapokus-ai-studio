@@ -368,7 +368,7 @@ class Bot:
         self._sablon_calistir(chat, ad)
 
     def _sablon_calistir(self, chat: int, ad: str) -> None:
-        if not otomasyon.AD_DESENI.match(ad):
+        if not otomasyon.AD_DESENI.fullmatch(ad):
             return self._gonder(chat, "Gecersiz sablon adi.")
         try:
             sonuc = self.app.otomasyon_calistir(ad, "telegram", yalniz_acik=True)

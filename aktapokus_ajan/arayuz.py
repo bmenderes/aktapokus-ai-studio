@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import beceriler, ciktilar, clitanim, github, gityonet, guard, motorlar, otomasyon, uzak, istatistik, mcptanim, projeler, snapshot, terminal
+from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
 from .pipeline import HatHatasi, _kayit_klasoru, calistir_hat, son_kayit
@@ -447,7 +448,7 @@ class Uygulama:
     def saglayici_baglan(self, saglayici: object, anahtar: object, etiket: object = None) -> dict:
         from .sunucu import SAGLAYICI_DESENI, SunucuHatasi
 
-        if not isinstance(saglayici, str) or not SAGLAYICI_DESENI.match(saglayici):
+        if not isinstance(saglayici, str) or not SAGLAYICI_DESENI.fullmatch(saglayici):
             raise UygulamaHatasi("Gecersiz saglayici")
         if not isinstance(anahtar, str):
             raise UygulamaHatasi("Anahtar metin olmali")
@@ -840,7 +841,11 @@ class Uygulama:
                 ist.mcp_sil(klasor, gecici)
             except Exception:
                 pass
-        return {"durum": durum.get("status") or "pending", "hata": str(durum.get("error") or "")[:200] or None}
+        durum_adi = durum.get("status") or "pending"
+        hata = str(durum.get("error") or "")[:200] or None
+        if durum_adi in ("needs_auth", "needs_client_registration"):
+            hata = "Sunucu giris (OAuth) istiyor; Aktapokus henuz OAuth girisi yapamaz, yalniz sabit baslik/anahtar gonderebilir. Sunucu herkese acik olmali ya da "                    "bir API anahtari/belirteci sunmali (Duzenle > Basliklar'a Authorization ekleyin). Sunucunun sahibiyseniz kimlik dogrulamayi kapatin. Sunucunun yaniti: " + (hata or durum_adi)
+        return {"durum": durum_adi, "hata": hata}
 
     def beceri_listele(self) -> dict:
         """OpenCode'un gordugu tum beceriler (kaynak etiketiyle) + yalniz Aktapokus klasorundekilerin duzenlenebilir oldugu isareti."""
@@ -1763,7 +1768,14 @@ class ArayuzSunucusu:
         self.uzak_hata: str | None = None
         self.uzak_son: dict | None = None  # son uzak istek: {zaman, ip}
         self._uzak_kilit = threading.Lock()
+        self.zamanlayici: Zamanlayici | None = None  # yalniz baslat_zamanlayici() ile (testlerde kendiliginden calismaz)
         app.sunucu = self
+
+    def zamanlayici_baslat(self) -> None:
+        """Zamani gelen 'zamanli' otomasyonlar icin PLAN uretir (onay yine sart). Uygulama kapaliyken calismaz."""
+        if self.zamanlayici is None:
+            self.zamanlayici = Zamanlayici(lambda ad: self.app.otomasyon_calistir(ad, "zamanlayici", yalniz_acik=True))
+            self.zamanlayici.baslat()
 
     # --- uzak dinleyici (Tailscale) ---
     def uzak_durdur(self) -> None:
@@ -1833,6 +1845,8 @@ class ArayuzSunucusu:
 
     def kapat(self) -> None:
         self.kapaniyor.set()
+        if self.zamanlayici is not None:
+            self.zamanlayici.durdur()
         self.uzak_durdur()
         self.app.terminalleri_kapat()  # terminal surecleri arayuzle birlikte kapanir
         with self._onizleme_kilit:
@@ -1850,6 +1864,7 @@ def ui_calistir(klasor: str | None = None, port: int = 0, tarayici: bool = False
     app._telegram().otomatik_baslat()  # Ayarlar > Telegram'da 'otomatik baslat' aciksa ve token varsa bot arka planda baslar
     sunucu = ArayuzSunucusu(app, port)
     sunucu.baslat()
+    sunucu.zamanlayici_baslat()
     uzak_bilgi = sunucu.uzak_uygula()  # Ayarlar > Uzak erisim aciksa Tailscale dinleyicisi kurulur (varsayilan kapali)
     if uzak_bilgi["calisiyor"]:
         print(f"Uzak erisim ACIK (Tailscale): http://{uzak_bilgi['adres']}:{uzak_bilgi['port']}/  (anahtar yalniz Ayarlar > Uzak erisim'de gosterilir)", flush=True)
