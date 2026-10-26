@@ -123,6 +123,17 @@ Yazı kutusunun altındaki rol akışı çipine ve sol listedeki rollere tıklam
 
 **Doğrulanan (gerçek Edge, Windows 11):** pencere açıldı (başlık "Aktapokus", `--app`, ayrı profil), `CloseMainWindow` ile kapatılınca pythonw, Edge, kilit ve OpenCode süreci kalmadı, son klasör kaydedildi; gerçek masaüstü kısayoluyla ve **tarayıcı devri (bayat pencere açıkken ikinci başlatma)** durumunda da aynısı. **Doğrulanmayan:** pencerenin görsel düzeni (ekran görüntüsü alınamadı), ikinci tıklamada çıkan "zaten açık" kutusu (yalnız testle), Chrome yolu, tarayıcı güncellemesinin `--app` davranışını değiştirmesi, Windows başlangıcında otomatik açılma (yapılmadı).
 
+## Uzak erişim (telefondan / başka bilgisayardan, Tailscale)
+
+**Varsayılan KAPALI.** Ayarlar > **Uzak erişim**'den açılır. Arayüze [Tailscale](https://tailscale.com) özel ağındaki cihazlarınızdan ulaşırsınız; **internete açılmaz** ve uzak masaüstü gerekmez.
+
+1. Bu bilgisayara ve telefonunuza Tailscale kurup ikisinde **aynı hesapla** giriş yapın.
+2. Ayarlar > Uzak erişim > "Uzak erişim açık"ı işaretleyin; durum "dinliyor" olunca gösterilen bağlantıyı telefonunuzda açın (anahtarı içerir; yalnızca kendi cihazlarınızda kullanın). Telefonda tek panelli düzen (Görevler · Sohbet · Panel) açılır.
+
+**Güvenlik modeli:** ayrı bir dinleyici yalnızca Tailscale adresine bağlanır (`0.0.0.0`'a ve sade LAN adreslerine **asla**); Host/Origin yalnızca bu adreslerden kabul edilir (DNS-rebinding koruması); kimlik, sabit ve yenilenebilir bir **uzak anahtar**dır (`~/.aktapokus/uzak-erisim.json`; anahtarı yalnızca yerel arayüz gösterir; "Anahtarı yenile" eski anahtarı ve açık uzak oturumları anında geçersiz kılar). **Uzak istemcinin yetkisi daraltılmıştır:** görev verip onaylayabilir, dosya/fark/Git/GitHub işlerini görebilir ve yapabilir; ancak varsayılan olarak **terminal**, **CLI/MCP/sağlayıcı/Telegram/beceri tanımlama**, kayıtsız klasör açma/gezme ve depo klonlama uzaktan **yapılamaz** (bunlar bilgisayarda program çalıştırmak demektir); `okuma_riski_kabul` uzaktan değiştirilemez; **uzak erişim ayarlarının kendisi hiçbir koşulda uzaktan değiştirilemez**. "Uzaktan terminal" ve "uzaktan yönetim" anahtarlarını bilerek ve ayrı ayrı açarsınız. Önizleme uzak bağlantıda kapalıdır. Son uzak erişimin zamanı ve adresi gösterilir.
+
+Telegram ile birbirinin yerine değil, birbirini tamamlar: Telegram uygulama kapalıyken bile haber verir; uzak arayüz işin içini (fark, Git, terminal) gösterir.
+
 ## Git sekmesi (GitHub Desktop benzeri)
 
 Sağ paneldeki **Git** sekmesi git'i butonlarla yönetir (komut yazmak gerekmez): **Değişiklikler** (dosya dosya seçerek hazırlama/stage, satır farkı, yalnız seçilenleri commit etme, bir dosyadaki değişikliği atma), **otomatik commit mesajı** (son commit'ten beri *korunan* Aktapokus görevlerinden, yoksa değişen dosyalardan; istediğiniz gibi değiştirin), **Geçmiş** (commit listesi ve dosya farkları, push edilmemişler işaretli), **Dallar** (oluştur/geç/birleştir/sil), **Raf (stash)** ve üst çubukta **Çek / Pull / Push**. Güvenli varsayılanlar: zorla push, `reset --hard` ve `-D` yoktur; pull yalnız `--ff-only`; birleştirme çakışırsa otomatik geri alınır; dal silme yalnız birleştirilmişlerde; değişiklik atmadan önce otomatik anlık yedek alınır (`refs/aktapokus/`); gizli görünen dosyalar (`.env*` vb.) hazırlanamaz ve farkı gösterilmez; ağacı değiştiren işlemler görev sürerken reddedilir. GitHub'a özgü işler (hesap, PR, issue, klonlama) **GitHub** sekmesi ve Ayarlar'dadır.

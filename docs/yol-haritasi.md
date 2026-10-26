@@ -5,9 +5,9 @@ Bu belge, kullanıcının listelediği fikirlerin **hiçbirini düşürmemek** i
 
 ## Önerilen sıra
 
-1. **Eski süreçleri temizle ve Telegram `/projeler`'i doğrula** — eski bot (22 Ekim) ve eski arayüz sunucuları (23 Ekim) kapatılacak. *Kullanıcı onayı bekliyor.*
+1. **Eski süreçleri temizle ve Telegram `/projeler`'i doğrula** — eski bot (22 Ekim) ve eski arayüz sunucuları (23 Ekim) kapatıldı; kullanıcının telefondan `/projeler`'i denemesi bekleniyor.
 2. Ad: **Aktapokus AI Studio** (repo `aktapokus-ai-studio`) — **VAR** (repo adlandırıldı).
-3. **Güvenli uzak erişim** (Tailscale, açık-kapalı seçenek, token + Origin kontrolü korunur, terminal uzak erişimde varsayılan kapalı) ve **telefonda kullanılabilir düzen (PWA)**.
+3. **Güvenli uzak erişim** (Tailscale, açık-kapalı seçenek, token + Origin kontrolü korunur, terminal uzak erişimde varsayılan kapalı) ve **telefonda kullanılabilir düzen** — **VAR** (gerçek Tailscale ile denenmedi; sahte CLI ve loopback ile test edildi).
 4. **Cihazlarım / eşleştirme:** her bilgisayar kendi örneğini çalıştırır; adres, ad, durum listelenir; aracı bulut yok.
 5. **Telegram:** `/model` ve `/roller`, dolar maliyeti özeti, bütçe uyarısı.
 6. **Denetim günlüğü** ve **"ne oldu?" özet kartı** (modelsiz: git farkı + görev kayıtlarından).
@@ -17,10 +17,10 @@ Bu belge, kullanıcının listelediği fikirlerin **hiçbirini düşürmemek** i
 
 | Fikir | Durum | Not |
 | --- | --- | --- |
-| Uzak erişim ("uzak masaüstü gibi") | YAPILACAK (3) | Uzak masaüstü değil, güvenli web erişimi. Arayüz şu an yalnız `127.0.0.1`. Terminal+MCP = uzaktan komut çalıştırma; internete doğrudan açılmaz |
+| Uzak erişim ("uzak masaüstü gibi") | VAR (3) | Uzak masaüstü değil, güvenli web erişimi. Arayüz şu an yalnız `127.0.0.1`. Terminal+MCP = uzaktan komut çalıştırma; internete doğrudan açılmaz |
 | Terminal WebSocket proxy, FastAPI, tmux | ÖNERİLMİYOR | Standart kütüphane + SSE + Windows ConPTY zaten var; yeniden yazım ve Windows'ta olmayan tmux gereksiz |
 | Mobilde xterm.js terminal | VAR / YAPILACAK | Terminal sekmesi var; dar ekran düzeni (3) |
-| Mobil PWA: terminal modu / komut paleti (`/yeni-proje`, `/model-degistir`, `/geri-al`) | SONRA | Palet küçük bir ek |
+| Mobil arayüz: tek panelli telefon düzeni | VAR (3) | Görevler · Sohbet · Panel alt gezinmesi. PWA (ana ekrana ekleme, push) ve komut paleti SONRA |
 | GitHub entegrasyonu (basit + derin: PR, issue) | VAR | Git sekmesi + GitHub sekmesi + Ayarlar |
 | Google ile giriş | YAPILACAK (sonra) | Önce Tailscale + token; Google OAuth için kullanıcının bir OAuth istemcisi oluşturması gerekir |
 | Uygulamayı farklı bilgisayarlara kurup eşleştirme | YAPILACAK (4) | "Cihazlarım" |
@@ -42,7 +42,7 @@ Bu belge, kullanıcının listelediği fikirlerin **hiçbirini düşürmemek** i
 | Kesintisiz akış, yeniden bağlanınca son durum | VAR | SSE + halka tampon + olay geri oynatma |
 | "Ne oldu?" özet kartı (Llama ile) | YAPILACAK (6) | Model çağırmadan: git farkı + görev kayıtları (commit önerisi gibi). İstenirse sonra modelle |
 | Uygulama kapalıyken bildirim (Telegram) | VAR | |
-| Kimlik doğrulama: Tailscale + token | YAPILACAK (3) | Token VAR; Tailscale uzak erişim modu eklenecek |
+| Kimlik doğrulama: Tailscale + token | VAR (3) | Sabit, yenilenebilir uzak anahtar; yetki daraltma; Tailscale yoksa açılmaz |
 | Telegram'da model seçimi | YAPILACAK (5) | Yalnız kurulu CLI/modeller arasından düğmeyle |
 | Telegram `/projeler` çalışmadı | NEDEN BULUNDU | Eski bot ayarı açılışta bir kez okuyor; süreç kapatılıp yeniden başlatılacak (1) |
 | Windows açılışında otomatik başlatma | YAPILACAK | Onaylı ve geri alınabilir |

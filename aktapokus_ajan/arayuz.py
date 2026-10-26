@@ -30,7 +30,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import beceriler, ciktilar, clitanim, github, gityonet, guard, motorlar, istatistik, mcptanim, projeler, snapshot, terminal
+from . import beceriler, ciktilar, clitanim, github, gityonet, guard, motorlar, uzak, istatistik, mcptanim, projeler, snapshot, terminal
 from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
 from .pipeline import HatHatasi, _kayit_klasoru, calistir_hat, son_kayit
@@ -179,6 +179,7 @@ class Uygulama:
         self.terminaller: dict[str, terminal.Terminal] = {}
         self._terminal_kilit = threading.Lock()
         self._github_kilitleri: dict[str, threading.Lock] = {}  # proje basina: ayni anda tek GitHub/git islemi
+        self.sunucu: "ArayuzSunucusu | None" = None  # ArayuzSunucusu kendini buraya baglar (uzak erisim ayarlari dinleyiciyi yonetir)
         self.token = token or secrets.token_urlsafe(24)
         self.bus = OlayAkisi()
         self.oturumlar: dict[str, ProjeOturumu] = {}
@@ -668,6 +669,32 @@ class Uygulama:
 
     def github_issue_yorum(self, no: object, metin: object) -> dict:
         return self._github(lambda k: github.issue_yorum(k, no, metin))
+
+    # --- Uzak erisim: YALNIZ yerel arayuzden yonetilir (uzak istemci /api/uzak'a erisemez: uzak.politika) ---
+    def _sunucu(self) -> "ArayuzSunucusu":
+        if self.sunucu is None:
+            raise UygulamaHatasi("Sunucu hazir degil", 503)
+        return self.sunucu
+
+    def uzak_durum(self) -> dict:
+        return {"ayar": uzak.oku().sozluk(), "tailscale": uzak.tailscale_durum(), "dinleyici": self._sunucu().uzak_bilgi()}
+
+    def uzak_ayarla(self, veri: object) -> dict:
+        if not isinstance(veri, dict):
+            raise UygulamaHatasi("Govde bir nesne olmali")
+        sunucu = self._sunucu()
+        try:
+            uzak.guncelle(veri)
+        except uzak.UzakHatasi as hata:
+            raise UygulamaHatasi(str(hata)) from None
+        sunucu.uzak_uygula()  # her degisiklikte dinleyici yeniden kurulur: acik uzak baglantilar kesilir, yeni ayar gecerli olur
+        return self.uzak_durum()
+
+    def uzak_anahtar_yenile(self) -> dict:
+        sunucu = self._sunucu()
+        uzak.anahtari_yenile()
+        sunucu.uzak_uygula()  # eski anahtarla acik kalmis uzak baglantilar da kesilir
+        return self.uzak_durum()
 
     # --- Motorlar (ajan CLI'lari): kurulu olanlar + bu projede kurulu olmayan CLI'a bagli roller; roller yalniz kullanici isteyince gecirilir ---
     def motorlar(self) -> dict:
@@ -1171,9 +1198,40 @@ def _host_gecerli(host: str | None, portlar: set[int]) -> bool:
     return ad in ("127.0.0.1", "localhost") and port.isdigit() and int(port) in portlar
 
 
-def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
+YEREL_ISTEMCILER = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+
+
+@dataclass
+class Dinleyici:
+    """Uzak (Tailscale) dinleyicinin kimligi: baglandigi adres/port ve kabul edilen Host adlari. `durdu`: dinleyici kapaninca acik akislari keser."""
+
+    adres: str
+    port: int
+    hostlar: frozenset
+    durdu: threading.Event = field(default_factory=threading.Event)
+
+
+class UzakSunucu(ThreadingHTTPServer):
+    allow_reuse_address = False  # Windows'ta SO_REUSEADDR baska bir surecin ayni porta baglanmasina izin verir
+
+
+def _uzak_host_gecerli(host: str | None, d: Dinleyici) -> bool:
+    if not host:
+        return False
+    ad, _, port = host.rpartition(":") if ":" in host else (host, "", "")
+    return ad.lower() in d.hostlar and port.isdigit() and int(port) == d.port
+
+
+def _uzak_origin_gecerli(origin: str | None, d: Dinleyici) -> bool:
+    return origin is None or any(origin == f"http://{h}:{d.port}" for h in d.hostlar)
+
+
+def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | None = None):
+    """dinleyici=None: yerel (127.0.0.1) arayuz. Dinleyici verilirse UZAK arayuz: Host/Origin yalniz o adreslerden, ek anahtar, daraltilmis yetki."""
+
     class H(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
+        _onbellek = None  # istek govdesi (politika denetimi govdeyi onceden okuyabilir)
 
         def log_message(self, *a):
             pass
@@ -1192,20 +1250,87 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                 self.wfile.write(govde)
 
         def _govde(self):
+            if self._onbellek is not None:
+                return self._onbellek
+            self._govde_tuketildi = True
             n = int(self.headers.get("Content-Length") or 0)
             if n > AZAMI_GOVDE:
+                self.close_connection = True
                 raise UygulamaHatasi("Govde cok buyuk", 413)
             if not n:
-                return {}
+                self._onbellek = {}
+                return self._onbellek
             try:
-                return json.loads(self.rfile.read(n))
+                self._onbellek = json.loads(self.rfile.read(n))
             except json.JSONDecodeError:
                 raise UygulamaHatasi("Gecersiz JSON") from None
+            return self._onbellek
+
+        def _uzak_denetle(self, yontem: str, yol: str) -> str | None:
+            """Uzak istek icin ek denetimler (genel politika + govdeye bakan ozel kurallar). Ret sebebi ya da None."""
+            sebep = uzak.politika(yontem, yol, sunucu.uzak_ayar)
+            if sebep:
+                return sebep
+            if yontem == "POST" and yol == "/api/klasor":
+                g = self._govde()
+                try:
+                    kimlik = projeler.proje_kimligi(str(g.get("yol", ""))) if isinstance(g, dict) and g.get("yol") else None
+                except Exception:
+                    kimlik = None
+                if kimlik not in {p["id"] for p in projeler.listele()}:
+                    return "Uzaktan yalnizca kayitli projeler acilir; yeni klasor bilgisayardan eklenir"
+                if g.get("git_baslat"):
+                    return "Uzaktan git deposu baslatilamaz"
+            if yontem == "PUT" and yol == "/api/ayar":
+                yeni = self._govde()
+                try:
+                    eski = app.ayar_oku().get("roller", {})
+                except Exception:
+                    eski = {}
+                for ad, rol in (yeni.get("roller", {}) if isinstance(yeni, dict) and isinstance(yeni.get("roller"), dict) else {}).items():
+                    if isinstance(rol, dict) and bool(rol.get("okuma_riski_kabul", False)) != bool((eski.get(ad) or {}).get("okuma_riski_kabul", False)):
+                        return "okuma_riski_kabul uzaktan degistirilemez (gizli dosya korumasini kapatir)"
+            return None
 
         def _yol(self, yontem: str):
-            if not _host_gecerli(self.headers.get("Host"), {sunucu.port}):
+            """HTTP/1.1 keep-alive: istek govdesi OKUNMADAN yanit verilirse (401/403/404...) artik byte'lar bir sonraki istegin basi sanilir.
+            Bu yuzden her istek sonunda okunmamis govde tuketilir (cok buyukse baglanti kapatilir)."""
+            self._onbellek = None
+            self._govde_tuketildi = False
+            try:
+                self._yol_ic(yontem)
+            finally:
+                self._govdeyi_bosalt()
+
+        def _govdeyi_bosalt(self):
+            if self._govde_tuketildi:
+                return
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                n = 0
+            if n <= 0:
+                return
+            if n > AZAMI_GOVDE:
+                self.close_connection = True
+                return
+            try:
+                self.rfile.read(n)
+            except OSError:
+                self.close_connection = True
+
+        def _yol_ic(self, yontem: str):
+            if dinleyici is None:
+                if self.client_address[0] not in YEREL_ISTEMCILER:
+                    return self._gonder(403, {"hata": "Yerel dinleyiciye yalniz bu bilgisayardan erisilir"})
+                host_ok = _host_gecerli(self.headers.get("Host"), {sunucu.port})
+                origin_ok = _origin_gecerli(self.headers.get("Origin"), {sunucu.port})
+            else:
+                host_ok = _uzak_host_gecerli(self.headers.get("Host"), dinleyici)
+                origin_ok = _uzak_origin_gecerli(self.headers.get("Origin"), dinleyici)
+            if not host_ok:
                 return self._gonder(403, {"hata": "Gecersiz Host"})
-            if yontem in ("POST", "PUT", "DELETE") and not _origin_gecerli(self.headers.get("Origin"), {sunucu.port}):
+            if yontem in ("POST", "PUT", "DELETE") and not origin_ok:
                 return self._gonder(403, {"hata": "Gecersiz Origin"})
             u = urllib.parse.urlsplit(self.path)
             yol, sorgu = u.path, {k: v[0] for k, v in urllib.parse.parse_qs(u.query).items()}
@@ -1226,8 +1351,14 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                     return self._gonder(200, simge.read_bytes(), "image/x-icon")
             if not yol.startswith("/api/"):
                 return self._gonder(404, {"hata": "yok"})
-            if not hmac.compare_digest(self.headers.get("X-Aktapokus-Token", ""), app.token):
+            jeton = (self.headers.get("X-Aktapokus-Token", "") or "").encode("utf-8", "replace")
+            gecerli = hmac.compare_digest(jeton, app.token.encode())
+            if not gecerli and dinleyici is not None:
+                gecerli = hmac.compare_digest(jeton, sunucu.uzak_ayar.anahtar.encode())  # uzak anahtar YALNIZ uzak dinleyicide gecerli
+            if not gecerli:
                 return self._gonder(401, {"hata": "Token gerekli"})
+            if dinleyici is not None:
+                sunucu.uzak_son = {"zaman": time.strftime("%Y-%m-%d %H:%M:%S"), "ip": self.client_address[0]}
             baglam = None
             try:
                 m = re.match(r"^/api/p/([0-9a-f]{10})(/.*)$", yol)
@@ -1235,6 +1366,10 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                     baglam = app.proje_baglami(m.group(1))
                     baglam.__enter__()
                     yol = "/api" + m.group(2)
+                if dinleyici is not None:
+                    sebep = self._uzak_denetle(yontem, yol)
+                    if sebep:
+                        return self._gonder(403, {"hata": sebep})
                 self._api(yontem, yol, sorgu)
             except UygulamaHatasi as hata:
                 self._gonder(hata.kod, {"hata": str(hata)})
@@ -1249,7 +1384,11 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
         def _api(self, yontem: str, yol: str, q: dict):
             if yontem == "GET":
                 if yol == "/api/durum":
-                    return self._gonder(200, app.durum())
+                    d = app.durum()
+                    d["baglanti"] = {"uzak": dinleyici is not None, "terminal": dinleyici is None or sunucu.uzak_ayar.terminal, "yonetim": dinleyici is None or sunucu.uzak_ayar.yonetim}
+                    return self._gonder(200, d)
+                if yol == "/api/uzak":
+                    return self._gonder(200, app.uzak_durum())
                 if yol == "/api/proje-gruplari":
                     return self._gonder(200, app.proje_gruplari())
                 if yol == "/api/oturumlar":
@@ -1331,6 +1470,10 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                     return self._gonder(200, app.saglayici_baglan(g.get("saglayici"), g.get("anahtar"), g.get("etiket")))
                 if yol == "/api/saglayicilar/kaldir":
                     return self._gonder(200, app.saglayici_kaldir(g.get("baglanti")))
+                if yol == "/api/uzak":
+                    return self._gonder(200, app.uzak_ayarla(g))
+                if yol == "/api/uzak/anahtar-yenile":
+                    return self._gonder(200, app.uzak_anahtar_yenile())
                 if yol == "/api/github/klonla":
                     return self._gonder(200, app.github_klonla(g.get("depo"), g.get("klasor"), g.get("ad")))
                 if yol == "/api/github/commit":
@@ -1431,9 +1574,9 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
                 for o in tekrar:
                     self.wfile.write(f"id: {o['id']}\ndata: {json.dumps(o, ensure_ascii=False)}\n\n".encode())
                 self.wfile.flush()
-                while not sunucu.kapaniyor.is_set():
+                while not (sunucu.kapaniyor.is_set() or (dinleyici is not None and dinleyici.durdu.is_set())):
                     try:
-                        o = q.get(timeout=10)
+                        o = q.get(timeout=1)  # kisa: uzak erisim kapaninca/anahtar yenilenince akis 1 sn icinde kesilir
                         self.wfile.write(f"id: {o['id']}\ndata: {json.dumps(o, ensure_ascii=False)}\n\n".encode())
                     except queue.Empty:
                         self.wfile.write(b": ping\n\n")
@@ -1452,8 +1595,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu"):
             self.end_headers()
             self.close_connection = True
             try:
-                while not sunucu.kapaniyor.is_set():
-                    parcalar, bitti = t.bekle(son, 10.0)
+                while not (sunucu.kapaniyor.is_set() or (dinleyici is not None and dinleyici.durdu.is_set())):
+                    parcalar, bitti = t.bekle(son, 1.0)
                     for sira, veri in parcalar:
                         son = sira
                         self.wfile.write(("data: " + json.dumps({"s": sira, "b": base64.b64encode(veri).decode("ascii")}) + "\n\n").encode())
@@ -1545,6 +1688,57 @@ class ArayuzSunucusu:
         self.port = self.http.server_address[1]
         self.onizlemeler: dict[str, ThreadingHTTPServer] = {}  # proje kimligi -> o projeyi sunan onizleme sunucusu (ilk istekte, ayri portta)
         self._onizleme_kilit = threading.Lock()
+        self.uzak_ayar = uzak.oku()
+        self.uzak_http: UzakSunucu | None = None
+        self.uzak_dinleyici: Dinleyici | None = None
+        self.uzak_hata: str | None = None
+        self.uzak_son: dict | None = None  # son uzak istek: {zaman, ip}
+        self._uzak_kilit = threading.Lock()
+        app.sunucu = self
+
+    # --- uzak dinleyici (Tailscale) ---
+    def uzak_durdur(self) -> None:
+        with self._uzak_kilit:
+            d, s, self.uzak_dinleyici, self.uzak_http = self.uzak_dinleyici, self.uzak_http, None, None
+        if d is not None:
+            d.durdu.set()  # acik SSE/terminal akislarini keser
+        if s is not None:
+            try:
+                s.shutdown()
+                s.server_close()
+            except Exception:
+                pass
+
+    def uzak_uygula(self) -> dict:
+        """Ayar dosyasina gore uzak dinleyiciyi (yeniden) kurar: kapaliysa durdurur. Tailscale adresi yoksa ya da baglanilamazsa HATA bilgisini saklar."""
+        self.uzak_durdur()
+        self.uzak_ayar = uzak.oku()
+        self.uzak_hata = None
+        if not self.uzak_ayar.acik or self.kapaniyor.is_set():
+            return self.uzak_bilgi()
+        ts = uzak.tailscale_durum()
+        if not ts["adres"]:
+            self.uzak_hata = ts["hata"] or "Tailscale adresi bulunamadi"
+            return self.uzak_bilgi()
+        hostlar = frozenset({ts["adres"], *( [ts["dns"]] if ts["dns"] else [] )})
+        d = Dinleyici(ts["adres"], self.uzak_ayar.port, hostlar)
+        try:
+            srv = UzakSunucu((d.adres, d.port), yapi_arayuz(self.app, self, d))
+        except OSError as hata:
+            self.uzak_hata = f"{d.adres}:{d.port} adresine baglanilamadi ({hata.strerror or type(hata).__name__}); baska bir port deneyin"
+            return self.uzak_bilgi()
+        srv.daemon_threads = True
+        threading.Thread(target=srv.serve_forever, daemon=True).start()
+        with self._uzak_kilit:
+            self.uzak_http, self.uzak_dinleyici = srv, d
+        return self.uzak_bilgi()
+
+    def uzak_bilgi(self) -> dict:
+        d = self.uzak_dinleyici
+        adresler = []
+        if d is not None:
+            adresler = [f"http://{h}:{d.port}/#t={self.uzak_ayar.anahtar}" for h in sorted(d.hostlar, key=lambda x: (x == d.adres, x))]  # MagicDNS adi once, IP sonra
+        return {"calisiyor": d is not None, "adres": d.adres if d else None, "port": d.port if d else None, "hata": self.uzak_hata, "baglantilar": adresler, "son_erisim": self.uzak_son}
 
     def url(self) -> str:
         return f"http://127.0.0.1:{self.port}/#t={self.app.token}"
@@ -1570,6 +1764,7 @@ class ArayuzSunucusu:
 
     def kapat(self) -> None:
         self.kapaniyor.set()
+        self.uzak_durdur()
         self.app.terminalleri_kapat()  # terminal surecleri arayuzle birlikte kapanir
         with self._onizleme_kilit:
             onizlemeler = list(self.onizlemeler.values())
@@ -1586,6 +1781,11 @@ def ui_calistir(klasor: str | None = None, port: int = 0, tarayici: bool = False
     app._telegram().otomatik_baslat()  # Ayarlar > Telegram'da 'otomatik baslat' aciksa ve token varsa bot arka planda baslar
     sunucu = ArayuzSunucusu(app, port)
     sunucu.baslat()
+    uzak_bilgi = sunucu.uzak_uygula()  # Ayarlar > Uzak erisim aciksa Tailscale dinleyicisi kurulur (varsayilan kapali)
+    if uzak_bilgi["calisiyor"]:
+        print(f"Uzak erisim ACIK (Tailscale): http://{uzak_bilgi['adres']}:{uzak_bilgi['port']}/  (anahtar yalniz Ayarlar > Uzak erisim'de gosterilir)", flush=True)
+    elif uzak_bilgi["hata"]:
+        print(f"Uzak erisim kurulamadi: {uzak_bilgi['hata']}", flush=True)
     if klasor:
         try:
             app.klasor_sec(klasor, git_baslat=False)
