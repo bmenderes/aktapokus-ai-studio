@@ -22,7 +22,11 @@ Bu belge, kullanıcının listelediği fikirlerin **hiçbirini düşürmemek** i
 | Mobilde xterm.js terminal | VAR / YAPILACAK | Terminal sekmesi var; dar ekran düzeni (3) |
 | Mobil arayüz: tek panelli telefon düzeni | VAR (3) | Görevler · Sohbet · Panel alt gezinmesi. PWA (ana ekrana ekleme, push) ve komut paleti SONRA |
 | GitHub entegrasyonu (basit + derin: PR, issue) | VAR | Git sekmesi + GitHub sekmesi + Ayarlar |
-| Google ile giriş | YAPILACAK (sonra) | Önce Tailscale + token; Google OAuth için kullanıcının bir OAuth istemcisi oluşturması gerekir |
+| Google ile giriş (Aktapokus hesabı) | YAPILACAK (sıraya alındı 2026-10-26) | Aktapokus'un kendi kullanıcı hesabı yok; Hesaplar bölümü bunu açıkça gösteriyor. Google OAuth için bir OAuth istemcisi gerekir (kullanıcı oluşturur); önce kapsam ve veri sahipliği (yerel mi bulut mu) kararı |
+| GitHub: uygulamaya özel giriş | YAPILACAK (sıraya alındı, karar: tek hesap) | `gh`'ın ayrı ayar klasörüyle (GH_CONFIG_DIR) bilgisayardaki gh girişinden bağımsız oturum; tarayıcıda tek seferlik kodla giriş (gerçek gh ile doğrulandı: ayrı klasör giriş yok görünüyor); git push/pull kimlik yardımcısı da bu hesapla; uzaktan giriş/çıkış kapalı |
+| Aktapokus ↔ Claude Code karşılıklı haberdarlık | YAPILIYOR | Aktapokus durumu Claude'a kanca (hook) ile otomatik iletilir; Claude Code konuşmaları Aktapokus'ta listelenir/oynatılır; canlı olan işaretlenir |
+| Önizleme tarayıcı menüsü (varsayılan tarayıcıda aç, URL kopyala, ekran görüntüsü, HTML aç, görünüm, otomatik aç/doğrula, veri temizle) | YAPILACAK | Başsız Edge ekran görüntüsü bu makinede denenmeli (ilk deneme dosya üretmedi) |
+| Core ile birleşme (hibrit: Studio kontrol katmanı, Core 'Araçlar') | KARAR | Karşılaştırma yapıldı; kullanıcı kararı bekleniyor (docs/ içinde ayrıca yazılmadı) |
 | Uygulamayı farklı bilgisayarlara kurup eşleştirme | YAPILACAK (4) | "Cihazlarım" |
 | Kimi Claw benzeri taşınabilirlik | KARAR | Kimi Claw doğrulanmadı. "Tek tık bulut deploy" önerilmiyor (kod ve anahtarlar buluta gider); taşınabilirlik = eşleştirme + uzak erişim |
 | Repo adı | VAR | `aktapokus-ai-studio` (eski adres yönlendirilir) |

@@ -480,6 +480,7 @@ function hesapChipCiz(){const y=S.yerel||{};const h=S.hesaplar;let ad=y.kullanic
     if(girisler.length){alt="giriş: "+girisler.join(" · ");ipucu=ad+"\n"+girisler.join("\n")+"\n(Windows kullanıcısı: "+(y.kullanici||"?")+")"}}
   $("#hesapAd").textContent=ad;$("#hesapAv").textContent=(ad.replace(/^@/,"")[0]||"?");$("#hesapAlt").textContent=alt;$("#hesapChip").title=ipucu+"\nAyrıntı için tıklayın."}
 let hesapOzetZ=0;
+async function hesapVerisi(){if(S.hesaplar&&Date.now()-hesapOzetZ<30000)return S.hesaplar;S.hesaplar=await api("/api/hesaplar");hesapOzetZ=Date.now();hesapChipCiz();return S.hesaplar}
 async function hesapOzetYukle(){if(Date.now()-hesapOzetZ<30000)return;hesapOzetZ=Date.now();try{S.hesaplar=await api("/api/hesaplar");hesapChipCiz()}catch(x){hesapOzetZ=0}}
 $("#hesapChip").onclick=()=>ayarAc("hesaplar");
 function rolleriCiz(){const r=$("#rolCipleri");r.textContent="";
@@ -683,14 +684,23 @@ async function telegramBolumu(h){const kutu=e("div");h.append(kutu);
   await yukle();
   if(S.telegramZ)clearInterval(S.telegramZ);
   S.telegramZ=setInterval(()=>{if(S.ayarBolum==="telegram"&&$("#ayarlar").classList.contains("on")&&!document.activeElement.matches("input[type=text],input:not([type])"))yukle();else if(S.ayarBolum!=="telegram"||!$("#ayarlar").classList.contains("on")){clearInterval(S.telegramZ);S.telegramZ=null}},3000)}
+/* CLI karti: bu CLI'da giris yapilmis mi? Claude Code ve Codex kendi oturumunu bildirir; OpenCode hesapla degil API anahtariyla/ucretsiz modellerle calisir; ozel CLI'larin giris bilgisi yoktur. */
+function cliGirisOgesi(c){const rozet=e("span",{class:"badge",text:"giriş sorgulanıyor…"});const satir=e("div",{class:"mut3",style:"white-space:normal"});
+  const yaz=(metin,sinif,ipucu,ek)=>{rozet.className="badge "+sinif;rozet.textContent=metin;rozet.title=ipucu||"";satir.textContent=ek||""};
+  if(!c.yerlesik){yaz("giriş bilgisi yok","","Bu özel CLI'nın oturum durumu okunamaz.","");return {rozet,satir}}
+  if(c.ad==="opencode"||c.ad==="opencode-sunucu"){yaz("hesapsız · anahtar","","OpenCode hesapla değil, sağlayıcı API anahtarlarıyla (ya da ücretsiz modellerle) çalışır.","Giriş gerekmez: ücretsiz modeller doğrudan çalışır; ücretli modeller için Ayarlar > Sağlayıcılar'dan anahtar ekleyin.");return {rozet,satir}}
+  hesapVerisi().then(h=>{if(c.ad==="claude"){const x=h.claude||{};if(x.giris)yaz("giriş: "+(x.eposta||"yapıldı"),"b-ok",[x.eposta,x.abonelik?"abonelik: "+x.abonelik:null,x.yontem?"yöntem: "+x.yontem:null].filter(Boolean).join(" · "),"Hesap: "+[x.eposta,x.abonelik].filter(Boolean).join(" · "));else yaz("giriş yok","b-err","Claude Code'a giriş yapılmamış.",x.hata||"Giriş için bir terminalde `claude auth login` çalıştırın, sonra bu sayfayı yenileyin.")}
+    else if(c.ad==="codex"){const x=h.codex||{};if(x.giris)yaz("giriş: "+((x.detay||"yapıldı").replace(/^Logged in using /i,"")),"b-ok",x.detay||"","Hesap: "+(x.detay||"giriş yapılmış"));else yaz("giriş yok","b-err","Codex'e giriş yapılmamış.","Giriş için bir terminalde `codex login` çalıştırın, sonra bu sayfayı yenileyin.")}
+    else yaz("giriş bilgisi yok","","","")}).catch(()=>yaz("giriş okunamadı","b-warn","Hesap durumu sorgulanamadı.",""));
+  return {rozet,satir}}
 function cliBolumu(){const kap=e("div");
   const liste=e("div");kap.append(liste);
-  for(const c of S.clilar){const sonuc=e("div",{class:"mut3",style:"margin-top:4px"});
+  for(const c of S.clilar){const sonuc=e("div",{class:"mut3",style:"margin-top:4px"});const giris=cliGirisOgesi(c);
     const dene=e("button",{text:"Dene",title:"Boş geçici klasörde küçük bir istek gönderir (az miktarda token harcar)",onclick:async()=>{dene.disabled=true;sonuc.className="mut3";sonuc.textContent="deneniyor…";try{const r=await api("/api/clilar/dene",{method:"POST",body:{ad:c.ad}});sonuc.className="badge "+(r.ok?"b-ok":"b-err");sonuc.textContent=r.ok?("çalışıyor · "+r.sure_sn+" sn · "+r.token+" token · “"+(r.metin||"").slice(0,60)+"”"):("başarısız: "+(r.hata||r.metin||"bilinmiyor"))}catch(x){sonuc.className="badge b-err";sonuc.textContent=x.message}dene.disabled=false}});
     const dugmeler=e("span",{class:"row"},dene);
     if(!c.yerlesik){dugmeler.append(e("button",{text:"Düzenle",onclick:()=>cliFormu(kap,c.tanim)}),e("button",{text:"Sil",onclick:async()=>{if(!confirm(c.ad+" tanımı silinsin mi?"))return;try{await api("/api/clilar/sil",{method:"POST",body:{ad:c.ad}});ajanlarYukle()}catch(x){alert(x.message)}}}))}
-    liste.append(e("div",{class:"card"},e("div",{class:"row",style:"justify-content:space-between"},e("span",{class:"row"},e("b",{text:c.gorunen_ad}),e("span",{class:"badge "+(c.kurulu?"b-ok":"b-err"),text:c.kurulu?"kurulu":"kurulu değil"}),e("span",{class:"badge",text:c.yerlesik?"yerleşik":"özel"})),dugmeler),
-      e("div",{class:"mut3",text:c.aciklama}),c.modeller.length?e("div",{class:"mut3",text:"modeller: "+c.modeller.join(", ")}):null,sonuc))}
+    liste.append(e("div",{class:"card"},e("div",{class:"row",style:"justify-content:space-between"},e("span",{class:"row"},e("b",{text:c.gorunen_ad}),e("span",{class:"badge "+(c.kurulu?"b-ok":"b-err"),text:c.kurulu?"kurulu":"kurulu değil"}),e("span",{class:"badge",text:c.yerlesik?"yerleşik":"özel"}),c.kurulu?giris.rozet:null),dugmeler),
+      e("div",{class:"mut3",text:c.aciklama}),c.kurulu?giris.satir:null,c.modeller.length?e("div",{class:"mut3",text:"modeller: "+c.modeller.join(", ")}):null,sonuc))}
   kap.append(e("button",{class:"pri",style:"margin-top:6px",text:"+ CLI ekle",onclick:()=>cliFormu(kap,null)}));return kap}
 function cliFormu(kap,t){const eski=$("#cliForm");if(eski)eski.remove();t=t||{};const k=e("div",{class:"card",id:"cliForm"});
   const al=(etiket,ad,deger,ipucu,cok)=>{const g=cok?e("textarea",{rows:"3",style:"width:100%"}):e("input",{style:"width:100%"});g.value=deger==null?"":deger;if(ipucu)g.placeholder=ipucu;g.dataset.a=ad;return e("label",{class:"mut",style:"display:block;margin-top:5px"},etiket,g)};

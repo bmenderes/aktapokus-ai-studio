@@ -129,3 +129,11 @@ def test_ust_cubukta_terminal_ayarlar_ve_sag_panel_sekmeleri_kapatilip_acilabili
     for parca in ("function sekmeleriCiz", "function sekmeKapat", 'id:"sekmeEkle"', 'id:"sagGenis"', 'text:"✕",onclick:sagDegis', "if(acik.length<=1)return;"):
         assert parca in html, parca
     assert "d.sagGenis?sagEnCok:" in html and "(S.gizliSekme||[]).includes(id)" in html  # programatik sekme acma kapali sekmeyi geri getirir
+
+
+def test_cli_kartlarinda_giris_durumu_gorunur_claude_codex_opencode_ve_ozel_cli():
+    """Gercek istek: CLI'lar sayfasinda her CLI'in giris yapilmis mi yapilmamis mi oldugu anlasilsin."""
+    html = (Path(__file__).parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
+    assert "function cliGirisOgesi(c)" in html and "const giris=cliGirisOgesi(c);" in html and "c.kurulu?giris.rozet:null" in html
+    for parca in ('"giriş yok","b-err"', "claude auth login", "codex login", '"hesapsız · anahtar"', '"giriş bilgisi yok"', "async function hesapVerisi"):
+        assert parca in html, parca
