@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import beceri_kaynak, beceriler, canli, ciktilar, clitanim, github, gityonet, gorevmeta, guard, hesaplar, motorlar, otomasyon, uzak, istatistik, mcptanim, projeler, snapshot, terminal
+from . import beceri_kaynak, beceriler, canli, ciktilar, claude_oturumlari, clitanim, github, gityonet, gorevmeta, guard, hesaplar, motorlar, otomasyon, uzak, istatistik, mcptanim, projeler, snapshot, terminal
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
@@ -1241,6 +1241,9 @@ class Uygulama:
         oturum = self.gecmis_kaydi(kimlik).get("oturum")
         if not isinstance(oturum, str) or not re.fullmatch(r"[0-9a-fA-F-]{36}", oturum):
             raise UygulamaHatasi("Bu gorevin Claude Code konusmasi yok (Claude rolu kullanilmadi ya da konusma kaydedilmedi)", 404)
+        return self._claude_terminalde(oturum)
+
+    def _claude_terminalde(self, oturum: str) -> dict:
         cli = claude_bul()
         if not cli:
             raise UygulamaHatasi("Claude Code CLI bulunamadi", 404)
@@ -1248,6 +1251,23 @@ class Uygulama:
         komut = "& '" + cli.replace("'", "''") + "' --resume " + oturum + "\r"
         self.terminal_girdi(t["id"], base64.b64encode(komut.encode("utf-8")).decode("ascii"))
         return {"terminal": t["id"]}
+
+    # --- Claude Code konusmalari (yalniz okunur): bu projenin klasorunde yurutulen TUM konusmalar, Aktapokus gorevleri dahil ---
+    def claude_oturumlari(self) -> dict:
+        return {"oturumlar": claude_oturumlari.listele(self._klasor(), 8)}
+
+    def claude_konusma(self, kimlik: object) -> dict:
+        try:
+            return claude_oturumlari.konusma(self._klasor(), kimlik)
+        except ValueError as h:
+            raise UygulamaHatasi(str(h)) from None
+        except FileNotFoundError as h:
+            raise UygulamaHatasi(str(h), 404) from None
+
+    def claude_surdur(self, kimlik: object) -> dict:
+        if not claude_oturumlari.var_mi(self._klasor(), kimlik):
+            raise UygulamaHatasi("Konusma bulunamadi", 404)
+        return self._claude_terminalde(str(kimlik))
 
     # --- istatistik: gorev kayitlarindan harcama, hata siniflari, model degistirme onerileri (yalniz okur) ---
     def istatistik(self, kapsam: str = "proje") -> dict:
@@ -1751,6 +1771,10 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.hesaplar())
                 if yol == "/api/gecmis":
                     return self._gonder(200, app.gecmis_kaydi(q["id"]) if q.get("id") else {"gecmis": app.gecmis()})
+                if yol == "/api/claude-oturumlari":
+                    return self._gonder(200, app.claude_oturumlari())
+                if yol == "/api/claude-konusma":
+                    return self._gonder(200, app.claude_konusma(q.get("id")))
                 if yol == "/api/saglayicilar":
                     return self._gonder(200, {"saglayicilar": app.saglayicilar()})
                 if yol == "/api/modeller":
@@ -1794,6 +1818,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.klasor_ac(g.get("hedef")))
                 if yol == "/api/claude-devam":
                     return self._gonder(200, app.claude_devam(g.get("id")))
+                if yol == "/api/claude-surdur":
+                    return self._gonder(200, app.claude_surdur(g.get("id")))
                 if yol == "/api/uzak":
                     return self._gonder(200, app.uzak_ayarla(g))
                 if yol == "/api/uzak/anahtar-yenile":

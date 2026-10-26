@@ -247,3 +247,40 @@ def test_claude_calistirici_konusma_kimligini_sonuca_koyar_hic_kipinde_koymaz(mo
         c = runners.ClaudeCodeCalistirici(cli_yolu="cl")
         c.oturum_kipi = kip
         assert c.calistir("istem", tmp_path).oturum == beklenen, kip
+
+
+# ---------- Claude Code konusmalari (kullanicinin kendi etkilesimli konusmalari dahil) ----------
+def _claude_konusmasi_yaz(proje):
+    from aktapokus_ai_studio import claude_oturumlari as co
+
+    d = co.kok() / co.klasor_kodu(proje.resolve())
+    d.mkdir(parents=True, exist_ok=True)
+    kimlik = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+    satirlar = [{"type": "user", "message": {"content": "Selam, dosyalari listele"}, "timestamp": "t1"},
+                {"type": "assistant", "message": {"content": [{"type": "text", "text": "Tamam"}]}, "timestamp": "t2"}]
+    (d / f"{kimlik}.jsonl").write_text("\n".join(json.dumps(s) for s in satirlar), encoding="utf-8")
+    return kimlik
+
+
+def test_claude_konusmalari_listelenir_okunur_ve_terminalde_surdurulur(api, monkeypatch):
+    app, istek, proje = api
+    kimlik = _claude_konusmasi_yaz(proje)
+    st, d = istek("GET", "/api/claude-oturumlari")
+    assert st == 200 and d["oturumlar"][0]["kimlik"] == kimlik and d["oturumlar"][0]["baslik"].startswith("Selam")
+    st, d = istek("GET", "/api/claude-konusma?id=" + kimlik)
+    assert st == 200 and [o["tur"] for o in d["olaylar"]] == ["claude-kullanici", "claude-yanit"]
+    assert istek("GET", "/api/claude-konusma?id=../x")[0] == 400 and istek("GET", "/api/claude-konusma?id=" + "0" * 8 + kimlik[8:])[0] == 404
+    girdiler = []
+    monkeypatch.setattr(app, "terminal_ac", lambda *a, **k: {"id": "t9"})
+    monkeypatch.setattr(app, "terminal_girdi", lambda tid, b64: girdiler.append(base64.b64decode(b64).decode()) or {"tamam": True})
+    monkeypatch.setattr("aktapokus_ai_studio.arayuz.claude_bul", lambda: r"C:\c\claude.exe")
+    assert istek("POST", "/api/claude-surdur", {"id": kimlik})[1] == {"terminal": "t9"} and girdiler == [r"& 'C:\c\claude.exe' --resume " + kimlik + "\r"]
+    assert istek("POST", "/api/claude-surdur", {"id": "x'; calc; '"})[0] == 404 and len(girdiler) == 1
+
+
+def test_uzaktan_claude_konusmalari_kapali(uzak_sunucu):
+    app, sv, yerel, proje = uzak_sunucu
+    port, _ = ac(yerel)
+    for yontem, yol, govde in (("GET", "/api/claude-oturumlari", None), ("GET", "/api/claude-konusma?id=x", None), ("POST", "/api/claude-surdur", {"id": "x"})):
+        st, d = uzak_istek(port, yontem, yol, govde)
+        assert st == 403 and "uzaktan kapali" in d["hata"], yol

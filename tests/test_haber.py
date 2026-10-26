@@ -90,3 +90,11 @@ def test_claude_konusmalari_listelenir_ve_okunur(tmp_path, monkeypatch):
             assert False
         except ValueError:
             pass
+
+
+def test_arayuz_claude_code_bolumu_ve_uc_noktalari_baglidir():
+    from pathlib import Path
+
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
+    for parca in ("claudeBolumu", "/claude-oturumlari", "/claude-konusma?id=", "/claude-surdur", "claude-kullanici", "claude-arac", "Terminalde sürdür"):
+        assert parca in html, parca

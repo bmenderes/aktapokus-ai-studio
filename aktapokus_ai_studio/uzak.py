@@ -175,6 +175,9 @@ YONETIM_KAPALIYKEN_YASAK = (
     ({"POST"}, "/api/gorev-sil"),  # kalici silme
     ({"POST"}, "/api/klasor-ac"),  # bilgisayarda Dosya Gezgini/VS Code acar
     ({"POST"}, "/api/claude-devam"),  # bilgisayarda terminal acar
+    ({"POST"}, "/api/claude-surdur"),  # bilgisayarda terminal acar
+    ({"GET"}, "/api/claude-oturumlari"),  # kullanicinin Claude Code konusmalari (ozel icerik): yalniz bu bilgisayar
+    ({"GET"}, "/api/claude-konusma"),
     ({"POST", "PUT", "DELETE"}, "/api/otomasyonlar"),  # zamanlanmis calistirma tanimlamak; '/api/otomasyon-calistir' (yalniz plan uretir) serbest
     ({"POST"}, "/api/github/klonla"),
     ({"GET"}, "/api/klasorler"),

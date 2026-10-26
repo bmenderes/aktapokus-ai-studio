@@ -341,7 +341,7 @@ function aracKarti(o){const [tur,etiket]=aracTuru(o);const g=(o.girdi&&typeof o.
   return e("div",{class:"arac arac-"+tur},e("span",{class:"arac-t",text:etiket}),e("span",{class:"arac-h",text:hedef||String(o.ad||"")}),o.ad&&hedef?e("span",{class:"mut3",text:String(o.ad)}):null)}
 function kisaModel(m){return (m||"varsayılan").replace(/^opencode\//,"").split("/").pop()}
 function akisCipiGuncelle(){rolleriCiz()}
-async function gecmisAc(id){if(mobilDar())mobilGoster("orta");try{const r=await api("/api/gecmis?id="+encodeURIComponent(id));
+async function gecmisAc(id){S.claudeGorunen=null;clearInterval(S.claudeIv);if(mobilDar())mobilGoster("orta");try{const r=await api("/api/gecmis?id="+encodeURIComponent(id));
   /* Gecmis bir gorev, canli gorevle AYNI akis ekraninda, AYNI cizimle (plan, adimlar, arac kartlari, yanit, fark, sonuc) yeniden oynatilir: ozet karti yok. */
   S.gecmisGorev=id;$("#akis").textContent="";S.planDugmeleri={};S.planEtiket={};S.rolDurum={};S.adimDiv={};S.canliDiv=null;S.fark=null;S.kararBekliyor=false;S.adimSaat={};
   const oncekiTekrar=S.tekrar;S.tekrar=true;
@@ -574,6 +574,26 @@ function gorevMenusu(x,y,g,t,o,sat){menuKapat();
     const adaylar=altOge?altOge.alt:ogeler.filter(z=>z!=="-"&&z.k);const oge=adaylar.find(z=>z.k===k)||ogeler.find(z=>z!=="-"&&z.k===k);if(oge&&oge.f){ev.preventDefault();ev.stopPropagation();oge.f()}};
   const disari=ev=>{if(!kutu.contains(ev.target)&&!alt.contains(ev.target))menuKapat()};
   MENU={el:kutu,alt,tus,disari,sat};document.addEventListener("keydown",tus,true);document.addEventListener("mousedown",disari,true)}
+/* Claude Code konusmalari: bu projenin klasorunde yurutulen TUM konusmalar (Claude Code uygulamasindakiler dahil). Salt okunur; "Terminalde sürdür" ile devam edilir. */
+S.claudeOt=S.claudeOt||{};
+function claudeYukle(g){const c=S.claudeOt[g.id]=S.claudeOt[g.id]||{liste:null,z:0,bekliyor:false};if(c.bekliyor||Date.now()-c.z<15000)return c;c.bekliyor=true;
+  api("/api/p/"+g.id+"/claude-oturumlari").then(r=>{c.liste=r.oturumlar||[];c.z=Date.now();c.bekliyor=false;kenarCiz()}).catch(()=>{c.liste=c.liste||[];c.z=Date.now();c.bekliyor=false});return c}
+function claudeBolumu(g,govde){const c=claudeYukle(g);const liste=c.liste||[];if(!liste.length)return;S.claudeAcik=S.claudeAcik||{};const acik=!!S.claudeAcik[g.id];const canli=liste.some(x=>x.canli);
+  govde.append(e("button",{class:"grup-daha",title:"Bu klasörde yürütülen Claude Code konuşmaları",onclick:()=>{S.claudeAcik[g.id]=!acik;kenarCiz()}},(acik?"▾ ":"▸ ")+"Claude Code ("+liste.length+")"+(canli?" ●":"")));
+  if(!acik)return;
+  for(const x of liste){const sat=e("div",{class:"rol"+(S.claudeGorunen===x.kimlik?" on":""),title:x.zaman+"\n"+(x.baslik||""),onclick:async()=>{if(!await projeAc(g))return;claudeAc(g,x.kimlik)}},
+    e("span",{class:"dot "+(x.canli?"calisiyor":"bitti")}),e("div",{style:"min-width:0;flex:1"},e("div",{class:"n",style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:x.baslik||"(konuşma)"}),e("div",{class:"mut3",text:x.zaman.slice(5,16)+(x.canli?" · şu an açık":"")})));govde.append(sat)}}
+function claudeCiz(r,g){const a=$("#akis");const alta=a.scrollTop+a.clientHeight>=a.scrollHeight-60;a.textContent="";
+  a.append(e("div",{class:"card"},e("div",{class:"row",style:"justify-content:space-between"},e("div",{style:"min-width:0"},e("b",{text:"Claude Code konuşması"}),e("span",{class:"badge",style:"margin-left:6px",text:r.canli?"şu an açık":"salt okunur"}),e("div",{class:"mut3",text:r.baslik||""})),
+    e("button",{text:"Terminalde sürdür",title:"Aynı konuşmayı terminalde `claude --resume` ile açar",onclick:async()=>{try{const t=await api("/api/p/"+g.id+"/claude-surdur",{method:"POST",body:{id:r.kimlik}});await terminalAc();trmSec(t.terminal)}catch(x){akisaEkle(e("div",{class:"badge b-err",text:x.message}))}}})),
+    r.kesildi?e("div",{class:"mut3",text:"Konuşmanın yalnızca son bölümü gösteriliyor."}):null));
+  for(const o of r.olaylar||[]){if(o.tur==="claude-kullanici")a.append(e("div",{class:"kullanici",text:o.metin}));
+    else if(o.tur==="claude-yanit"){const d=e("div",{class:"md",style:"margin-top:6px"});d.innerHTML=md(o.metin);a.append(d)}
+    else if(o.tur==="claude-arac")a.append(aracKarti({ad:o.ad,girdi:o.girdi}))}
+  if(alta||!S.claudeIlk)a.scrollTop=a.scrollHeight;S.claudeIlk=true}
+async function claudeAc(g,kimlik){if(mobilDar())mobilGoster("orta");S.claudeGorunen=kimlik;S.gecmisGorev=null;S.claudeIlk=false;clearInterval(S.claudeIv);
+  const yukle=async()=>{try{const r=await api("/api/p/"+g.id+"/claude-konusma?id="+encodeURIComponent(kimlik));if(S.claudeGorunen!==kimlik)return;claudeCiz(r,g);if(!r.canli){clearInterval(S.claudeIv)}}catch(x){clearInterval(S.claudeIv);akisaEkle(e("div",{class:"badge b-err",text:x.message}))}};
+  await yukle();kenarCiz();S.claudeIv=setInterval(()=>{if(S.claudeGorunen!==kimlik||document.hidden)return;yukle()},3000)}
 function kenarCiz(){const k=$("#gecmis");if(!S.gruplar)return;const q=katla($("#kenarAra").value.trim());const ayar=grupAyar();k.textContent="";let n=0;
   for(const g of S.gruplar.projeler){const gorevler=g.gorevler.filter(t=>!q||katla(g.ad+" "+(t.ozel_ad||"")+" "+t.gorev).includes(q));
     if(q&&!gorevler.length&&!katla(g.ad).includes(q))continue;n++;
@@ -587,6 +607,7 @@ function kenarCiz(){const k=$("#gecmis");if(!S.gruplar)return;const q=katla($("#
     const sinir=q||S.fazla[g.id]?gorevler.length:5;
     for(const t of gorevler.slice(0,sinir))govde.append(gorevSatiri(g,t,{}));
     if(!gorevler.length&&!g.durum)govde.append(e("div",{class:"mut3",style:"padding:2px 6px",text:"henüz görev yok"}));
+    claudeBolumu(g,govde);
     if((g.arsiv||[]).length&&!q){S.arsivAcik=S.arsivAcik||{};govde.append(e("button",{class:"grup-daha",text:(S.arsivAcik[g.id]?"▾ ":"▸ ")+"Arşiv ("+g.arsiv.length+")",onclick:()=>{S.arsivAcik[g.id]=!S.arsivAcik[g.id];kenarCiz()}}));if(S.arsivAcik[g.id])for(const t of g.arsiv)govde.append(gorevSatiri(g,t,{arsiv:true}))}
     if(gorevler.length>5&&!q)govde.append(e("button",{class:"grup-daha",text:S.fazla[g.id]?"Daha az göster":"Daha fazla göster",onclick:()=>{S.fazla[g.id]=!S.fazla[g.id];kenarCiz()}}))}
   const son=S.gruplar.son.filter(t=>!q||katla(t.ad+" "+(t.ozel_ad||"")+" "+t.gorev).includes(q)).slice(0,8);
