@@ -243,6 +243,20 @@ def claude_bul() -> str | None:
     return None
 
 
+GOREV_AYRACI = "\n\nGOREV:\n"  # pipeline.istem_olustur: [GENEL_KURAL] + [ROLUN: ...] + AYRAC + gorev (+ onceki cikti)
+
+
+def istemi_ayir(istem: str) -> tuple[str | None, str]:
+    """(sistem metni | None, kullanici mesaji). Aktapokus istemi 'KURALLAR: ... ROLUN: ...' ile baslar; Claude'un konusmasinda kullanici mesaji
+    olarak SENIN ISTEGIN gorunsun diye kurallar/rol talimati sistem istemine tasinir. Bicim tanidik degilse istem oldugu gibi gider."""
+    if istem.startswith("KURALLAR:") and GOREV_AYRACI in istem:
+        i = istem.index(GOREV_AYRACI)
+        sistem, kullanici = istem[:i].strip(), istem[i + len(GOREV_AYRACI):].strip()
+        if sistem and kullanici:
+            return sistem, kullanici
+    return None, istem
+
+
 class ClaudeCodeCalistirici(Calistirici):
     """`claude -p` ile Claude Code (2.1.308 ile GERCEK denendi). Istem STDIN'den gider (komut satiri sorunu yok).
     Cikti `stream-json`: her mesaj/arac cagrisi CANLI gelir (ilerleme geri cagrisi); son satir {type: result} (result, is_error, usage,
@@ -263,7 +277,7 @@ class ClaudeCodeCalistirici(Calistirici):
         self._islem = None
         self._durduruldu = False
 
-    def komut(self, ayar_dosyasi: str, model: str | None, onayli: bool, mcp_dosyasi: str | None = None, mcp_adlari: tuple[str, ...] = (), oturum: str | None = None, kalici: bool = True) -> list[str]:
+    def komut(self, ayar_dosyasi: str, model: str | None, onayli: bool, mcp_dosyasi: str | None = None, mcp_adlari: tuple[str, ...] = (), oturum: str | None = None, kalici: bool = True, sistem_dosyasi: str | None = None) -> list[str]:
         cli = self.cli_yolu or claude_bul()
         if not cli:
             raise CalistiriciHatasi(
@@ -273,6 +287,8 @@ class ClaudeCodeCalistirici(Calistirici):
         komut = [cli, "-p", "--output-format", "stream-json", "--verbose", "--settings", ayar_dosyasi]
         if not kalici:
             komut += ["--no-session-persistence"]
+        if sistem_dosyasi:
+            komut += ["--append-system-prompt-file", sistem_dosyasi]
         if oturum:
             komut += ["--resume", oturum]
         if model:
@@ -453,10 +469,15 @@ class ClaudeCodeCalistirici(Calistirici):
 
                 mcp_dosyasi = str(Path(gecici) / "mcp.json")
                 Path(mcp_dosyasi).write_text(json.dumps(mcptanim.claude_ayari(list(self.mcp))), encoding="utf-8")
+            sistem, kullanici = istemi_ayir(istem)
+            sistem_dosyasi = None
+            if sistem:
+                sistem_dosyasi = str(Path(gecici) / "sistem.txt")
+                Path(sistem_dosyasi).write_text(sistem, encoding="utf-8")
             oturum = self._oturum_oku(klasor) if self.oturum_kipi == "tek" else None
             while True:
-                komut = self.komut(str(ayar), model, onayli, mcp_dosyasi, tuple(t.ad for t in self.mcp), oturum=oturum, kalici=self.oturum_kipi != "hic")
-                kod, olay, hata_metni, asildi = self._akis(komut, istem, klasor, zaman_asimi_sn)
+                komut = self.komut(str(ayar), model, onayli, mcp_dosyasi, tuple(t.ad for t in self.mcp), oturum=oturum, kalici=self.oturum_kipi != "hic", sistem_dosyasi=sistem_dosyasi)
+                kod, olay, hata_metni, asildi = self._akis(komut, kullanici, klasor, zaman_asimi_sn)
                 kayip = oturum and "no conversation found" in (hata_metni + str((olay or {}).get("result", ""))).lower()
                 if kayip:  # konusma silinmis: yeni baslat (bir kez)
                     self._oturum_sil(klasor)

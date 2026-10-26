@@ -153,3 +153,56 @@ def test_zaman_asimi_sureci_oldurur(monkeypatch, tmp_path):
 def test_baska_projedeki_calistirici_bu_calistiricinin_surecine_dokunmaz():
     c1, c2 = yeni(), yeni()
     assert c1.durdur() is False and c2.durdur() is False and c1._islem is None
+
+
+# ---------- Claude konusmasinda yalniz gorev gorunur ----------
+def test_istem_ayrilir_kurallar_sistem_istemine_gorev_kullanici_mesajina(monkeypatch, tmp_path):
+    """Gercek durum: Claude'un konusma listesinde istek 'KURALLAR: ...' diye gorunuyordu; simdi yalniz kullanicinin istegi gorunur."""
+    import copy
+
+    from aktapokus_ai_studio.config import VARSAYILAN_AYAR, ayar_coz
+    from aktapokus_ai_studio.pipeline import istem_olustur
+
+    rol = ayar_coz(copy.deepcopy(VARSAYILAN_AYAR)).roller["kodcu"]
+    istem = istem_olustur(rol, "README'ye baslik ekle\n\nGOREV: bu satir kullanicinin kendi metni", "onceki adimin ciktisi", None)
+    kayit, _ = claude_taklit(monkeypatch, runners)
+    yakalanan = {}
+    asil = kayit  # ayar/sistem dosyalari calisma bitince silinir: Popen sahtesi komut listesini saklar, sistem dosyasini simdi okutalim
+    from sahte_popen import SahtePopen
+
+    giris = SahtePopen.__init__
+
+    def okuyarak(self, komut, *a, **k):
+        if "--append-system-prompt-file" in komut:
+            from pathlib import Path
+
+            yakalanan["sistem"] = Path(komut[komut.index("--append-system-prompt-file") + 1]).read_text(encoding="utf-8")
+        return giris(self, komut, *a, **k)
+
+    monkeypatch.setattr(SahtePopen, "__init__", okuyarak)
+    yeni("yeni").calistir(istem, tmp_path)
+    girdi = kayit["girdi"].decode("utf-8")
+    assert girdi.startswith("README'ye baslik ekle") and "KURALLAR" not in girdi and "ROLUN" not in girdi  # kullanici mesaji = gorev (+ onceki cikti)
+    assert "GOREV: bu satir kullanicinin kendi metni" in girdi and "ONCEKI ADIMIN CIKTISI" in girdi  # kullanicinin kendi 'GOREV:' metni bozulmaz
+    assert yakalanan["sistem"].startswith("KURALLAR:") and "ROLUN: kodcu" in yakalanan["sistem"] and "README'ye baslik" not in yakalanan["sistem"]
+    assert "--append-system-prompt-file" in kayit["komut"] and asil is kayit
+
+
+def test_tanidik_olmayan_istem_oldugu_gibi_kullanici_mesaji_olur(monkeypatch, tmp_path):
+    kayit, _ = claude_taklit(monkeypatch, runners)
+    yeni("yeni").calistir("sadece bir istem", tmp_path)
+    assert kayit["girdi"] == b"sadece bir istem" and "--append-system-prompt-file" not in kayit["komut"]
+    kayit2, _ = claude_taklit(monkeypatch, runners)
+    yeni("yeni").calistir("KURALLAR: ama ayrac yok", tmp_path)
+    assert kayit2["girdi"] == "KURALLAR: ama ayrac yok".encode("utf-8") and "--append-system-prompt-file" not in kayit2["komut"]
+    assert runners.istemi_ayir("KURALLAR: k\n\nROLUN: r\n\nGOREV:\n") == (None, "KURALLAR: k\n\nROLUN: r\n\nGOREV:\n")  # bos gorev: ayrilmaz
+
+
+def test_arayuz_akisi_kullanici_en_alttaysa_otomatik_asagi_kayar():
+    """Gercek sikayet: arac karti/canli metin/karar dugmeleri eklenince akis kendiliginden alta inmiyor, elle kaydirmak gerekiyordu."""
+    from pathlib import Path
+
+    html = (Path(__file__).parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
+    assert "new MutationObserver(()=>{if(S.altaYapisik)a.scrollTop=a.scrollHeight}).observe(a,{childList:true,subtree:true,characterData:true})" in html
+    assert 'case "karar-bekleniyor":{alttaGoster();' in html and 'alttaGoster();try{const p=await api("/api/gorev"' in html
+    assert 'Object.keys(o.degisen||{}).length?e("div",{class:"mut3"' in html  # bitti kartinda degisen dosyalar

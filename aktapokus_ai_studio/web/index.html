@@ -238,6 +238,9 @@ function md(src){
 function sekme(id){document.querySelectorAll(".sekme").forEach(b=>b.classList.toggle("on",b.dataset.p===id));document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("on",p.id===id));if(id==="p-ciktilar")ciktilariYukle();if(id==="p-git")gitPaneliYukle();if(id==="p-github")githubPaneliYukle();sagiAc()}
 document.querySelectorAll(".sekme").forEach(b=>b.onclick=()=>sekme(b.dataset.p));
 function akisaEkle(n){const a=$("#akis");const alta=a.scrollTop+a.clientHeight>=a.scrollHeight-40;a.append(n);if(alta)a.scrollTop=a.scrollHeight;return n}
+/* Otomatik asagi kaydirma: kullanici en alttaysa (ya da kendisi yeni gorev yolladiysa) akis her degisiklikte (arac karti, canli metin, yanit, karar dugmeleri) alta iner; yukari kaydirinca durur */
+S.altaYapisik=true;(()=>{const a=$("#akis");a.addEventListener("scroll",()=>{S.altaYapisik=a.scrollTop+a.clientHeight>=a.scrollHeight-70});new MutationObserver(()=>{if(S.altaYapisik)a.scrollTop=a.scrollHeight}).observe(a,{childList:true,subtree:true,characterData:true})})();
+function alttaGoster(){S.altaYapisik=true;const a=$("#akis");a.scrollTop=a.scrollHeight}
 function gunluge(m){const g=$("#gunluk");g.append(e("div",{class:"mut",text:new Date().toLocaleTimeString("tr-TR")+"  "+m}))}
 function tokenGuncelle(t){const sinirsiz=!S.butce;$("#tokenYazi").textContent="token "+t.toLocaleString("tr-TR")+(sinirsiz?" (sınırsız)":" / "+S.butce.toLocaleString("tr-TR"));$("#tokenCubuk").style.width=sinirsiz?"0%":Math.min(100,Math.round(100*t/S.butce))+"%"}
 function rolDuzenle(ad){ayarAc("roller")}
@@ -320,7 +323,7 @@ async function gecmisAc(id){if(mobilDar())mobilGoster("orta");try{const r=await 
   for(const sa of Object.values(S.adimSaat||{}))clearInterval(sa.iv);document.querySelectorAll("#akis .canli").forEach(x=>x.remove());S.rolDurum={};rolleriCiz();
   degisiklikCiz({once:r.once,sonra:r.sonra,degisen:r.degisen||{},durum:r.durum,gecmis:true});if(Object.keys(r.degisen||{}).length)sekme("p-degisiklik");
   const g=S.gruplar&&S.gruplar.projeler.find(x=>x.id===S.projeId);const t=g&&g.gorevler.find(x=>x.id===id);if(t&&t.okunmadi){api("/api/gorev-meta",{method:"POST",body:{id,okunmadi:false}}).then(kenarCubugu).catch(()=>{})}
-  document.querySelectorAll("#gecmis .rol").forEach(x=>x.classList.toggle("on",x.dataset.gorev===id));$("#akis").scrollTop=0}catch(x){akisaEkle(e("div",{class:"badge b-err",text:x.message}))}}
+  document.querySelectorAll("#gecmis .rol").forEach(x=>x.classList.toggle("on",x.dataset.gorev===id));alttaGoster()}catch(x){akisaEkle(e("div",{class:"badge b-err",text:x.message}))}}
 function degisiklikCiz(o){const p=$("#p-degisiklik");p.textContent="";if(!o||!o.degisen||!Object.keys(o.degisen).length){p.append(e("div",{class:"mut3",text:"Değişiklik yok. Bir görev çalıştığında ya da geçmişten bir görev seçtiğinizde değişen dosyalar burada incelenir."}));return}
   const adet=Object.keys(o.degisen).length;const ust=e("div",{class:"row",style:"justify-content:space-between;margin-bottom:6px"},e("b",{text:adet+" dosya değişti"+(o.gecmis?" (geçmiş görev)":"")}),e("span",{class:"badge",text:o.durum||""}));p.append(ust);
   if(S.kararBekliyor&&!o.gecmis)p.append(e("div",{class:"row",style:"margin-bottom:6px"},e("button",{class:"pri",text:"Korunsun",onclick:()=>karar(true)}),e("button",{text:"Geri al",onclick:()=>karar(false)}),e("span",{class:"mut3",text:"tüm değişiklikler için"})));
@@ -700,13 +703,13 @@ function olayIsle(o){
     k.append(e("div",{style:"font-weight:500",text:adet+" dosya değişti"+(o.durum!=="tamam"?"  (UYARI: "+o.durum+")":"")}));
     const yama=e("div");for(const [yol,d] of Object.entries(o.degisen).sort())k.append(e("div",{class:"mono",style:"cursor:pointer;line-height:1.6",onclick:async()=>{try{const r=await api("/api/fark?once="+o.once+"&sonra="+o.sonra+"&dosya="+encodeURIComponent(yol));yama.textContent="";yama.append(yamaCiz(r.yama||"(fark yok)"))}catch(x){yama.textContent=x.message}}},e("span",{style:"color:var(--"+(d==="A"?"ok":d==="D"?"err":"warn")+")",text:d+" "}),yol));
     k.append(yama);const bt=e("div",{class:"row",id:"karar-dugmeleri",style:"margin-top:6px"});k.append(bt);akisaEkle(k);dosyalariYukle();degisiklikCiz(o);if(adet)sekme("p-degisiklik");break}
-  case "karar-bekleniyor":{S.kararBekliyor=true;if(S.fark)degisiklikCiz(S.fark);const bt=$("#karar-dugmeleri");if(bt&&!bt.childNodes.length){bt.append(e("button",{class:"pri",text:"Korunsun",onclick:()=>karar(true)}),e("button",{text:"Geri al",onclick:()=>karar(false)}))}break}
+  case "karar-bekleniyor":{alttaGoster();S.kararBekliyor=true;if(S.fark)degisiklikCiz(S.fark);const bt=$("#karar-dugmeleri");if(bt&&!bt.childNodes.length){bt.append(e("button",{class:"pri",text:"Korunsun",onclick:()=>karar(true)}),e("button",{text:"Geri al",onclick:()=>karar(false)}))}break}
   case "durduruluyor":akisaEkle(e("div",{class:"mut3",text:"durduruluyor…"}));break;
   case "test-atlatiliyor":akisaEkle(e("div",{class:"mut3",text:"test adımı atlatılıyor…"}));break;
   case "dogrulama-atlandi":S.testAdimi=false;$("#testiAtla").style.display="none";akisaEkle(e("div",{class:"mut3",text:"test adımı atlandı"}));break;
   case "bitti":{S.kararBekliyor=false;S.kosuAktif=false;if(S.fark)degisiklikCiz(Object.assign({},S.fark,{durum:o.durum}));gecmisYukle();if($("#ayarlar").classList.contains("on")&&S.ayarBolum==="kullanim")istatistikYukle();const bt=$("#karar-dugmeleri");if(bt)bt.remove();S.canliDiv=null;
     const renk=o.durum==="onaylandi"||o.durum==="degisiklik_yok"?"b-ok":o.durum==="geri_alindi"||o.durum==="reddedildi"?"":"b-err";
-    akisaEkle(e("div",{class:"card"},e("span",{class:"badge "+renk,text:o.durum}),e("span",{class:"mut",text:" "+(o.mesaj||"")}),o.token_toplam?e("span",{class:"mut3",text:"  · "+o.token_toplam.toLocaleString("tr-TR")+" token"}):null));
+    akisaEkle(e("div",{class:"card"},e("span",{class:"badge "+renk,text:o.durum}),e("span",{class:"mut",text:" "+(o.mesaj||"")}),o.token_toplam?e("span",{class:"mut3",text:"  · "+o.token_toplam.toLocaleString("tr-TR")+" token"}):null,Object.keys(o.degisen||{}).length?e("div",{class:"mut3",style:"margin-top:3px;word-break:break-all",text:Object.keys(o.degisen).length+" dosya: "+Object.entries(o.degisen).slice(0,6).map(([y,d])=>d+" "+y).join(", ")+(Object.keys(o.degisen).length>6?" …":"")}):null));
     gunluge("bitti: "+o.durum+(o.mesaj?" - "+o.mesaj:""));S.rolDurum={};kosuGorunumu();durumYukle();dosyalariYukle();yenileOnizleme();break}
   case "gunluk":gunluge(o.mesaj.split("\n")[0]);break;
   }}
@@ -717,7 +720,7 @@ async function durumYukle(){if(S.tekrar)return;try{const d=await api("/api/durum
   const ke=d.koruyucu_eksik||[];$("#korRozet").className="badge "+(d.klasor?(ke.length?"b-err":"b-ok"):"");$("#korRozet").textContent=d.klasor?(ke.length?"koruyucu eksik":"koruyucu etkin"):"";$("#korRozet").title=ke.join("; ");
   $("#klon").textContent=d.klon_bekleyen==null?"kurulu değil":d.klon_bekleyen+" öneri bekliyor";if(d.klon_bekleyen)$("#klon").title="aktapokus-klon bekleyen komutuyla inceleyin";
   rolleriCiz();akisCipiGuncelle();gecmisYukle();kosuGorunumu();motorUyarisi();$("#klasorSec")&&d.klasor&&$("#klasorSec").remove();if(onceki!==S.projeId){if(S.projeId)delete S.okunmadi[S.projeId];projeGorunumuKur()}}catch(x){gunluge("durum alınamadı: "+x.message)}}
-async function gonder(){const t=$("#gorev").value.trim();if(!t||!S.klasor)return;try{if("Notification" in window&&Notification.permission==="default")Notification.requestPermission().catch(()=>{})}catch(x){}$("#gorev").value="";try{const p=await api("/api/gorev",{method:"POST",body:{gorev:t}});S.kosu={kimlik:p.kosu,gorev:t,durum:(S.kosu&&S.kosu.kimlik===p.kosu)?S.kosu.durum:(p.otomatik?"calisiyor":"plan")};kosuGorunumu()}catch(x){akisaEkle(e("div",{class:"badge b-err",text:x.message}))}}
+async function gonder(){const t=$("#gorev").value.trim();if(!t||!S.klasor)return;try{if("Notification" in window&&Notification.permission==="default")Notification.requestPermission().catch(()=>{})}catch(x){}$("#gorev").value="";alttaGoster();try{const p=await api("/api/gorev",{method:"POST",body:{gorev:t}});S.kosu={kimlik:p.kosu,gorev:t,durum:(S.kosu&&S.kosu.kimlik===p.kosu)?S.kosu.durum:(p.otomatik?"calisiyor":"plan")};kosuGorunumu()}catch(x){akisaEkle(e("div",{class:"badge b-err",text:x.message}))}}
 $("#gonder").onclick=gonder;$("#gorev").addEventListener("keydown",ev=>{if(ev.key==="Enter"&&!ev.shiftKey){ev.preventDefault();gonder()}});
 $("#durdur").onclick=async()=>{try{await api("/api/gorev/"+S.kosu.kimlik+"/durdur",{method:"POST",body:{}})}catch(x){alert(x.message)}};
 $("#testiAtla").onclick=async()=>{try{$("#testiAtla").disabled=true;await api("/api/gorev/"+S.kosu.kimlik+"/testi-atla",{method:"POST",body:{}})}catch(x){alert(x.message)}$("#testiAtla").disabled=false};
