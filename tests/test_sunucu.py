@@ -328,3 +328,13 @@ def test_iki_calistirici_ayni_sunucuda_birbirinin_oturumunu_durdurmaz(tmp_path):
         assert not sonuclar["a"].ok and not sonuclar["b"].ok
     finally:
         s.kapat()
+
+
+def test_zaman_asimi_hareketsizlik_sayilir_ilerleyen_gorev_oldurulmez(tmp_path):
+    """Gercek hata: 79 arac cagrisi yapan, derleyen, ekran goruntusu ureten canli bir gorev 900 sn dolunca 'basarisiz' sayilip oldurulmustu."""
+    s = SahteSunucu(davranis="ilerliyor")
+    try:
+        r = calistirici(s).calistir("g", tmp_path, zaman_asimi_sn=1)  # toplam ~2.4 sn > 1 sn, ama token sayaci surekli artiyor
+        assert r.ok, r.hata
+    finally:
+        s.kapat()

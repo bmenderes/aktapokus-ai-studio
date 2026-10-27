@@ -36,7 +36,7 @@ Bu kılavuz "bu bölüm nedir"den çok **"şunu nasıl yaparım"** sorusuna ceva
 | --- | --- | --- |
 | Token bütçesi | Bir görevin toplam girdi + çıktı token sınırı; adım bitince denetlenir | **0 = sınırsız.** Claude Code basit bir görevde bile ~50.000 token harcar, çok düşük sınır görevi erken durdurur |
 | En çok düzeltme turu | Test başarısız olursa kodcunun kaç kez daha deneyeceği | 0 ile 10 arası. 0 = hiç tekrar denemez |
-| Adım zaman aşımı (sn) | Bir adım bu süreyi aşarsa durdurulur | 10 ile 7200 arası |
+| Adım zaman aşımı (sn) | **İlerleme göstermeyen** adım bu sürede durdurulur. OpenCode ve Claude Code'da görev çalıştıkça (araç çağırdıkça, token harcadıkça) süre yeniden başlar; toplam süre en çok bu değerin 4 katı (en çok 4 saat). Diğer CLI'larda toplam süredir | 10 ile 7200 arası |
 | Ortak bağlam | Her çalıştırmadan önce `AGENTS.md` bloğu ve `.aktapokus/DURUM.md` güncellenir; model değişince konu başa dönmez | Genelde açık bırakın |
 | Planı otomatik onayla | Yazdığınız görev, plan onayı beklemeden başlar | Açarsanız onay düğmesi çıkmaz. Otomasyon ve GitHub issue görevleri **yine onay ister**; görev bitince "değişiklikler korunsun mu" kararı da sizde kalır. Uzaktan değiştirilemez |
 | Claude konuşması | Claude Code rolleri için konuşma kaydı | **Proje başına tek konuşma:** tüm görevler Claude Code'da tek konuşmaya yazılır (24 saat sonra yenilenir). **Her seferinde yeni:** her görev ayrı konuşma. **Kaydetme:** konuşma saklanmaz |

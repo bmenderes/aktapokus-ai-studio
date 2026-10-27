@@ -475,22 +475,35 @@ class SunucuCalistirici(Calistirici):
         self._dinleyici(istemci, sid, durdur, bitti)
         try:
             istemci.mesaj_gonder(sid, istem)
-            son = baslangic + zaman_asimi_sn
+            # Zaman asimi HAREKETSIZLIK sayilir: oturumun token sayaci degistikce (model calisiyor) sure yeniden baslar; ilerleme gosteren gorev
+            # (gercek durum: 79 arac cagrisi, derleme, ekran goruntusu) 'zaman asimi' ile oldurulmez. Mutlak ust sinir: 4 kat (en cok 4 saat).
+            mutlak = baslangic + min(zaman_asimi_sn * 4, 14400)
+            son_hareket, son_belirti, sonraki_yoklama = baslangic, None, 0.0
             islenen_izinler: set[str] = set()
             while True:
                 time.sleep(self.yoklama_sn)
+                simdi = time.monotonic()
+                if simdi >= sonraki_yoklama:
+                    sonraki_yoklama = simdi + min(5.0, max(0.2, zaman_asimi_sn / 4))
+                    try:
+                        belirti = json.dumps((istemci.oturum_al(sid) or {}).get("tokens"), sort_keys=True, default=str)
+                    except (SunucuHatasi, TypeError, ValueError):
+                        belirti = None
+                    if belirti is not None and belirti != son_belirti:
+                        son_belirti, son_hareket = belirti, simdi
                 for izin in istemci.izinler(sid):
                     if izin.get("id") and izin["id"] not in islenen_izinler:
                         islenen_izinler.add(izin["id"])
                         istemci.izin_yanitla(sid, izin["id"], self.izin_karari, "Aktapokus: izin istegi otomatik yanitlandi")
                 if sid not in istemci.aktif_oturumlar():
                     break
-                if time.monotonic() > son:
+                if simdi > son_hareket + zaman_asimi_sn or simdi > mutlak:
                     try:
                         istemci.durdur(sid)
                     except SunucuHatasi:
                         pass
-                    return CalistirmaSonucu(False, hata=f"Zaman asimi ({zaman_asimi_sn} sn)", sure_sn=time.monotonic() - baslangic)
+                    neden = f"Zaman asimi ({zaman_asimi_sn} sn)" if simdi <= mutlak else f"Zaman asimi (toplam sure siniri {int(mutlak - baslangic)} sn)"
+                    return CalistirmaSonucu(False, hata=neden, sure_sn=time.monotonic() - baslangic)
             bilgi = istemci.oturum_al(sid)
             metin = mesajlardan_metin(istemci.mesajlar(sid))
         except SunucuHatasi as hata:

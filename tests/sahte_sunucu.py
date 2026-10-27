@@ -32,6 +32,10 @@ def _isle_bitir(d: Durum, sid: str) -> None:
     time.sleep(d.gecikme)
     if d.davranis == "takili":
         return
+    if d.davranis == "ilerliyor":  # uzun ama canli gorev: token sayaci surekli artar, toplam ~2.4 sn surer
+        for i in range(12):
+            time.sleep(0.2)
+            o["sayac"] = i + 1
     if d.davranis == "izin":
         d.izinler[sid] = [{"id": "per_1", "action": "external_directory"}]
         for _ in range(100):
@@ -116,7 +120,7 @@ def yapi(d: Durum):
                 del d.oturumlar[sid]
                 return self._gonder(204)
             if yontem == "GET" and alt is None:
-                return self._gonder(200, {"data": {"id": sid, "outcome": o["outcome"], "tokens": {"input": 100, "output": 20, "reasoning": 5, "cache": {"read": 50, "write": 0}}}})
+                return self._gonder(200, {"data": {"id": sid, "outcome": o["outcome"], "tokens": {"input": 100 + o.get("sayac", 0), "output": 20, "reasoning": 5, "cache": {"read": 50, "write": 0}}}})
             if yontem == "POST" and alt == "prompt":
                 g = self._oku()
                 o["istemler"].append(g["text"])

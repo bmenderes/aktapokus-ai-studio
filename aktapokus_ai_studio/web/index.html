@@ -518,7 +518,7 @@ async function genelBolumu(h){let ay;try{ay=await api("/api/ayar")}catch(x){h.ap
     alan("Proje klasörü",S.klasor||"-",e("button",{text:"Değiştir",onclick:()=>{ayarKapat();klasorSecimiAc()}})),
     alan("Token bütçesi","Bir görevin toplam girdi + çıktı token sınırı (adım sonunda denetlenir). 0 yazarsanız sınırsız; Claude Code basit bir görevde bile ~50.000 token harcar",butce),
     alan("En çok düzeltme turu","Doğrulama başarısız olursa kodcunun kaç kez daha denenebileceği (0-10)",duz),
-    alan("Adım zaman aşımı (sn)","Bir adım bu süreyi aşarsa durdurulur (10-7200)",zaman),
+    alan("Adım zaman aşımı (sn)","İlerleme göstermeyen adım bu sürede durdurulur (10-7200)",zaman),
     alan("Ortak bağlam","Çalıştırmadan önce AGENTS.md bloğu ve .aktapokus/DURUM.md güncellensin; model değişince konu başa dönmez",bag),
     alan("Planı otomatik onayla","Yazdığınız görev onay düğmesi beklemeden başlar. Otomasyon ve GitHub issue görevleri yine onay ister; değişiklikleri koru/geri al kararı da sizde kalır. Uzaktan değiştirilemez.",oto),
     alan("Claude konuşması","Claude Code rolleri için: tek konuşma = bu projenin tüm görevleri Claude Code'da TEK konuşmaya yazılır (24 saat sonra yenilenir); her seferinde yeni = her görev yeni konuşma açar; kaydetme = hiçbir konuşma kaydedilmez",co),

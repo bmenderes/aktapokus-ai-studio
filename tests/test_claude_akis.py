@@ -222,3 +222,22 @@ def test_beklenmedik_olay_bicimleri_calistirmayi_bozmaz(monkeypatch, tmp_path):
     alinan: list = []
     r = yeni(olaylar=alinan).calistir("istem", tmp_path)
     assert r.ok and r.metin == "Tamam." and [o["tur"] for o in alinan] == ["metin"]  # bozuk olaylar atlanir, saglam olay iletilir
+
+
+def test_ilerleyen_gorev_zaman_asimiyla_oldurulmez_takili_olan_olur(monkeypatch, tmp_path):
+    """Akistan her satir sureyi yeniden baslatir: toplam sure sinirdan uzun olsa da arada hareket varsa gorev oldurulmez."""
+    import time as _t
+
+    from sahte_popen import SahtePopen
+
+    claude_taklit(monkeypatch, runners, olaylar=[asistan({"type": "text", "text": "x"})] * 5 + [sonuc_olayi("bitti")])
+    orijinal = SahtePopen._satirlar
+
+    def yavas(self, sen):
+        for satir in orijinal(self, sen):
+            _t.sleep(0.15)
+            yield satir
+
+    monkeypatch.setattr(SahtePopen, "_satirlar", yavas)
+    r = yeni().calistir("istem", tmp_path, zaman_asimi_sn=0.4)  # toplam ~0.9 sn > 0.4 sn, aralar 0.15 sn
+    assert r.ok and r.metin == "bitti"

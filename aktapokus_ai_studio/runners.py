@@ -413,13 +413,20 @@ class ClaudeCodeCalistirici(Calistirici):
         hata_is = threading.Thread(target=lambda: hatalar.append(islem.stderr.read()), daemon=True)  # stderr dolup tikamasin
         hata_is.start()
         zaman = {"asildi": False}
+        son_hareket = [time.monotonic()]  # akistan her satir (arac, metin, sonuc) sureyi yeniden baslatir: ilerleyen gorev zaman asimiyla oldurulmez
+        bitti_olayi = threading.Event()
 
-        def sure_doldu() -> None:
-            zaman["asildi"] = True
-            self._surec_oldur(islem)
+        def bekci() -> None:
+            mutlak = time.monotonic() + min(zaman_asimi_sn * 4, 14400)  # mutlak ust sinir: 4 kat (en cok 4 saat)
+            aralik = min(2.0, max(0.05, zaman_asimi_sn / 4))
+            while not bitti_olayi.wait(aralik):
+                simdi = time.monotonic()
+                if simdi - son_hareket[0] > zaman_asimi_sn or simdi > mutlak:
+                    zaman["asildi"] = True
+                    self._surec_oldur(islem)
+                    return
 
-        sayac = threading.Timer(zaman_asimi_sn, sure_doldu)
-        sayac.daemon = True
+        sayac = threading.Thread(target=bekci, daemon=True)
         sayac.start()
         sonuc_olayi = None
         try:
@@ -429,6 +436,7 @@ class ClaudeCodeCalistirici(Calistirici):
             except OSError:
                 pass
             for ham in islem.stdout:
+                son_hareket[0] = time.monotonic()
                 satir = ham.decode("utf-8", errors="replace").strip()
                 if not satir.startswith("{"):
                     continue
@@ -442,7 +450,7 @@ class ClaudeCodeCalistirici(Calistirici):
                     self._olay_bildir(olay)
             islem.wait()
         finally:
-            sayac.cancel()
+            bitti_olayi.set()
             self._islem = None
         hata_is.join(2)
         return islem.returncode, sonuc_olayi, b"".join(hatalar).decode("utf-8", errors="replace"), zaman["asildi"]
