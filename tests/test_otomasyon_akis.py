@@ -167,3 +167,10 @@ def test_akis_uzak_politika_ayni_uc_uzerinden_yonetim_ister():
 def test_akis_dugum_turlerinde_onay_alani_yok():
     assert "otomatik_onay" not in Path(akis_mod.__file__).read_text(encoding="utf-8")
     assert set(akis_mod.TURLER) == {"elle", "zamanlayici", "gorev", "bildirim"}
+
+
+def test_otomasyon_sayfasi_sade_ad_bos_birakilirsa_gorevden_uretilir():
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
+    assert "oto-bilgi" not in html and "Şablon değişkenleri:" not in html  # uzun aciklama kutusu yok (sade arayuz)
+    assert "function otoAdUret(" in html and "if(!ad.value.trim()&&!duzenle)ad.value=otoAdUret(" in html
+    assert 'title:"Bildirim ekle (Telegram)"' in html and 'text:"+"' in html  # renkli emoji yerine duz artı
