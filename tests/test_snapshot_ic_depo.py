@@ -55,3 +55,30 @@ def test_ic_depo_yokken_davranis_ayni(tmp_path):
     _git(d, "init", "-q")
     (d / "a.txt").write_text("1", encoding="utf-8")
     assert _dosyalar(d, snapshot.anlik_goruntu(d, "x")) == ["a.txt"]
+
+
+def test_derleme_ve_bagimlilik_ciktilari_anlik_goruntuye_girmez(tmp_path):
+    """Gercek durum: .gitignore'u olmayan bir .NET projesinde yuzlerce `obj/` dosyasi degisiklik listesini dolduruyordu."""
+    d = tmp_path / "proje"
+    d.mkdir()
+    _git(d, "init", "-q")
+    dosyalar = ["src/Uygulama/Program.cs", "src/Uygulama/obj/Release/net48/x.cache", "obj/project.assets.json", "node_modules/a/b.js", "web/node_modules/c.js",
+                "pkg/__pycache__/m.cpython-312.pyc", "m.pyc", ".vs/ayar.json", "src/Uygulama/bin/Debug/app.exe", "bin/Release/app.dll", "bin/betik.sh", "README.md"]
+    for f in dosyalar:
+        (d / f).parent.mkdir(parents=True, exist_ok=True)
+        (d / f).write_text("x", encoding="utf-8")
+    assert sorted(_dosyalar(d, snapshot.anlik_goruntu(d, "x"))) == ["README.md", "bin/betik.sh", "src/Uygulama/Program.cs"]  # yalniz gercek kaynak; bin/betik.sh (derleme ciktisi degil) kalir
+
+
+def test_zaman_asimi_mesaji_cozumu_gosterir():
+    from aktapokus_ai_studio import pipeline
+
+    kaynak = open(pipeline.__file__, encoding="utf-8").read()
+    assert "Adim zaman asimi ile sureyi uzatabilirsiniz" in kaynak
+
+
+def test_arayuz_degisiklik_listesi_kisaltilir():
+    from pathlib import Path
+
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
+    assert "girdiler.slice(0,8)" in html and " dosya daha" in html

@@ -204,7 +204,7 @@ def calistir_hat(
             if iptal is not None and iptal.is_set():
                 durum, sonuc.mesaj = "iptal", "Kullanici durdurdu."
             else:
-                durum, sonuc.mesaj = "basarisiz", f"{rol.ad} adimi basarisiz: {r.hata}"
+                durum, sonuc.mesaj = "basarisiz", f"{rol.ad} adimi basarisiz: {r.hata}" + (" (Ayarlar > Genel > Adim zaman asimi ile sureyi uzatabilirsiniz)" if "Zaman asimi" in str(r.hata) else "")
             break
         if ayar.butce_token and sonuc.token_toplam > ayar.butce_token:  # 0 = sinirsiz
             durum = "butce_asildi"

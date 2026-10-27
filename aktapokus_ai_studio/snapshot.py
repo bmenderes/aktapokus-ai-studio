@@ -29,6 +29,12 @@ _GIT_ORTAMI = {
 
 
 GOLGE_ORTAMI = "AKTAPOKUS_GOLGE"
+# Derleme/bagimlilik CIKTILARI anlik goruntuye girmez (yuzlerce dosya degisiklik listesini bogardi; geri almanin anlami yok). .gitignore'u olmayan
+# projelerde (ornegin .NET `obj/`, Node `node_modules/`) gerekir; .gitignore'u olan projelerde zaten disarida kalirlar.
+URETILEN_DESENLER = (
+    ":(exclude,glob)**/obj/**", ":(exclude,glob)**/node_modules/**", ":(exclude,glob)**/__pycache__/**", ":(exclude,glob)**/.vs/**",
+    ":(exclude,glob)**/bin/Debug/**", ":(exclude,glob)**/bin/Release/**", ":(exclude,glob)**/*.pyc",
+)
 AZAMI_GOLGE_DOSYA = 20_000
 AZAMI_GOLGE_BAYT = 1 << 30  # 1 GiB
 
@@ -169,13 +175,10 @@ def anlik_goruntu(klasor: str | Path, etiket: str) -> str:
         golge_boyut_denetle(klasor)  # klasor sonradan sisebilir (sanal ortam, indirilen buyuk dosyalar)
     with tempfile.TemporaryDirectory() as gecici:
         ortam = {"GIT_INDEX_FILE": str(Path(gecici) / "indeks")}
-        ic = _ic_ice_depolar(klasor)
-        if ic:  # ic depolar anlik goruntuye girmez (kendi gecmisleri vardir; geri alma onlara dokunmaz). Kullanicinin ayarina/deposuna YAZILMAZ.
-            liste = Path(gecici) / "yollar"
-            liste.write_bytes(("\0".join([".", *[f":(exclude,literal){d}" for d in ic]]) + "\0").encode("utf-8"))
-            _git(klasor, "add", "-A", f"--pathspec-from-file={liste}", "--pathspec-file-nul", env={**ortam, "GIT_LITERAL_PATHSPECS": "0"})
-        else:
-            _git(klasor, "add", "-A", "--", ".", env=ortam)
+        ic = _ic_ice_depolar(klasor)  # ic depolar anlik goruntuye girmez (kendi gecmisleri vardir; geri alma onlara dokunmaz). Kullanicinin ayarina/deposuna YAZILMAZ.
+        liste = Path(gecici) / "yollar"
+        liste.write_bytes(("\0".join([".", *URETILEN_DESENLER, *[f":(exclude,literal){d}" for d in ic]]) + "\0").encode("utf-8"))
+        _git(klasor, "add", "-A", f"--pathspec-from-file={liste}", "--pathspec-file-nul", env={**ortam, "GIT_LITERAL_PATHSPECS": "0"})
         # .aktapokus/ (ayar ve kayitlar) anlik goruntuye girmez; zaten .git/info/exclude'daysa 'add' onu hic eklemez
         _git(klasor, "rm", "-r", "--cached", "-q", "--ignore-unmatch", "--", *SNAPSHOT_DISI, env=ortam)
         agac = _git(klasor, "write-tree", env=ortam).strip()
