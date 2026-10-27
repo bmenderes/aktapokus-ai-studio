@@ -34,7 +34,7 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 #main{flex:1;min-height:0;display:grid;--sol-w:190px;--sag-w:46%;--b1:6px;--b2:6px;grid-template-columns:var(--sol-w) var(--b1) minmax(0,1fr) var(--b2) var(--sag-w);grid-template-rows:minmax(0,1fr)}
 #sol{background:var(--panel2);border-right:1px solid var(--line);padding:8px 10px;overflow:hidden;min-height:0}
 #solKaydir{flex:1;min-height:0;overflow:auto}#solAlt{flex:none;display:flex;flex-direction:row;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
-#solAlt .hesap-chip{width:auto;min-width:0;flex:0 1 auto;margin-bottom:0}#terminalDugme{margin-left:auto}  /* yalniz ad uzunlugu kadar; kalan bos yer dugme degil bosluk olur */
+#solAlt .hesap-chip{margin-bottom:0}#terminalDugme{margin-left:auto}  /* yalniz ad uzunlugu kadar; kalan bos yer dugme degil bosluk olur */
 .yuvarlak{border-radius:999px;flex:none;width:auto}.yuvarlak.simge{width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:16px;text-align:center}
 .yuvarlak:not(.simge):not(.pri){padding:3px 14px}.yuvarlak.pri{padding:3px 16px}
 #orta{display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--line);background:var(--panel)}
@@ -119,7 +119,7 @@ body{position:relative}
 .ayar-kart>.ayar-grup+.ayar-model{border-top:none}
 #sol{display:flex;flex-direction:column}
 .rol{padding:3px 5px;border-radius:6px}.rol:hover{background:var(--panel)}.rol.on{background:var(--panel);box-shadow:0 0 0 1px var(--line)}
-.hesap-chip{display:flex;gap:8px;align-items:center;width:100%;text-align:left;padding:6px 8px;margin-bottom:4px}.hesap-chip .av{flex:none;width:28px;height:28px;border-radius:50%;background:var(--accbg);color:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:700;text-transform:uppercase}.hesap-chip .hc{display:flex;flex-direction:column;min-width:0}.hesap-chip b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}.hesap-chip small{display:none}.hesap-chip{border-radius:999px;padding:4px 10px 4px 5px}
+.hesap-chip{display:flex;gap:8px;align-items:center;width:100%;text-align:left;padding:6px 8px;margin-bottom:4px}.hesap-chip .av{flex:none;width:28px;height:28px;border-radius:50%;background:var(--accbg);color:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:700;text-transform:uppercase}.hesap-chip .hc{display:flex;flex-direction:column;min-width:0}.hesap-chip b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}.hesap-chip .hc{display:none}.hesap-chip{border-radius:50%;width:34px;height:34px;padding:0;flex:none;justify-content:center}.hesap-chip .av{width:34px;height:34px;font-size:12px;letter-spacing:.3px}
 .rol .dots{opacity:0;border:0;background:transparent;cursor:pointer;padding:0 5px;color:var(--tx3);font-size:16px;line-height:1}.rol:hover .dots,.rol.menu-acik .dots{opacity:1}@media(max-width:900px){.rol .dots{opacity:1}}.rol.okunmadi .n{font-weight:700}
 #baglamMenu,#baglamAlt{position:fixed;z-index:200;min-width:200px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.16);padding:4px;display:none;font-size:13px}
 #baglamMenu .m,#baglamAlt .m{display:flex;justify-content:space-between;gap:18px;padding:6px 10px;border-radius:6px;cursor:pointer;color:var(--tx)}#baglamMenu .m:hover,#baglamAlt .m:hover{background:var(--panel2)}#baglamMenu .k,#baglamAlt .k{color:var(--tx3)}#baglamMenu .ay{height:1px;background:var(--line);margin:4px 2px}#baglamMenu .m.tehlike{color:var(--err)}
@@ -509,11 +509,12 @@ async function hakkindaBolumu(h){let cl=[];try{cl=await clilarYukle()}catch(x){}
 
 $("#ayarDugme").onclick=()=>ayarAc();document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&$("#ayarlar").classList.contains("on"))ayarKapat()});
 /* ---- Ana ekran: rol/model cipleri + hizli model menusu, alt durum cubugu, yeni gorev, gorev listesi ---- */
+function bas_harfler(kullanici,ad){/* iki harf: 'baris.menderes' -> BM; ayirac yoksa ilk iki harf */const p=String(kullanici||"").split(/[.\s_-]+/).filter(Boolean);if(p.length>=2)return(p[0][0]+p[1][0]).toUpperCase();const t=String(ad||kullanici||"").replace(/^@/,"").split("@")[0].replace(/[^A-Za-z0-9\u00C0-\u024F]/g,"");return(t.slice(0,2)||"?").toUpperCase()}
 function hesapChipCiz(){const y=S.yerel||{};const h=S.hesaplar;let ad=y.kullanici||"yerel kullanıcı",alt="yerel · hesap girişi yok",ipucu="Aktapokus'un kendi hesabı yok; yerel çalışır.";
   if(h){const g=h.github||{},c=h.claude||{},x=h.codex||{};const girisler=[];if(c.giris)girisler.push("Claude"+(c.abonelik?" "+c.abonelik:""));if(g.giris&&g.hesap)girisler.push("GitHub @"+g.hesap);if(x.giris)girisler.push("Codex");
     if(c.giris&&c.eposta)ad=c.eposta;else if(g.giris&&g.hesap)ad="@"+g.hesap;
     if(girisler.length){alt="giriş: "+girisler.join(" · ");ipucu=ad+"\n"+girisler.join("\n")+"\n(Windows kullanıcısı: "+(y.kullanici||"?")+")"}}
-  $("#hesapAd").textContent=ad;$("#hesapAv").textContent=(ad.replace(/^@/,"")[0]||"?");$("#hesapAlt").textContent=alt;$("#hesapChip").title=ipucu+"\nAyrıntı için tıklayın."}
+  $("#hesapAd").textContent=ad;$("#hesapAv").textContent=bas_harfler(y.kullanici,ad);$("#hesapAlt").textContent=alt;$("#hesapChip").title=ipucu+"\nAyrıntı için tıklayın."}
 let hesapOzetZ=0;
 async function hesapVerisi(){if(S.hesaplar&&Date.now()-hesapOzetZ<30000)return S.hesaplar;S.hesaplar=await api("/api/hesaplar");hesapOzetZ=Date.now();hesapChipCiz();return S.hesaplar}
 async function hesapOzetYukle(){if(Date.now()-hesapOzetZ<30000)return;hesapOzetZ=Date.now();try{S.hesaplar=await api("/api/hesaplar");hesapChipCiz()}catch(x){hesapOzetZ=0}}
