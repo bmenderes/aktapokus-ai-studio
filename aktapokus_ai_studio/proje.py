@@ -19,7 +19,10 @@ def hazirla(klasor: str | Path, git_baslat: bool = False) -> dict:
     Hatalar: KlasorHatasi, GitGerekli, snapshot.GitHatasi, guard.KoruyucuHatasi."""
     klasor = guvenli_klasor(klasor)
     git = "mevcut"
-    if not snapshot.hazir_mi(klasor):
+    if git_baslat and snapshot.golge_mi(klasor):  # golge depolu klasorde de gercek depo istenebilir ("Git'e aktar"); golge dizini kalir, .git eklenir
+        snapshot.repo_baslat(klasor)
+        git = "baslatildi"
+    elif not snapshot.hazir_mi(klasor):
         if git_baslat:  # kullanici AYRICA gercek bir git deposu istedi
             snapshot.repo_baslat(klasor)
             git = "baslatildi"

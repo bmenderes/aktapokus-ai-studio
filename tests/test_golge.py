@@ -175,3 +175,13 @@ def test_arayuz_buyuk_gitsiz_klasoru_anlasilir_hatayla_reddeder(kur, tmp_path, m
     monkeypatch.setattr(snapshot, "AZAMI_GOLGE_DOSYA", 1)
     st, d = api("POST", "/api/klasor", {"yol": str(k)})
     assert st == 400 and "cok buyuk" in d["hata"] and app.klasor is None
+
+
+def test_golgeli_klasorde_git_baslat_gercek_depo_kurar(tmp_path):
+    """'Git'e aktar': klasor daha once golge depoyla acilmis olsa da gercek `.git` olusur (eskiden bayrak sessizce yok sayiliyordu)."""
+    k = gitsiz(tmp_path)
+    assert hazirla(k)["git"] == "golge" and not (k / ".git").exists()
+    s = hazirla(k, git_baslat=True)
+    assert s["git"] == "baslatildi" and (k / ".git").is_dir() and not snapshot.golge_mi(k)
+    assert hazirla(k)["git"] == "mevcut"  # sonraki acilis gercek depoyu kullanir
+    assert subprocess.run(["git", "-C", str(k), "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()

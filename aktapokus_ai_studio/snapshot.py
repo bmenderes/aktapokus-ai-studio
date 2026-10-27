@@ -158,7 +158,10 @@ def hazir_mi(klasor: str | Path) -> bool:
 
 
 def repo_baslat(klasor: str | Path) -> None:
-    _git(Path(klasor), "init", "-q")
+    klasor = Path(klasor)
+    # golge depo varken _git GIT_DIR'i golgeye cevirir: gercek `.git` icin hedef dizini acikca ver
+    env = {"GIT_DIR": str(klasor / ".git"), "GIT_WORK_TREE": str(klasor.resolve())} if golge_mi(klasor) else None
+    _git(klasor, "init", "-q", env=env)
 
 
 def _ic_ice_depolar(klasor: Path) -> list[str]:
