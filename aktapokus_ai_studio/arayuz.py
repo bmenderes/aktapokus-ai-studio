@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal
+from . import arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
@@ -174,6 +174,7 @@ class Kosu:
     dogrulama_rolleri: frozenset = frozenset()
     olaylar: list = field(default_factory=list)  # konusma olarak yeniden oynatilacak olaylar (kayitla birlikte saklanir)
     kayit_kimligi: str | None = None  # pipeline kayit kimligi ('basladi' olayindan)
+    once: str | None = None  # gorevden onceki anlik goruntu ('basladi' olayindan): yarim kalirsa geri alma noktasi
 
 
 AKTIF_KOSU = ("plan", "calisiyor", "karar-bekliyor")
@@ -232,6 +233,7 @@ class ProjeOturumu:
     aktif_calistirici: Calistirici | None = None
     son_hat: dict = field(default_factory=dict)
     kuyruk: list = field(default_factory=list)  # calisirken verilen gorevler: [{'gorev', 'testsiz'}], sirayla kosulur
+    yarim: dict | None = None  # onceki oturumdan yarim kalan gorev/kuyruk (devam.oku): kullanici karar verene dek bekler
 
 
 class UygulamaHatasi(Exception):
@@ -373,6 +375,7 @@ class Uygulama:
             mevcut = self.oturumlar.get(kimlik)
             if not (mevcut and mevcut.kosu and mevcut.kosu.durum in AKTIF_KOSU):  # gorevi suren oturum korunur; digerleri yeni (bos) oturum olur
                 self.oturumlar[kimlik] = ProjeOturumu(kimlik, Path(sonuc["klasor"]))
+                self.oturumlar[kimlik].yarim = devam.oku(sonuc["klasor"])
             if sec:
                 self.secili_kimlik = kimlik
             try:
@@ -427,6 +430,7 @@ class Uygulama:
             d["son_kayit"] = {x: k.get(x) for x in ("id", "zaman", "gorev", "durum", "token_toplam")} if k else None
         d["kosu"] = {"kimlik": self.kosu.kimlik, "gorev": self.kosu.gorev, "durum": self.kosu.durum} if self.kosu else None
         d["kuyruk"] = [k["gorev"][:200] for k in self.secili.kuyruk] if self.secili else []
+        d["yarim"] = self._yarim_ozeti(self.secili) if self.secili else None
         return d
 
     def ayar_oku(self) -> dict:
@@ -1480,6 +1484,7 @@ class Uygulama:
                     raise UygulamaHatasi(f"Kuyruk dolu (en fazla {KUYRUK_AZAMI} gorev)", 409)
                 oturum.kuyruk.append({"gorev": gorev.strip(), "testsiz": testsiz})
                 self._kuyruk_yayinla(oturum)
+                self._devam_yaz(oturum)
                 return {"kuyruk": len(oturum.kuyruk)}
             return self._gorev_kur(oturum, klasor, gorev, testsiz, otomatik_onay_izni)
 
@@ -1493,6 +1498,7 @@ class Uygulama:
                 raise UygulamaHatasi("Kuyrukta boyle bir gorev yok", 404)
             del oturum.kuyruk[sira]
             self._kuyruk_yayinla(oturum)
+            self._devam_yaz(oturum)
             return {"kuyruk": len(oturum.kuyruk)}
 
     def _kuyruk_ilerlet(self, oturum: ProjeOturumu, kosu: Kosu) -> None:
@@ -1523,6 +1529,8 @@ class Uygulama:
             except AyarHatasi as hata:
                 raise UygulamaHatasi(str(hata)) from None
             oturum.kosu = Kosu(kimlik=secrets.token_hex(4), gorev=gorev.strip(), testsiz=bool(ayar.testi_atla if testsiz is None else testsiz))
+            oturum.yarim = None  # yeni gorev baslarken eski 'yarim kaldi' karari gecersizdir
+            self._devam_yaz(oturum)
             otomatik = bool(ayar.otomatik_onay and otomatik_onay_izni)
             plan = {
                 "tur": "plan",
@@ -1554,6 +1562,7 @@ class Uygulama:
                 kosu.testsiz = bool(testsiz)
             kosu.durum = "calisiyor"
             oturum = self._oturum()
+            self._devam_yaz(oturum)
         threading.Thread(target=self._kos, args=(oturum, kosu), daemon=True).start()
 
     def _onayla_oturum(self, oturum: ProjeOturumu, kimlik: str) -> None:
@@ -1562,12 +1571,14 @@ class Uygulama:
         if not kosu or kosu.kimlik != kimlik or kosu.durum != "plan":
             return
         kosu.durum = "calisiyor"
+        self._devam_yaz(oturum)
         threading.Thread(target=self._kos, args=(oturum, kosu), daemon=True).start()
 
     def reddet(self, kimlik: str) -> None:
         with self.kilit:
             kosu = self._kosu(kimlik, ("plan",))
             kosu.durum = "reddedildi"
+            self._devam_yaz(self._oturum())
         self._yayinla(self._oturum(), {"tur": "bitti", "durum": "reddedildi", "mesaj": "Plan onaylanmadi; hicbir sey calistirilmadi.", "kosu": kimlik})
 
     def karar_ver(self, kimlik: str, korunsun: bool) -> None:
@@ -1619,9 +1630,11 @@ class Uygulama:
 
         def onay(_soru: str) -> bool:
             kosu.durum = "karar-bekliyor"
+            self._devam_yaz(oturum)
             yayinla({"tur": "karar-bekleniyor", "kosu": kosu.kimlik})
             kosu.karar_olayi.wait()
             kosu.durum = "calisiyor"
+            self._devam_yaz(oturum)
             return kosu.karar
 
         def olay(e: dict) -> None:
@@ -1631,6 +1644,8 @@ class Uygulama:
                 kosu.simdiki_rol = e.get("rol")
             if e.get("tur") == "basladi" and isinstance(e.get("kimlik"), str):
                 kosu.kayit_kimligi = e["kimlik"]
+                kosu.once = e.get("once") if isinstance(e.get("once"), str) else None
+                self._devam_yaz(oturum)
             if e.get("tur") == "bitti":
                 kosu.durum = "bitti"  # istemci 'bitti' olayini gorunce /api/durum'u okuyacak: onceden guncel olmali
             yayinla({**e, "kosu": kosu.kimlik})
@@ -1651,6 +1666,59 @@ class Uygulama:
             if r is not None and hasattr(r, "ilerleme"):
                 r.ilerleme = None
             self._kuyruk_ilerlet(oturum, kosu)
+            self._devam_yaz(oturum)  # bitti: dosya silinir (sonraki kuyruk gorevi basladiysa onunla yenilenir)
+
+    # --- kapanista gorev kurtarma (devam.py) ---
+    def _devam_yaz(self, oturum: ProjeOturumu) -> None:
+        k = oturum.kosu
+        kosu = {"kimlik": k.kimlik, "gorev": k.gorev, "durum": k.durum, "testsiz": k.testsiz, "once": k.once} if k and k.durum in AKTIF_KOSU else None
+        if oturum.yarim and not kosu and not oturum.kuyruk:
+            return  # karar bekleyen eski kayit, kullanici secmeden silinmez
+        devam.yaz(oturum.klasor, kosu, oturum.kuyruk)
+
+    @staticmethod
+    def _yarim_ozeti(oturum: ProjeOturumu) -> dict | None:
+        y = oturum.yarim
+        if not y or (oturum.kosu and oturum.kosu.durum in AKTIF_KOSU):
+            return None
+        k = y["kosu"]
+        gorev = k["gorev"] if k else y["kuyruk"][0]["gorev"]
+        return {"gorev": gorev[:300], "durum": k["durum"] if k else "kuyruk", "kuyruk": len(y["kuyruk"]), "zaman": y["zaman"], "geri_al": bool(k and k["once"] and k["durum"] != "plan")}
+
+    def yarim_coz(self, islem: object) -> dict:
+        """Onceki oturumdan yarim kalan gorev: devam (yeni PLAN, onay HER ZAMAN istenir) | geri-al (dosyalari gorevden onceki goruntuye dondurur) | yoksay."""
+        with self.kilit:
+            oturum = self._oturum()
+            y = oturum.yarim
+            if not y or (oturum.kosu and oturum.kosu.durum in AKTIF_KOSU):
+                raise UygulamaHatasi("Yarim kalan gorev yok", 404)
+            klasor, k = oturum.klasor, y["kosu"]
+            if islem == "yoksay":
+                oturum.yarim = None
+                devam.sil(klasor)
+                return {"tamam": True}
+            if islem == "geri-al":
+                if not k or not k["once"] or k["durum"] == "plan":
+                    raise UygulamaHatasi("Geri alinacak degisiklik yok", 409)
+                if not snapshot.commit_var_mi(klasor, k["once"]):
+                    raise UygulamaHatasi("Gorevden onceki goruntu bulunamadi", 404)
+                try:
+                    sonra = snapshot.anlik_goruntu(klasor, "yarim kalan gorev sonrasi")  # geri almadan once mevcut hal de saklanir
+                    adet = snapshot.geri_yukle(klasor, k["once"], sonra)
+                except snapshot.GitHatasi as hata:
+                    raise UygulamaHatasi(str(hata)) from None
+                oturum.yarim = None
+                devam.sil(klasor)  # kuyruk da atilir: geri alinan gorevin zinciri surmesin
+                return {"geri_alinan": adet}
+            if islem != "devam":
+                raise UygulamaHatasi("islem devam, geri-al ya da yoksay olmali")
+            sirali = ([{"gorev": k["gorev"], "testsiz": k["testsiz"]}] if k else []) + y["kuyruk"]
+            ilk, kalan = sirali[0], sirali[1:]
+            plan = self._gorev_kur(oturum, klasor, ilk["gorev"], ilk["testsiz"], False)  # otomatik onay YOK: kurtarilan gorev de onay ister
+            oturum.kuyruk.extend(kalan[: KUYRUK_AZAMI - len(oturum.kuyruk)])
+            self._kuyruk_yayinla(oturum)
+            self._devam_yaz(oturum)
+            return {"plan": plan}
 
     # --- dosya islemleri ---
     def dosyalar(self) -> dict:
@@ -2170,6 +2238,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.gorev_olustur(g.get("gorev"), g.get("testsiz") if isinstance(g.get("testsiz"), bool) else None, ekler=g.get("ekler"), kuyruga=g.get("kuyruga") is True))
                 if yol == "/api/kuyruk/sil":
                     return self._gonder(200, app.kuyruktan_sil(g.get("sira")))
+                if yol == "/api/yarim":
+                    return self._gonder(200, app.yarim_coz(g.get("islem")))
                 m = re.match(r"^/api/gorev/([0-9a-f]+)/(onayla|reddet|karar|durdur|testi-atla)$", yol)
                 if m:
                     kimlik, islem = m.groups()
