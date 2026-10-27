@@ -119,3 +119,51 @@ def test_arayuz_ek_ozellikleri_baglidir():
     kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "arayuz.py").read_text(encoding="utf-8")
     assert "img-src 'self' data: blob:" in kaynak  # kucuk resim onizlemesi
     assert "https://" not in html
+
+
+def _oku(port, yol, token, adres="127.0.0.1"):
+    import urllib.parse
+
+    c = http.client.HTTPConnection(adres, port, timeout=10)
+    c.request("GET", "/api/ek?yol=" + urllib.parse.quote(yol), headers={"X-Aktapokus-Token": token, "Host": f"{adres}:{port}"})
+    r = c.getresponse()
+    govde = r.read()
+    c.close()
+    return r.status, r.getheader("Content-Type"), govde
+
+
+def test_yuklenen_resim_konusmada_gosterilsin_diye_geri_okunur_yalniz_ekler(sunucu):
+    app, sv, yerel, proje = sunucu
+    yol = yukle(sv.port, "foto.png", PNG, app.token)[1]["yol"]
+    st, tur, govde = _oku(sv.port, yol, app.token)
+    assert st == 200 and tur == "image/png" and govde == PNG
+    assert _oku(sv.port, yol, "yanlis")[0] == 401
+    for kotu in ("a.txt", ".aktapokus/DURUM.md", "../a.txt", ".aktapokus/ekler/20260101-000000-abcdef/yok.png", ".aktapokus/ekler/../../a.txt"):
+        assert _oku(sv.port, kotu, app.token)[0] in (400, 404), kotu
+    gizli = proje / ".aktapokus" / "gizli.txt"
+    gizli.write_text("sir", encoding="utf-8")
+    assert _oku(sv.port, ".aktapokus/gizli.txt", app.token)[0] == 400  # ekler disindaki .aktapokus dosyalari okunamaz
+
+
+def test_yeni_konusma_siniri_yazar_claude_oturumunu_sifirlar_ve_gruplarda_gorunur(sunucu):
+    from aktapokus_ai_studio.runners import ClaudeCodeCalistirici
+
+    app, sv, yerel, proje = sunucu
+    oturum = ClaudeCodeCalistirici._oturum_yolu(proje)
+    oturum.parent.mkdir(parents=True, exist_ok=True)
+    oturum.write_text('{"oturum": "x", "zaman": 1}', encoding="utf-8")
+    g = yerel("GET", "/api/proje-gruplari")[1]["projeler"]
+    assert [x["konusma_basi"] for x in g if x["secili"]] == [None]
+    st, d = yerel("POST", "/api/yeni-konusma", {})
+    assert st == 200 and len(d["zaman"]) == 19 and not oturum.exists()
+    g = yerel("GET", "/api/proje-gruplari")[1]["projeler"]
+    assert [x["konusma_basi"] for x in g if x["secili"]] == [d["zaman"]]
+    (proje / ".aktapokus" / "konusma-basi.json").write_text('{"zaman": "bozuk"}', encoding="utf-8")
+    assert [x["konusma_basi"] for x in yerel("GET", "/api/proje-gruplari")[1]["projeler"] if x["secili"]] == [None]  # bozuk kayit yok sayilir
+
+
+def test_arayuz_resim_gorunumu_ve_surekli_konusma_baglidir():
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
+    for parca in ("ek-kart", "kullaniciKutusu", "resimBuyut", "/api/ek?yol=", "konusmaYukle", "konusmaYoksaYukle", "yeniKonusma", 'class:"ayrac"', "/api/yeni-konusma", "S.sseHazir"):
+        assert parca in html, parca
+    assert '$("#yeniGorev").onclick=yeniKonusma' in html

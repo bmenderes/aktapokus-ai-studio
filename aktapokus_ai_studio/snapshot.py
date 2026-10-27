@@ -155,6 +155,13 @@ def repo_baslat(klasor: str | Path) -> None:
     _git(Path(klasor), "init", "-q")
 
 
+def _ic_ice_depolar(klasor: Path) -> list[str]:
+    """Klasorun ICINDEKI baska git depolari ('proje/' gibi sonu '/' olan izlenmeyen girdiler). `git add -A` bunlari ekleyemez: commit'i olmayan bir
+    ic depo 'does not have a commit checked out / adding files failed' ile TUM anlik goruntuyu bozar (cok projeli bir ust klasor secildiginde olur)."""
+    cikti = _git(klasor, "ls-files", "-o", "--exclude-standard", "-z", kontrol=False)
+    return [d for d in cikti.split("\0") if d.endswith("/")]
+
+
 def anlik_goruntu(klasor: str | Path, etiket: str) -> str:
     """Calisma alaninin o anki halini bir commit olarak saklar ve commit adini dondurur."""
     klasor = Path(klasor)
@@ -162,7 +169,13 @@ def anlik_goruntu(klasor: str | Path, etiket: str) -> str:
         golge_boyut_denetle(klasor)  # klasor sonradan sisebilir (sanal ortam, indirilen buyuk dosyalar)
     with tempfile.TemporaryDirectory() as gecici:
         ortam = {"GIT_INDEX_FILE": str(Path(gecici) / "indeks")}
-        _git(klasor, "add", "-A", "--", ".", env=ortam)
+        ic = _ic_ice_depolar(klasor)
+        if ic:  # ic depolar anlik goruntuye girmez (kendi gecmisleri vardir; geri alma onlara dokunmaz). Kullanicinin ayarina/deposuna YAZILMAZ.
+            liste = Path(gecici) / "yollar"
+            liste.write_bytes(("\0".join([".", *[f":(exclude,literal){d}" for d in ic]]) + "\0").encode("utf-8"))
+            _git(klasor, "add", "-A", f"--pathspec-from-file={liste}", "--pathspec-file-nul", env={**ortam, "GIT_LITERAL_PATHSPECS": "0"})
+        else:
+            _git(klasor, "add", "-A", "--", ".", env=ortam)
         # .aktapokus/ (ayar ve kayitlar) anlik goruntuye girmez; zaten .git/info/exclude'daysa 'add' onu hic eklemez
         _git(klasor, "rm", "-r", "--cached", "-q", "--ignore-unmatch", "--", *SNAPSHOT_DISI, env=ortam)
         agac = _git(klasor, "write-tree", env=ortam).strip()

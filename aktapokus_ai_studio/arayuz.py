@@ -38,7 +38,7 @@ from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
 from .pipeline import HatHatasi, _kayit_klasoru, calistir_hat, son_kayit
 from .proje import GitGerekli, hazirla as proje_hazirla
-from .runners import Calistirici, CalistiriciHatasi, calistirici_olustur, claude_bul, codex_bul, hepsini_kapat, opencode_bul
+from .runners import Calistirici, CalistiriciHatasi, ClaudeCodeCalistirici, calistirici_olustur, claude_bul, codex_bul, hepsini_kapat, opencode_bul
 
 ATLANAN_KLASORLER = {".git", "node_modules", "__pycache__", ".aktapokus", ".opencode", ".venv", "venv", "dist", "build", ".idea", ".vscode"}
 GIZLI_UZANTILAR = (".pem", ".key", ".pfx", ".p12", ".keystore", ".jks")
@@ -46,6 +46,15 @@ GIZLI_ADLAR = ("id_rsa", "id_ed25519", ".npmrc", ".pypirc", "credentials")
 AZAMI_DOSYA_SAYISI = 1500
 AZAMI_OKUMA = 300_000
 AZAMI_GOVDE = 1_000_000
+def konusma_basi_oku(klasor: Path) -> str | None:
+    """Projenin 'yeni konusma' siniri ('YYYY-MM-DD HH:MM:SS'); yoksa None. Arayuz konusmayi bu andan sonraki gorevlerle kurar."""
+    try:
+        z = json.loads((Path(klasor) / ".aktapokus" / "konusma-basi.json").read_text(encoding="utf-8")).get("zaman")
+        return z if isinstance(z, str) and re.fullmatch(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", z) else None
+    except (OSError, ValueError, AttributeError):
+        return None
+
+
 EK_AZAMI = 25_000_000  # gorev eki (resim/dosya) basina; ham govde olarak yuklenir
 EK_SAYI = 20  # bir gorevde en fazla
 EK_UZANTILAR = frozenset({"png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "pdf", "txt", "md", "csv", "json", "log", "xml", "yaml", "yml", "html", "css", "js", "ts", "tsx", "jsx", "py", "zip", "docx", "xlsx", "pptx"})
@@ -1154,6 +1163,7 @@ class Uygulama:
             aktif = k.durum if k and k.durum in AKTIF_KOSU else None
             gruplar.append({
                 "id": pr["id"], "ad": pr["ad"], "yol": pr["yol"], "var": pr["var"], "secili": pr["id"] == self.secili_kimlik, "acik": o is not None,
+                "konusma_basi": konusma_basi_oku(Path(pr["yol"])) if pr["var"] else None,
                 "durum": aktif, "gorev": k.gorev[:200] if aktif else None,
                 "gorevler": [{x: g.get(x) for x in ("id", "zaman", "gorev", "durum", "token_toplam", "degisen_sayisi", "sabit", "okunmadi", "ozel_ad")} for g in gorevler],
                 "arsiv": [{x: g.get(x) for x in ("id", "zaman", "gorev", "durum", "ozel_ad")} for g in arsivlenen[:30]],
@@ -1369,6 +1379,23 @@ class Uygulama:
         return {k: v for k, v in veri.items() if not k.startswith("_")}
 
     # --- gorev akisi: plan -> onay -> calisma -> karar ---
+    def yeni_konusma(self) -> dict:
+        """'Yeni' dugmesi: onceki gorevler listede KALIR ama konusma bos baslar; Claude Code'un proje konusmasi da sifirlanir (model eskiyi hatirlamaz)."""
+        klasor = self._klasor()
+        with self.kilit:
+            o = self._oturum()
+            if o.kosu and o.kosu.durum in ("plan", "calisiyor", "karar-bekliyor"):
+                raise UygulamaHatasi("Gorev varken yeni konusma baslatilamaz", 409)
+            zaman = time.strftime("%Y-%m-%d %H:%M:%S")
+            yol = klasor / ".aktapokus" / "konusma-basi.json"
+            yol.parent.mkdir(parents=True, exist_ok=True)
+            yol.write_text(json.dumps({"zaman": zaman}), encoding="utf-8")
+            try:
+                ClaudeCodeCalistirici._oturum_yolu(klasor).unlink(missing_ok=True)
+            except OSError:
+                pass
+        return {"zaman": zaman}
+
     def ek_kaydet(self, ad: object, veri: bytes) -> dict:
         """Gorev eki: projenin `.aktapokus/ekler/<zaman>-<rastgele>/<ad>` klasorune yazilir (anlik goruntuye/git'e girmez). Yalniz izinli uzantilar, en fazla EK_AZAMI bayt."""
         klasor = self._klasor()
@@ -1390,6 +1417,19 @@ class Uygulama:
         hedef_dizin.mkdir(parents=True, exist_ok=True)
         hedef.write_bytes(veri)
         return {"yol": f".aktapokus/ekler/{hedef_dizin.name}/{temiz}", "ad": temiz, "boyut": len(veri)}
+
+    def ek_oku(self, yol: object) -> tuple[bytes, str]:
+        """Yuklenmis eki arayuze geri verir (konusmada resim gorunsun diye). Yalniz `.aktapokus/ekler/` altindaki yuklenmis ekler."""
+        klasor = self._klasor()
+        if not isinstance(yol, str) or not EK_YOL.fullmatch(yol) or ".." in yol:
+            raise UygulamaHatasi("Gecersiz ek yolu")
+        dosya = klasor / yol
+        kok = (klasor / ".aktapokus" / "ekler").resolve()
+        if not dosya.is_file() or not dosya.resolve().is_relative_to(kok):
+            raise UygulamaHatasi("Ek bulunamadi", 404)
+        uzanti = dosya.suffix.lstrip(".").lower()
+        tur = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "gif": "image/gif", "webp": "image/webp", "bmp": "image/bmp", "svg": "image/svg+xml", "pdf": "application/pdf"}.get(uzanti, "application/octet-stream")
+        return dosya.read_bytes(), tur
 
     def _ekleri_ekle(self, klasor: Path, gorev: str, ekler: object) -> str:
         """Gorev metnine 'Ekli dosyalar' blogu ekler; her yol yuklenmis bir ek olmali (baska yol kabul edilmez)."""
@@ -1842,6 +1882,9 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
 
         def _api(self, yontem: str, yol: str, q: dict):
             if yontem == "GET":
+                if yol == "/api/ek":
+                    veri, tur = app.ek_oku(q.get("yol"))
+                    return self._gonder(200, veri, tur)
                 if yol == "/api/durum":
                     d = app.durum()
                     d["baglanti"] = {"uzak": dinleyici is not None, "terminal": dinleyici is None or sunucu.uzak_ayar.terminal, "yonetim": dinleyici is None or sunucu.uzak_ayar.yonetim}
@@ -1933,6 +1976,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, {"url": sunucu.onizleme_url(o.kimlik), "proje": o.kimlik})
                 if yol == "/api/olaylar":
                     return self._akis(int(q.get("son", "0") or 0))
+            if yontem == "POST" and yol == "/api/yeni-konusma":
+                return self._gonder(200, app.yeni_konusma())
             if yontem == "POST" and yol == "/api/ek":
                 return self._gonder(200, app.ek_kaydet(q.get("ad"), self._ham_govde(EK_AZAMI)))
             if yontem == "POST":
