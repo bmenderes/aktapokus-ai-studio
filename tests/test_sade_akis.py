@@ -41,3 +41,12 @@ def test_arac_adimi_sayaci_ingilizceye_cevrilir():
             if metin not in sonuc and re.search(kalip, metin):
                 sonuc[metin] = re.sub(kalip, yeni.replace("$1", r"\1"), metin)
     assert sonuc == {"1 araç adımı": "1 tool step", "7 araç adımı": "7 tool steps"}
+
+
+def test_canli_durum_tek_satir_ve_yanitta_yuvarlak_kopyala_dugmesi():
+    html = _html()
+    govde = _olay_isle(html)
+    assert ".canli{white-space:nowrap;text-overflow:ellipsis" in html and "max-height:80px" not in html.split(".canli{")[1].split("}")[0]
+    assert 'S.canliTam.split("\\n").filter(x=>x.trim()).pop()' in govde  # yalniz son satir gosterilir
+    assert 'class:"ikon-yuvarlak",title:"Kopyala"' in govde and "navigator.clipboard.writeText(o.metin)" in govde
+    assert ".ikon-yuvarlak{flex:none;width:22px;height:22px" in html and "border-radius:50%" in html.split(".ikon-yuvarlak{")[1].split("}")[0]
