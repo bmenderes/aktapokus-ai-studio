@@ -23,3 +23,11 @@ def test_arayuz_kendi_kimligine_sahip_marka_renkleri_maskot_ve_bagimsizlik_notu(
     readme = (kok / "README.md").read_text(encoding="utf-8")
     assert "## Bağımsızlık ve ticari markalar" in readme and "Hermes" not in readme and "Claude uygulaması gibi" not in readme
     assert "Hermes" not in html and "Claude gibi" not in html and "OpenCode Desktop gibi" not in html
+
+
+def test_dosya_icerigi_agacin_altinda_kaybolmaz_ve_secili_satir_belli_olur():
+    """Uzun agacta tiklanan dosyanin icerigi paneli kaydirmadan gorunmeli: agac ve icerik ayri kaydirma alanlari; secili satir vurgulu."""
+    html = (Path(__file__).parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
+    assert "#p-dosyalar.on{display:flex;flex-direction:column;overflow:hidden}" in html and "#p-dosyalar .agac{flex:1 1 55%" in html
+    assert "#dosyaGoster{flex:1 1 45%" in html and "#dosyaGoster:empty{display:none}" in html
+    assert html.count('"data-yol":') == 2 and 'classList.toggle("sec",x.dataset.yol===yol)' in html and ".agac .f.sec{" in html
