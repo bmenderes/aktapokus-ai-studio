@@ -71,6 +71,7 @@ def test_arayuz_pwa_ve_sade_yan_cubuk_baglidir():
     assert 'id="onayBar"' in html and "onayBar(w)" in html and "karar-satir" in html  # onay/yetki istegi yazma kutusunun ustunde, akista degil
     assert "field-sizing:content" in html and "#gorev{border:0!important" in html  # yazma alani cercevesiz, kendiliginden buyur
     assert ".fark-satir{display:flex" in html and "overflow-wrap:anywhere" in html  # uzun yol satiri sarilir, yatay kaydirma yok
+    assert '"Hep onayla"' in html and "otomatik_onay:true" in html  # onay satirinda tek tikla 'bir daha sorma'
     assert "plan-ayrinti" in html and 'k.style.display="none"' in html  # plan karti sade: ayrintilar kapali, otomatik onayda kart yok
     assert ".hesap-chip .hc{display:none}" in html and "function bas_harfler" in html  # hesap kutusu: yalniz yuvarlak bas harfler (BM)
     assert 'id="terminalDugme" style="width:100%"' not in html and 'id="ayarDugme" style="width:100%"' not in html
