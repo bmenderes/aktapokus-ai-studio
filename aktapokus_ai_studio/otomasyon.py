@@ -29,7 +29,7 @@ AZAMI_ARALIK_DK = 7 * 24 * 60
 EN_KISA_ARALIK_DK = 5
 SAAT_DESENI = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 ZAMAN_BICIMI = "%Y-%m-%d %H:%M:%S"
-DEGISKENLER = ("tarih", "saat", "proje", "dal")
+DEGISKENLER = ("tarih", "saat", "proje", "dal", "durum", "yanit")  # durum/yanit yalniz bildirim dugumunde (gorev bitince) dolar
 _kilit = threading.Lock()
 _durum_kilit = threading.RLock()
 
@@ -189,7 +189,7 @@ def bul(ad: object) -> Otomasyon | None:
 
 
 def degiskenleri_doldur(metin: str, baglam: dict[str, str]) -> str:
-    """{tarih} {saat} {proje} {dal} degiskenlerini doldurur; bilinmeyen {...} oldugu gibi kalir (format() hatalari/enjeksiyonu yok)."""
+    """{tarih} {saat} {proje} {dal} (bildirimde ayrica {durum} {yanit}) degiskenlerini doldurur; bilinmeyen {...} oldugu gibi kalir (format() hatalari/enjeksiyonu yok)."""
     return re.sub(r"\{(" + "|".join(DEGISKENLER) + r")\}", lambda m: baglam.get(m.group(1), m.group(0)), metin)
 
 

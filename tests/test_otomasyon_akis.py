@@ -130,19 +130,42 @@ class SahteYonetici:
         return True
 
 
-def test_calistirinca_plan_olusur_bildirim_gider_onay_yine_bekler(api):
+def _bitir(app, istek, kosu):
+    """Plani onaylar ve gorev bitene kadar bekler (sahte calistirici dosya degistirmez: 'degisiklik_yok')."""
+    assert istek("POST", f"/api/gorev/{kosu}/onayla", {})[0] == 200
+    deadline = time.monotonic() + 15
+    while time.monotonic() < deadline and app.oturumlar[app.secili_kimlik].kosu.durum != "bitti":
+        time.sleep(0.05)
+    assert app.oturumlar[app.secili_kimlik].kosu.durum == "bitti"
+    time.sleep(0.2)
+
+
+def test_bildirim_gorev_bitince_gider_plan_asamasinda_gitmez_onay_yine_bekler(api):
     app, sv, istek, proje, ikinci, sayac = api
     bot = SahteBot()
     app.telegram = SahteYonetici(bot)
     assert istek("POST", "/api/otomasyonlar", tanim(proje=projeler.proje_kimligi(proje)))[0] == 200
     st, r = istek("POST", "/api/otomasyon-calistir", {"ad": "akisli"})
     assert st == 200 and r["plan"]["tur"] == "plan"
-    assert bot.giden == [f"{proje.name} icin plan hazir"]  # degiskenler dolu
-    time.sleep(1)
-    assert sayac == [] and app.oturumlar[app.secili_kimlik].kosu.durum == "plan"  # onaysiz calistirici baslamadi
+    time.sleep(0.5)
+    assert bot.giden == [] and sayac == [] and app.oturumlar[app.secili_kimlik].kosu.durum == "plan"  # onaysiz ne calisti ne mesaj gitti
+    _bitir(app, istek, r["plan"]["kosu"])
+    assert bot.giden == [f"{proje.name} icin plan hazir"]  # dugum metni, degiskenler dolu
 
 
-def test_bildirim_hatasi_plani_bozmaz_ve_bot_kapaliysa_sessiz_atlanir(api):
+def test_bildirimde_durum_ve_yanit_degiskenleri_dolar(api):
+    app, sv, istek, proje, ikinci, sayac = api
+    bot = SahteBot()
+    app.telegram = SahteYonetici(bot)
+    a = akis()
+    a["dugumler"][2]["ayar"]["metin"] = "{proje}: {durum} / {yanit}"
+    istek("POST", "/api/otomasyonlar", tanim(proje=projeler.proje_kimligi(proje), akis=a))
+    r = istek("POST", "/api/otomasyon-calistir", {"ad": "akisli"})[1]
+    _bitir(app, istek, r["plan"]["kosu"])
+    assert bot.giden == [f"{proje.name}: degisiklik_yok / x"]  # sahte kodcu yaniti 'x'
+
+
+def test_bildirim_hatasi_gorevi_bozmaz_bot_kapaliysa_gecmise_yazilir(api):
     app, sv, istek, proje, ikinci, sayac = api
 
     class Patlayan(SahteBot):
@@ -151,11 +174,23 @@ def test_bildirim_hatasi_plani_bozmaz_ve_bot_kapaliysa_sessiz_atlanir(api):
 
     app.telegram = SahteYonetici(Patlayan())
     istek("POST", "/api/otomasyonlar", tanim(proje=projeler.proje_kimligi(proje)))
-    assert istek("POST", "/api/otomasyon-calistir", {"ad": "akisli"})[0] == 200
+    r = istek("POST", "/api/otomasyon-calistir", {"ad": "akisli"})[1]
+    _bitir(app, istek, r["plan"]["kosu"])
     assert any(g["sonuc"] == "hata" and "bildirim" in g["neden"] for g in oto.gecmis_oku(10))
-    app.oturumlar[app.secili_kimlik].kosu = None
     app.telegram = None  # bot hic kurulmamis
-    assert istek("POST", "/api/otomasyon-calistir", {"ad": "akisli"})[0] == 200
+    r = istek("POST", "/api/otomasyon-calistir", {"ad": "akisli"})[1]
+    _bitir(app, istek, r["plan"]["kosu"])
+    assert any(g["sonuc"] == "atlandi" and "Telegram botu calismiyor" in g["neden"] for g in oto.gecmis_oku(10))
+
+
+def test_elle_gorev_otomasyon_bildirimi_tetiklemez(api):
+    app, sv, istek, proje, ikinci, sayac = api
+    bot = SahteBot()
+    app.telegram = SahteYonetici(bot)
+    istek("POST", "/api/otomasyonlar", tanim(proje=projeler.proje_kimligi(proje)))
+    plan = istek("POST", "/api/gorev", {"gorev": "elle verilen gorev"})[1]
+    _bitir(app, istek, plan["kosu"])
+    assert bot.giden == []  # yalniz otomasyonun urettigi gorev bildirim yollar
 
 
 def test_akis_uzak_politika_ayni_uc_uzerinden_yonetim_ister():

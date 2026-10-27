@@ -194,6 +194,9 @@ class Kosu:
     kayit_kimligi: str | None = None  # pipeline kayit kimligi ('basladi' olayindan)
     once: str | None = None  # gorevden onceki anlik goruntu ('basladi' olayindan): yarim kalirsa geri alma noktasi
     baslangic: float | None = None  # calismaya basladigi an (time.time()): arayuzde 'ne kadar suredir' gostergesi
+    otomasyon: str | None = None  # bu gorevi otomasyon olusturduysa adi
+    bildirimler: list = field(default_factory=list)  # otomasyon akisindaki bildirim dugumlerinin metinleri: gorev BITINCE Telegram'a gider
+    bildirim_baglami: dict = field(default_factory=dict)
 
 
 AKTIF_KOSU = ("plan", "calisiyor", "karar-bekliyor")
@@ -867,20 +870,27 @@ class Uygulama:
                 kayit("hata", str(hata))
                 raise
         kayit("plan-olustu", gorev=plan["kosu"])
-        self._otomasyon_bildir(o, baglam)
+        if oturum.kosu and oturum.kosu.kimlik == plan["kosu"]:
+            oturum.kosu.otomasyon, oturum.kosu.bildirimler, oturum.kosu.bildirim_baglami = o.ad, otomasyon_akis.bildirim_metinleri(o.akis), dict(baglam)
         return {"plan": plan, "proje": o.proje, "proje_ad": p["ad"]}
 
-    def _otomasyon_bildir(self, o: "otomasyon.Otomasyon", baglam: dict[str, str]) -> None:
-        """Akistaki bildirim dugumleri: plan olustuktan sonra Telegram'a duz mesaj. Bot kapaliysa sessizce atlanir; onay akisini etkilemez."""
-        metinler = otomasyon_akis.bildirim_metinleri(o.akis)
+    def _otomasyon_bildir(self, oturum: ProjeOturumu, kosu: Kosu) -> None:
+        """Otomasyonun bildirim dugumleri: GOREV BITINCE Telegram'a duz mesaj ({durum}, {yanit} dolu). Bot kapaliysa gecmise yazilir; gorevi etkilemez."""
+        if not kosu.otomasyon or not kosu.bildirimler:
+            return
+        sonuc = kosu.sonuc
+        yanit = next((" ".join(str(a.metin or "").split()) for a in reversed(sonuc.adimlar) if a.ok and a.metin and not a.dogrulama), "") if sonuc else ""
+        baglam = {**kosu.bildirim_baglami, "durum": (sonuc.durum if sonuc else "hata"), "yanit": yanit[:900] or "(yanit yok)"}
         yonetici = self.telegram
         bot = getattr(yonetici, "_bot", None) if yonetici is not None and yonetici._canli() else None
-        for metin in metinler:
+        for metin in kosu.bildirimler:
             try:
-                if bot is not None:
-                    bot._herkese(otomasyon.degiskenleri_doldur(metin, baglam))
-            except Exception as hata:  # bildirim hatasi plani/otomasyonu bozmaz
-                otomasyon.gecmis_ekle(o.ad, "hata", f"bildirim gonderilemedi: {hata}", "bildirim", proje=o.proje)
+                if bot is None:
+                    otomasyon.gecmis_ekle(kosu.otomasyon, "atlandi", "bildirim: Telegram botu calismiyor (Ayarlar > Telegram)", "bildirim", proje=oturum.kimlik)
+                    break
+                bot._herkese(otomasyon.degiskenleri_doldur(metin, baglam))
+            except Exception as hata:  # bildirim hatasi gorevi/otomasyonu bozmaz
+                otomasyon.gecmis_ekle(kosu.otomasyon, "hata", f"bildirim gonderilemedi: {hata}", "bildirim", proje=oturum.kimlik)
 
     # --- Uzak erisim: YALNIZ yerel arayuzden yonetilir (uzak istemci /api/uzak'a erisemez: uzak.politika) ---
     def _sunucu(self) -> "ArayuzSunucusu":
@@ -1692,6 +1702,7 @@ class Uygulama:
         finally:
             kosu.durum = "bitti"
             self._olaylari_kaydet(oturum, kosu)
+            self._otomasyon_bildir(oturum, kosu)
             r, oturum.aktif_calistirici = oturum.aktif_calistirici, None
             if r is not None and hasattr(r, "ilerleme"):
                 r.ilerleme = None
