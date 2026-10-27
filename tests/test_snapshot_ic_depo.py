@@ -81,4 +81,5 @@ def test_arayuz_degisiklik_listesi_kisaltilir():
     from pathlib import Path
 
     html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
-    assert "girdiler.slice(0,8)" in html and " dosya daha" in html
+    govde = html.split("function degisiklikCiz(o)")[1].split("/* ---- Istatistik")[0]
+    assert "girdiler.slice(0,200)" in govde and " dosya daha" in govde  # Degisiklikler sekmesi yuzlerce dosyada ilk 200'u gosterir

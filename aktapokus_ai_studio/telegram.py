@@ -319,8 +319,7 @@ class Bot:
     @staticmethod
     def _ust_depo_var(yol: Path) -> bool:
         """Klasor, baska bir git deposunun ICINDE mi (kendisi depo kokuyse False)? Ic ice depo olusturulmaz."""
-        koku = snapshot.repo_koku(yol)
-        return koku is not None and koku != yol.resolve()
+        return snapshot.ust_depoda_mi(yol)  # golge ortamini yok sayar: golgeli klasorde de ust depo gorulur
 
     def _projeler(self, chat: int) -> None:
         if not self._kokler():

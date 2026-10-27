@@ -185,3 +185,16 @@ def test_golgeli_klasorde_git_baslat_gercek_depo_kurar(tmp_path):
     assert s["git"] == "baslatildi" and (k / ".git").is_dir() and not snapshot.golge_mi(k)
     assert hazirla(k)["git"] == "mevcut"  # sonraki acilis gercek depoyu kullanir
     assert subprocess.run(["git", "-C", str(k), "rev-parse", "--show-toplevel"], capture_output=True, text=True).stdout.strip()
+
+
+def test_ust_depo_icindeki_golgeli_klasorde_git_baslat_ic_ice_depo_olusturmaz(tmp_path):
+    ust = tmp_path / "ust"
+    ust.mkdir()
+    subprocess.run(["git", "-C", str(ust), "init", "-q"], check=True)
+    k = ust / "alt"
+    k.mkdir()
+    (k / "a.txt").write_text("bir\n", encoding="utf-8")
+    assert hazirla(k)["git"] == "golge" and snapshot.ust_depoda_mi(k)  # golge ortami varken de ust depo gorulur
+    with pytest.raises(snapshot.GitHatasi, match="ic ice"):
+        hazirla(k, git_baslat=True)
+    assert not (k / ".git").exists() and snapshot.golge_mi(k)

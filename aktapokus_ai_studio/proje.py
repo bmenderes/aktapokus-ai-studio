@@ -20,6 +20,8 @@ def hazirla(klasor: str | Path, git_baslat: bool = False) -> dict:
     klasor = guvenli_klasor(klasor)
     git = "mevcut"
     if git_baslat and snapshot.golge_mi(klasor):  # golge depolu klasorde de gercek depo istenebilir ("Git'e aktar"); golge dizini kalir, .git eklenir
+        if snapshot.ust_depoda_mi(klasor):
+            raise snapshot.GitHatasi("Bu klasor baska bir git deposunun icinde; ic ice depo olusturulmaz (geri alma golge yedekle calismaya devam eder)")
         snapshot.repo_baslat(klasor)
         git = "baslatildi"
     elif not snapshot.hazir_mi(klasor):

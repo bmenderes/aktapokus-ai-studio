@@ -151,6 +151,20 @@ def repo_koku(klasor: str | Path) -> Path | None:
     return Path(cikti).resolve() if cikti else None
 
 
+def ust_depoda_mi(klasor: str | Path) -> bool:
+    """Klasor, baska bir GERCEK git deposunun icinde mi (kendisi depo kokuyse False)? Golge depo ortami (GIT_DIR) YOK SAYILIR: golgeli klasorde de dogru cevap verir."""
+    ortam = os.environ.copy()
+    ortam.update(_GIT_ORTAMI)
+    ortam.pop("GIT_DIR", None)
+    ortam.pop("GIT_WORK_TREE", None)
+    try:
+        s = subprocess.run(["git", "-C", str(klasor), "rev-parse", "--show-toplevel"], capture_output=True, text=True, encoding="utf-8", errors="replace", env=ortam, stdin=subprocess.DEVNULL, timeout=30)
+    except (FileNotFoundError, subprocess.TimeoutExpired):
+        return False
+    koku = s.stdout.strip()
+    return s.returncode == 0 and bool(koku) and Path(koku).resolve() != Path(klasor).resolve()
+
+
 def hazir_mi(klasor: str | Path) -> bool:
     """Klasor, kendisi kok olan bir git deposu mu?"""
     koku = repo_koku(klasor)
