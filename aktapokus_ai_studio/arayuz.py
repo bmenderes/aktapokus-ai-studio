@@ -57,6 +57,7 @@ def konusma_basi_oku(klasor: Path) -> str | None:
 
 EK_AZAMI = 25_000_000  # gorev eki (resim/dosya) basina; ham govde olarak yuklenir
 EK_SAYI = 20  # bir gorevde en fazla
+KUYRUK_AZAMI = 10  # calisirken siraya alinabilecek gorev
 EK_UZANTILAR = frozenset({"png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "pdf", "txt", "md", "csv", "json", "log", "xml", "yaml", "yml", "html", "css", "js", "ts", "tsx", "jsx", "py", "zip", "docx", "xlsx", "pptx"})
 EK_YOL = re.compile(r"^\.aktapokus/ekler/\d{8}-\d{6}-[0-9a-f]{6}/[\w.\- ]{1,80}$")
 WEB = Path(__file__).with_name("web")
@@ -229,6 +230,7 @@ class ProjeOturumu:
     kosu: Kosu | None = None
     aktif_calistirici: Calistirici | None = None
     son_hat: dict = field(default_factory=dict)
+    kuyruk: list = field(default_factory=list)  # calisirken verilen gorevler: [{'gorev', 'testsiz'}], sirayla kosulur
 
 
 class UygulamaHatasi(Exception):
@@ -423,6 +425,7 @@ class Uygulama:
             k = son_kayit(self.klasor)
             d["son_kayit"] = {x: k.get(x) for x in ("id", "zaman", "gorev", "durum", "token_toplam")} if k else None
         d["kosu"] = {"kimlik": self.kosu.kimlik, "gorev": self.kosu.gorev, "durum": self.kosu.durum} if self.kosu else None
+        d["kuyruk"] = [k["gorev"][:200] for k in self.secili.kuyruk] if self.secili else []
         return d
 
     def ayar_oku(self) -> dict:
@@ -1448,7 +1451,8 @@ class Uygulama:
             satirlar.append(f"- {y}")
         return gorev.strip() + "\n\nEkli dosyalar (proje klasorunde; gerekirse bu dosyalari acip okuyun, resimlere de bakin):\n" + "\n".join(satirlar)
 
-    def gorev_olustur(self, gorev: str, testsiz: bool | None = None, otomatik_onay_izni: bool = True, ekler: object = None) -> dict:
+    def gorev_olustur(self, gorev: str, testsiz: bool | None = None, otomatik_onay_izni: bool = True, ekler: object = None, kuyruga: bool = False) -> dict:
+        """kuyruga=True: bir gorev surerken (calisiyor/karar) gelen yeni gorev reddedilmez, sirayla kosulmak uzere kuyruga alinir."""
         klasor = self._klasor()
         if not isinstance(gorev, str) or not gorev.strip():
             raise UygulamaHatasi("Gorev bos olamaz")
@@ -1456,7 +1460,50 @@ class Uygulama:
         with self.kilit:
             oturum = self._oturum()
             if oturum.kosu and oturum.kosu.durum in ("plan", "calisiyor", "karar-bekliyor"):
-                raise UygulamaHatasi("Zaten bir gorev var (onay/calisma/karar bekliyor)", 409)
+                if not kuyruga:
+                    raise UygulamaHatasi("Zaten bir gorev var (onay/calisma/karar bekliyor)", 409)
+                if len(oturum.kuyruk) >= KUYRUK_AZAMI:
+                    raise UygulamaHatasi(f"Kuyruk dolu (en fazla {KUYRUK_AZAMI} gorev)", 409)
+                oturum.kuyruk.append({"gorev": gorev.strip(), "testsiz": testsiz})
+                self._kuyruk_yayinla(oturum)
+                return {"kuyruk": len(oturum.kuyruk)}
+            return self._gorev_kur(oturum, klasor, gorev, testsiz, otomatik_onay_izni)
+
+    def _kuyruk_yayinla(self, oturum: ProjeOturumu) -> None:
+        self._yayinla(oturum, {"tur": "kuyruk", "gorevler": [k["gorev"][:200] for k in oturum.kuyruk]})
+
+    def kuyruktan_sil(self, sira: object) -> dict:
+        with self.kilit:
+            oturum = self._oturum()
+            if not isinstance(sira, int) or isinstance(sira, bool) or not 0 <= sira < len(oturum.kuyruk):
+                raise UygulamaHatasi("Kuyrukta boyle bir gorev yok", 404)
+            del oturum.kuyruk[sira]
+            self._kuyruk_yayinla(oturum)
+            return {"kuyruk": len(oturum.kuyruk)}
+
+    def _kuyruk_ilerlet(self, oturum: ProjeOturumu, kosu: Kosu) -> None:
+        """Bir gorev bitince siradakini baslatir. Basarisiz/durdurulan/reddedilen gorevden sonra kuyruk bosaltilir: bozuk bir zincir surmesin."""
+        with self.kilit:
+            if not oturum.kuyruk:
+                return
+            durum = kosu.sonuc.durum if kosu.sonuc else ""
+            if durum not in ("onaylandi", "tamam", "degisiklik_yok"):
+                oturum.kuyruk.clear()
+                self._kuyruk_yayinla(oturum)
+                self._yayinla(oturum, {"tur": "gunluk", "mesaj": "Kuyruktaki gorevler iptal edildi (onceki gorev basarisiz ya da durduruldu)"})
+                return
+            siradaki = oturum.kuyruk.pop(0)
+            self._kuyruk_yayinla(oturum)
+            try:
+                self._gorev_kur(oturum, oturum.klasor, siradaki["gorev"], siradaki["testsiz"], True)
+            except (UygulamaHatasi, AyarHatasi) as hata:
+                oturum.kuyruk.clear()
+                self._kuyruk_yayinla(oturum)
+                self._yayinla(oturum, {"tur": "gunluk", "mesaj": f"Kuyruktaki gorev baslatilamadi: {hata}"})
+
+    def _gorev_kur(self, oturum: ProjeOturumu, klasor: Path, gorev: str, testsiz: bool | None, otomatik_onay_izni: bool) -> dict:
+        """Plani kurar ve yayinlar; otomatik onay varsa kosuyu baslatir."""
+        with self.kilit:
             try:
                 ayar = ayar_yukle(klasor)
             except AyarHatasi as hata:
@@ -1476,7 +1523,7 @@ class Uygulama:
             self._yayinla(oturum, plan)
             kimlik = oturum.kosu.kimlik
         if otomatik:
-            self.onayla(kimlik)  # kilit disinda: onayla kendi kilidini alir
+            self._onayla_oturum(oturum, kimlik)
         return plan
 
     def _kosu(self, kimlik: str, durumlar: tuple[str, ...]) -> Kosu:
@@ -1493,6 +1540,14 @@ class Uygulama:
                 kosu.testsiz = bool(testsiz)
             kosu.durum = "calisiyor"
             oturum = self._oturum()
+        threading.Thread(target=self._kos, args=(oturum, kosu), daemon=True).start()
+
+    def _onayla_oturum(self, oturum: ProjeOturumu, kimlik: str) -> None:
+        """Kuyruktan baslayan gorev, secili proje degismis olsa da KENDI oturumunda onaylanir."""
+        kosu = oturum.kosu
+        if not kosu or kosu.kimlik != kimlik or kosu.durum != "plan":
+            return
+        kosu.durum = "calisiyor"
         threading.Thread(target=self._kos, args=(oturum, kosu), daemon=True).start()
 
     def reddet(self, kimlik: str) -> None:
@@ -1581,6 +1636,7 @@ class Uygulama:
             r, oturum.aktif_calistirici = oturum.aktif_calistirici, None
             if r is not None and hasattr(r, "ilerleme"):
                 r.ilerleme = None
+            self._kuyruk_ilerlet(oturum, kosu)
 
     # --- dosya islemleri ---
     def dosyalar(self) -> dict:
@@ -2097,7 +2153,9 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if yol == "/api/clilar/dene":
                     return self._gonder(200, app.cli_dene(g.get("ad"), g.get("model")))
                 if yol == "/api/gorev":
-                    return self._gonder(200, app.gorev_olustur(g.get("gorev"), g.get("testsiz") if isinstance(g.get("testsiz"), bool) else None, ekler=g.get("ekler")))
+                    return self._gonder(200, app.gorev_olustur(g.get("gorev"), g.get("testsiz") if isinstance(g.get("testsiz"), bool) else None, ekler=g.get("ekler"), kuyruga=g.get("kuyruga") is True))
+                if yol == "/api/kuyruk/sil":
+                    return self._gonder(200, app.kuyruktan_sil(g.get("sira")))
                 m = re.match(r"^/api/gorev/([0-9a-f]+)/(onayla|reddet|karar|durdur|testi-atla)$", yol)
                 if m:
                     kimlik, islem = m.groups()
