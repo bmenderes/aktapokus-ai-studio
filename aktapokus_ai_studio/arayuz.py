@@ -1936,9 +1936,9 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if yol == "/api/beceriler":
                     return self._gonder(200, app.beceri_listele())
                 if yol == "/api/beceri-kaynak":
-                    return self._gonder(200, app.beceri_kaynak_listele(sorgu.get("kaynak")))
+                    return self._gonder(200, app.beceri_kaynak_listele(q.get("kaynak")))
                 if yol == "/api/beceri-kaynak/onizle":
-                    return self._gonder(200, app.beceri_kaynak_onizle(sorgu.get("kaynak"), sorgu.get("yol")))
+                    return self._gonder(200, app.beceri_kaynak_onizle(q.get("kaynak"), q.get("yol")))
                 m = re.match(r"^/api/beceriler/([A-Za-z0-9-]{1,64})$", yol)
                 if m:
                     return self._gonder(200, app.beceri_oku(m.group(1)))

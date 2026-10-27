@@ -60,7 +60,9 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 #orta{display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--line);background:var(--panel)}
 #akis{flex:1;overflow:auto;padding:10px}
 #akis:empty{background:var(--maskot) center 34% no-repeat;background-size:132px auto;position:relative}#akis:empty::after{content:"Bir görev yazın: ahtapot önce plan çıkarır, siz onaylayınca çalışır.";position:absolute;left:0;right:0;top:calc(34% + 120px);text-align:center;color:var(--tx3);padding:0 24px}
-#girdi{border-top:1px solid var(--line);padding:8px 10px}
+/* yazma kutusu: tek yuvarlak kart (ince acik cizgi); icindeki alanin kendi koyu cercevesi yok, metin uzadikca kendiliginden buyur */
+#girdi{margin:0 10px 8px;padding:8px 12px;border:1px solid var(--line);border-radius:16px;background:var(--panel);transition:border-color .15s}#girdi:focus-within{border-color:var(--sarikoyu)}
+#gorev{border:0!important;outline:none!important;box-shadow:none!important;background:transparent!important;padding:4px 2px;min-height:44px;max-height:40vh;overflow-y:auto;field-sizing:content}
 #sag{display:flex;flex-direction:column;min-width:0;min-height:0;background:var(--panel)}
 .sec{font-size:12px;color:var(--tx3);margin:10px 0 4px}
 .rol{display:flex;gap:6px;align-items:flex-start;margin:5px 0;cursor:pointer}
@@ -916,6 +918,9 @@ $("#gorev").addEventListener("paste",ev=>{const d=ev.clipboardData,f=d?[...d.fil
   orta.addEventListener("dragover",ev=>{if(dosyaMi(ev)){ev.preventDefault();orta.classList.add("surukle")}});orta.addEventListener("dragleave",ev=>{if(!orta.contains(ev.relatedTarget))orta.classList.remove("surukle")});
   orta.addEventListener("drop",ev=>{orta.classList.remove("surukle");if(dosyaMi(ev)){ev.preventDefault();ekEkle([...ev.dataTransfer.files])}})}
 async function gonder(){const t=$("#gorev").value.trim();if(!t||!S.klasor)return;if((S.ekler||[]).some(x=>x.yukleniyor)){akisaEkle(e("div",{class:"badge b-warn",text:"Dosya yükleniyor, birkaç saniye bekleyin"}));return}try{if("Notification" in window&&Notification.permission==="default")Notification.requestPermission().catch(()=>{})}catch(x){}$("#gorev").value="";const ekYollar=(S.ekler||[]).map(x=>x.yol).filter(Boolean);alttaGoster();try{const p=await api("/api/gorev",{method:"POST",body:{gorev:t,ekler:ekYollar}});ekTemizle();S.kosu={kimlik:p.kosu,gorev:t,durum:(S.kosu&&S.kosu.kimlik===p.kosu)?S.kosu.durum:(p.otomatik?"calisiyor":"plan")};kosuGorunumu()}catch(x){akisaEkle(e("div",{class:"badge b-err",text:x.message}))}}
+/* field-sizing desteklemeyen tarayicilar icin (Firefox): yukseklik elle ayarlanir */
+function gorevBoyutla(){const t=$("#gorev");t.style.height="auto";t.style.height=Math.min(t.scrollHeight+2,Math.round(innerHeight*0.4))+"px"}
+if(!(window.CSS&&CSS.supports&&CSS.supports("field-sizing","content"))){$("#gorev").addEventListener("input",gorevBoyutla);new MutationObserver(gorevBoyutla).observe($("#gorev"),{attributes:true});setInterval(()=>{if($("#gorev").value==="")gorevBoyutla()},1000)}
 $("#gonder").onclick=gonder;$("#gorev").addEventListener("keydown",ev=>{if(ev.key==="Enter"&&!ev.shiftKey){ev.preventDefault();gonder()}});
 $("#durdur").onclick=async()=>{try{await api("/api/gorev/"+S.kosu.kimlik+"/durdur",{method:"POST",body:{}})}catch(x){alert(x.message)}};
 $("#testiAtla").onclick=async()=>{try{$("#testiAtla").disabled=true;await api("/api/gorev/"+S.kosu.kimlik+"/testi-atla",{method:"POST",body:{}})}catch(x){alert(x.message)}$("#testiAtla").disabled=false};
@@ -1184,15 +1189,15 @@ function beceriKaynakFormu(kap,bitti){const eski=$("#beceriKaynakForm");if(eski)
   const hata=m=>{durum.className="badge b-err";durum.style.display="block";durum.textContent=m};
   sec.append(e("option",{value:"",text:"Hazır kaynak seç…"}),e("option",{value:"anthropics/skills",text:"Anthropic resmi beceri deposu (anthropics/skills)"}));sec.onchange=()=>{if(sec.value)kaynak.value=sec.value};
   const q=()=>encodeURIComponent(kaynak.value.trim());
-  const listele=async()=>{liste.textContent="";onizle.textContent="";durum.className="mut3";durum.style.display="";durum.textContent="yükleniyor…";let d;try{d=await api("/api/beceri-kaynak?kaynak="+q())}catch(x){hata(x.message);return}
-    durum.textContent=d.beceriler.length+" beceri bulundu"+(d.kesildi?" (liste kısaltıldı)":"")+". Becerilerin içeriği modele talimat olarak gider; yalnızca güvendiğiniz kaynaklardan ekleyin.";
+  const listele=async()=>{liste.textContent="";onizle.textContent="";durum.className="mut3";durum.style.display="";durum.textContent="yükleniyor…";let d;try{d=await api("/api/beceri-kaynak?kaynak="+q())}catch(x){const oneri=/Bunu mu demek istediniz: (\S+)/.exec(x.message);if(oneri&&kaynak.value.trim()!==oneri[1]){kaynak.value=oneri[1];sec.value=oneri[1];return listele()}hata(x.message);return}
+    durum.textContent=d.beceriler.length+" beceri"+(d.kesildi?" (liste kısaltıldı)":"");
     for(const b of d.beceriler)liste.append(e("div",{class:"row",style:"justify-content:space-between;padding:2px 0"},e("span",{class:"row"},e("b",{text:b.kimlik}),b.kurulu?e("span",{class:"badge",text:"kurulu"}):null,b.ek_dosya?e("span",{class:"badge b-warn",title:"Yalnızca SKILL.md indirilir; scripts/ gibi ek dosyalar alınmaz",text:"ek dosyaları var"}):null),e("button",{text:"Önizle",onclick:()=>onizleGoster(d.kaynak,b)})))};
   const onizleGoster=async(kay,b)=>{onizle.textContent="";let o;try{o=await api("/api/beceri-kaynak/onizle?kaynak="+encodeURIComponent(kay)+"&yol="+encodeURIComponent(b.yol))}catch(x){hata(x.message);return}
     const ind=e("button",{class:"pri",text:b.kurulu?"Üzerine yaz ve indir":"İndir",onclick:async()=>{if(!confirm(o.kimlik+" becerisi "+kay+" deposundan indirilsin mi?\n\nİçeriği yukarıda gösterildi; modele talimat olarak verilecek."+(b.kurulu?"\nKurulu olan beceri DEĞİŞTİRİLECEK.":"")))return;try{await api("/api/beceriler/indir",{method:"POST",body:{kaynak:kay,yol:b.yol,uzerine_yaz:!!b.kurulu}});k.remove();await bitti()}catch(x){hata(x.message)}}});
     onizle.append(e("div",{class:"card",style:"margin-top:6px"},e("b",{text:o.ad||o.kimlik}),e("div",{class:"mut3",text:o.aciklama||"(açıklama yok: indirilemez)"}),e("pre",{style:"max-height:260px;overflow:auto;white-space:pre-wrap;margin:6px 0",text:o.govde}),e("div",{class:"row"},ind)));onizle.scrollIntoView({block:"nearest"})};
   getir.onclick=listele;kaynak.onkeydown=ev=>{if(ev.key==="Enter")listele()};
-  k.append(e("b",{text:"Çevrimiçi kaynaktan beceri ekle"}),e("div",{class:"mut3",text:"Herkese açık bir GitHub deposundaki SKILL.md becerileri (yalnızca github.com'a bağlanılır)."}),e("div",{class:"row",style:"margin-top:5px"},sec,kaynak,getir),durum,liste,onizle,e("div",{class:"row",style:"margin-top:6px"},e("button",{text:"Kapat",onclick:()=>k.remove()})));
-  kap.append(k);k.scrollIntoView({block:"nearest"})}
+  k.append(e("b",{text:"Çevrimiçi kaynaktan beceri ekle"}),e("div",{class:"row",style:"margin-top:5px"},sec,kaynak,getir),durum,liste,onizle,e("div",{class:"row",style:"margin-top:6px"},e("button",{text:"Kapat",onclick:()=>k.remove()})));
+  kap.append(k);k.scrollIntoView({block:"nearest"});sec.value="anthropics/skills";kaynak.value="anthropics/skills";listele()}
 function beceriFormu(kap,b,bitti){const eski=$("#beceriForm");if(eski)eski.remove();const duzenle=!!b;b=b||{otomatik:true,govde:""};const k=e("div",{class:"card",id:"beceriForm"});
   const al=(etiket,ad,deger,ipucu,cok)=>{const g=cok?e("textarea",{rows:String(cok),style:"width:100%"}):e("input",{style:"width:100%"});g.value=deger==null?"":deger;if(ipucu)g.placeholder=ipucu;g.dataset.a=ad;return e("label",{class:"mut",style:"display:block;margin-top:5px"},etiket,g)};
   const kimlik=al("Kimlik (küçük harf ve tire, örn. sunum-hazirla)","kimlik",b.kimlik,"sunum-hazirla");if(duzenle)kimlik.querySelector("input").readOnly=true;

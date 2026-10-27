@@ -6,6 +6,7 @@ yalniz getirir; kullanici icerigi onizleyip onaylamadan arayuz indirme istegi go
 
 from __future__ import annotations
 
+import difflib
 import json
 import re
 import urllib.error
@@ -18,6 +19,7 @@ ONERILEN = (
     {"kaynak": "anthropics/skills", "ad": "Anthropic resmi beceri deposu"},
 )
 KAYNAK_DESENI = re.compile(r"^([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))/([A-Za-z0-9._-]{1,100})((?:/(?!\.)[A-Za-z0-9._-]{1,100}){0,6})$")
+URL_DESENI = re.compile(r"^(?:https?://)?(?:www\.)?github\.com/(.+)$", re.IGNORECASE)
 YOL_DESENI = re.compile(r"^(?:(?!\.)[A-Za-z0-9._-]{1,100}/){0,7}([a-z0-9]+(?:-[a-z0-9]+)*)/SKILL\.md$")
 AZAMI_YANIT = 2_000_000  # tree yaniti
 AZAMI_LISTE = 500
@@ -36,7 +38,14 @@ def kaynak_coz(kaynak: object) -> tuple[str, str, str]:
     """'sahip/depo' ya da 'sahip/depo/alt/yol' -> (sahip, depo, onek). Onek '' ya da 'alt/yol/'."""
     if not isinstance(kaynak, str):
         raise beceriler.BeceriHatasi("Kaynak 'sahip/depo' biciminde olmali (ornek: anthropics/skills)")
-    m = KAYNAK_DESENI.fullmatch(kaynak.strip().strip("/"))
+    kaynak = kaynak.strip()
+    u = URL_DESENI.fullmatch(kaynak)
+    if u:  # yapistirilan GitHub adresi: https://github.com/sahip/depo[.git][/tree/dal/alt/yol]
+        p = [x for x in u.group(1).split("?")[0].split("#")[0].strip("/").split("/") if x]
+        if len(p) >= 2:
+            depo = p[1][:-4] if p[1].endswith(".git") else p[1]
+            kaynak = "/".join([p[0], depo, *(p[4:] if len(p) > 4 and p[2] == "tree" else [])])
+    m = KAYNAK_DESENI.fullmatch(kaynak.strip("/"))
     if not m or ".." in kaynak:
         raise beceriler.BeceriHatasi("Kaynak 'sahip/depo' biciminde olmali (ornek: anthropics/skills)")
     sahip, depo, alt = m.group(1), m.group(2), m.group(3).strip("/")
@@ -64,9 +73,24 @@ def _al(url: str, azami: int) -> bytes:
     return veri
 
 
+def _benzer(kaynak: str) -> str | None:
+    """Yazim hatasi tahmini: yalniz SABIT onerilen listeden ('anthropic/skills' -> 'anthropics/skills'). Baska depoya kendiliginden gecilmez."""
+    adaylar = {o["kaynak"].lower(): o["kaynak"] for o in ONERILEN}
+    if kaynak.lower() in adaylar:
+        return None
+    yakin = difflib.get_close_matches(kaynak.lower(), list(adaylar), n=1, cutoff=0.85)
+    return adaylar[yakin[0]] if yakin else None
+
+
 def listele(kaynak: object) -> dict:
     sahip, depo, onek = kaynak_coz(kaynak)
-    veri = _al(f"https://api.github.com/repos/{sahip}/{depo}/git/trees/HEAD?recursive=1", AZAMI_YANIT)
+    try:
+        veri = _al(f"https://api.github.com/repos/{sahip}/{depo}/git/trees/HEAD?recursive=1", AZAMI_YANIT)
+    except beceriler.BeceriHatasi as hata:
+        oneri = _benzer(f"{sahip}/{depo}") if "bulunamadi" in str(hata) else None
+        if oneri:
+            raise beceriler.BeceriHatasi(f"Depo bulunamadi. Bunu mu demek istediniz: {oneri}") from None
+        raise
     try:
         yanit = json.loads(veri.decode("utf-8"))
         agac = yanit["tree"]
