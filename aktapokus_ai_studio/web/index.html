@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Aktapokus</title>
 <link rel="icon" href="/favicon.ico" type="image/x-icon">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#f5c400">
+<link rel="apple-touch-icon" href="/simge-192.png">
 <meta name="google" content="notranslate">
 <style>
 @font-face{font-family:"Inter";font-style:normal;font-weight:100 900;font-display:swap;src:url(/vendor/inter-latin-ext-wght-normal.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
@@ -30,7 +33,10 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 .marka-logo{width:22px;height:22px;border-radius:50%;background:var(--logo) center/cover;display:inline-block;flex:none}
 #main{flex:1;min-height:0;display:grid;--sol-w:190px;--sag-w:46%;--b1:6px;--b2:6px;grid-template-columns:var(--sol-w) var(--b1) minmax(0,1fr) var(--b2) var(--sag-w);grid-template-rows:minmax(0,1fr)}
 #sol{background:var(--panel2);border-right:1px solid var(--line);padding:8px 10px;overflow:hidden;min-height:0}
-#solKaydir{flex:1;min-height:0;overflow:auto}#solAlt{flex:none;display:flex;flex-direction:column;gap:4px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+#solKaydir{flex:1;min-height:0;overflow:auto}#solAlt{flex:none;display:flex;flex-direction:row;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+#solAlt .hesap-chip{width:auto;min-width:0;flex:0 1 auto;margin-bottom:0}#terminalDugme{margin-left:auto}  /* yalniz ad uzunlugu kadar; kalan bos yer dugme degil bosluk olur */
+.yuvarlak{border-radius:999px;flex:none;width:auto}.yuvarlak.simge{width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:16px;text-align:center}
+.yuvarlak:not(.simge):not(.pri){padding:3px 14px}.yuvarlak.pri{padding:3px 16px}
 #orta{display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--line);background:var(--panel)}
 #akis{flex:1;overflow:auto;padding:10px}
 #akis:empty{background:var(--maskot) center 34% no-repeat;background-size:132px auto;position:relative}#akis:empty::after{content:"Bir görev yazın: ahtapot önce plan çıkarır, siz onaylayınca çalışır.";position:absolute;left:0;right:0;top:calc(34% + 120px);text-align:center;color:var(--tx3);padding:0 24px}
@@ -113,7 +119,7 @@ body{position:relative}
 .ayar-kart>.ayar-grup+.ayar-model{border-top:none}
 #sol{display:flex;flex-direction:column}
 .rol{padding:3px 5px;border-radius:6px}.rol:hover{background:var(--panel)}.rol.on{background:var(--panel);box-shadow:0 0 0 1px var(--line)}
-.hesap-chip{display:flex;gap:8px;align-items:center;width:100%;text-align:left;padding:6px 8px;margin-bottom:4px}.hesap-chip .av{flex:none;width:28px;height:28px;border-radius:50%;background:var(--accbg);color:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:700;text-transform:uppercase}.hesap-chip .hc{display:flex;flex-direction:column;min-width:0}.hesap-chip b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}.hesap-chip small{color:var(--tx3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hesap-chip{display:flex;gap:8px;align-items:center;width:100%;text-align:left;padding:6px 8px;margin-bottom:4px}.hesap-chip .av{flex:none;width:28px;height:28px;border-radius:50%;background:var(--accbg);color:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:700;text-transform:uppercase}.hesap-chip .hc{display:flex;flex-direction:column;min-width:0}.hesap-chip b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}.hesap-chip small{display:none}.hesap-chip{border-radius:999px;padding:4px 10px 4px 5px}
 .rol .dots{opacity:0;border:0;background:transparent;cursor:pointer;padding:0 5px;color:var(--tx3);font-size:16px;line-height:1}.rol:hover .dots,.rol.menu-acik .dots{opacity:1}@media(max-width:900px){.rol .dots{opacity:1}}.rol.okunmadi .n{font-weight:700}
 #baglamMenu,#baglamAlt{position:fixed;z-index:200;min-width:200px;background:var(--panel);border:1px solid var(--line);border-radius:10px;box-shadow:0 8px 28px rgba(0,0,0,.16);padding:4px;display:none;font-size:13px}
 #baglamMenu .m,#baglamAlt .m{display:flex;justify-content:space-between;gap:18px;padding:6px 10px;border-radius:6px;cursor:pointer;color:var(--tx)}#baglamMenu .m:hover,#baglamAlt .m:hover{background:var(--panel2)}#baglamMenu .k,#baglamAlt .k{color:var(--tx3)}#baglamMenu .ay{height:1px;background:var(--line);margin:4px 2px}#baglamMenu .m.tehlike{color:var(--err)}
@@ -188,12 +194,12 @@ body.suruklenir iframe{pointer-events:none}
 <div id="main">
   <div id="sol">
     <div id="solKaydir">
-    <div class="row" style="gap:6px"><button id="yeniGorev" class="pri" style="flex:1" title="Seçili projede yeni görev">+ Yeni görev</button><button id="yeniProje" title="Yeni proje: bir klasör ekle">+ Proje</button></div>
+    <div class="row" style="gap:6px"><button id="yeniGorev" class="pri yuvarlak" title="Seçili projede yeni görev">+ Yeni</button><button id="yeniProje" class="yuvarlak" title="Yeni proje: bir klasör ekle">+ Proje</button></div>
     <input id="kenarAra" placeholder="Görev ya da proje ara…" style="width:100%;margin-top:8px" autocomplete="off">
     <div id="gecmis" class="mut3" style="margin-top:6px">-</div>
     <div class="sec">Klon</div><div id="klon" class="mut">-</div>
     </div>
-    <div id="solAlt"><button id="hesapChip" class="hesap-chip" title="Hesaplar: kim olarak, hangi hizmette giriş yapıldı"><span class="av" id="hesapAv">?</span><span class="hc"><b id="hesapAd">…</b><small id="hesapAlt">yerel kullanıcı</small></span></button><button id="terminalDugme" style="width:100%" title="PowerShell terminali ve Telegram günlüğü (Alt+3)">⌨ Terminal</button><button id="ayarDugme" style="width:100%" title="Sağlayıcılar, modeller, roller, CLI'lar, kullanım">⚙ Ayarlar</button></div>
+    <div id="solAlt"><button id="hesapChip" class="hesap-chip" title="Hesaplar: kim olarak, hangi hizmette giriş yapıldı"><span class="av" id="hesapAv">?</span><span class="hc"><b id="hesapAd">…</b><small id="hesapAlt">yerel kullanıcı</small></span></button><button id="terminalDugme" class="yuvarlak simge" title="Terminal (Alt+3)" aria-label="Terminal">⌨</button><button id="ayarDugme" class="yuvarlak simge" title="Ayarlar" aria-label="Ayarlar">⚙</button></div>
   </div>
   <div class="bolucu" id="bolucuSol" title="Sürükleyin: genişliği değiştirin · çift tıklayın: sıfırla"></div>
   <div id="orta">
@@ -987,8 +993,14 @@ async function klasorSecimiAc(){if($("#klasorSec"))return;
   try{const pl=(await api("/api/projeler")).projeler.filter(p=>p.var).slice(0,5);if(pl.length){son.append(e("span",{class:"mut3",text:"Son projeler:"}));for(const p of pl)son.append(e("button",{text:p.ad,title:p.yol,onclick:async()=>{try{if(await projeSec(p.yol))kapat()}catch(x){hata.textContent=x.message;hata.style.display=""}}}))}}catch(x){}
   await goz(S.klasor||"");liste.focus()}
 async function onizlemeKur(){if(S.baglanti&&S.baglanti.uzak){$("#onizUrl").textContent="Önizleme yalnızca bu bilgisayarda açılır (uzak bağlantıda kapalı)";$("#cerceve").removeAttribute("src");return}try{const r=await api("/api/onizleme");onizTaban=r.url;onizGoster()}catch(x){}}
-async function olayAkisi(){let bekle=500;for(;;){try{const r=await fetch("/api/olaylar?son="+S.son,{headers:{"X-Aktapokus-Token":T}});if(!r.ok)throw new Error("HTTP "+r.status);$("#baglanti").textContent="canlı";$("#baglanti").className="badge b-ok";bekle=500;const rd=r.body.getReader();const dec=new TextDecoder();let tam="";for(;;){const {done,value}=await rd.read();if(done)break;tam+=dec.decode(value,{stream:true});let i;while((i=tam.indexOf("\n\n"))>=0){const blok=tam.slice(0,i);tam=tam.slice(i+2);const d=blok.split("\n").filter(x=>x.startsWith("data:")).map(x=>x.slice(5).trim()).join("");if(d){try{olayIsle(JSON.parse(d))}catch(x){console.error(x)}}}}}catch(x){}
+let akisDenetim=null,akisSon=0;
+function akisiYenidenKur(){if(akisDenetim)try{akisDenetim.abort()}catch(x){}}
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)akisiYenidenKur()});addEventListener("online",akisiYenidenKur);addEventListener("pageshow",akisiYenidenKur);
+setInterval(()=>{if(akisSon&&Date.now()-akisSon>15000)akisiYenidenKur()},5000);  /* sunucu her saniye ping yollar: 15 sn sessizlik = kopuk baglanti */
+async function olayAkisi(){let bekle=500;for(;;){try{akisDenetim=new AbortController();akisSon=Date.now();const r=await fetch("/api/olaylar?son="+S.son,{headers:{"X-Aktapokus-Token":T},signal:akisDenetim.signal});if(!r.ok)throw new Error("HTTP "+r.status);$("#baglanti").textContent="canlı";$("#baglanti").className="badge b-ok";bekle=500;const rd=r.body.getReader();const dec=new TextDecoder();let tam="";for(;;){const {done,value}=await rd.read();if(done)break;akisSon=Date.now();tam+=dec.decode(value,{stream:true});let i;while((i=tam.indexOf("\n\n"))>=0){const blok=tam.slice(0,i);tam=tam.slice(i+2);const d=blok.split("\n").filter(x=>x.startsWith("data:")).map(x=>x.slice(5).trim()).join("");if(d){try{olayIsle(JSON.parse(d))}catch(x){console.error(x)}}}}}catch(x){}
+    akisSon=0;if(document.hidden){await new Promise(r=>{const f=()=>{if(!document.hidden){document.removeEventListener("visibilitychange",f);r()}};document.addEventListener("visibilitychange",f)});bekle=500;continue}  /* gizliyken bosuna yeniden deneme */
     $("#baglanti").textContent="bağlantı yok";$("#baglanti").className="badge b-err";await new Promise(r=>setTimeout(r,bekle));bekle=Math.min(bekle*2,8000)}}
+if("serviceWorker" in navigator&&(location.protocol==="https:"||["127.0.0.1","localhost"].includes(location.hostname)))navigator.serviceWorker.register("/sw.js").catch(()=>{});
 /* ---- Terminal sayfası: PowerShell (ConPTY) + Telegram günlüğü. xterm.js ilk açılışta yüklenir. ---- */
 const TRM={t:{},aktif:null,xt:null,tg:false,tgZ:null};
 function xtYukle(){if(TRM.xt)return TRM.xt;TRM.xt=new Promise((ok,hata)=>{const l=document.createElement("link");l.rel="stylesheet";l.href="/vendor/xterm.css";document.head.append(l);const a=document.createElement("script");a.src="/vendor/xterm.js";a.onerror=()=>hata(new Error("xterm.js yüklenemedi"));a.onload=()=>{const b=document.createElement("script");b.src="/vendor/addon-fit.js";b.onerror=a.onerror;b.onload=ok;document.head.append(b)};document.head.append(a)});TRM.xt.catch(()=>{TRM.xt=null});return TRM.xt}
@@ -1293,6 +1305,8 @@ async function uzakBolumu(h){const kap=e("div");h.append(kap);
     const ayarKart=e("div",{class:"card"});kap.append(ayarKart);
     const kutu=(etiket,deger,govdeAnahtar,onay,alt)=>{const k=e("input",{type:"checkbox"});k.checked=!!deger;k.onchange=()=>degistir({[govdeAnahtar]:k.checked},k.checked?onay:null);return e("label",{class:"row",style:"gap:6px;margin-top:6px;align-items:flex-start"},k,e("span",null,e("b",{text:etiket}),alt?e("div",{class:"mut3",style:"white-space:normal",text:alt}):null))};
     ayarKart.append(kutu("Uzak erişim açık",ay.acik,"acik",null,"Kapalıyken hiçbir ağ dinleyicisi açılmaz. Açıkken yalnızca Tailscale adresinde dinlenir (tüm ağ arayüzlerinde değil)."));
+    ayarKart.append(kutu("HTTPS ile aç (ana ekrana uygulama olarak eklemek için)",ay.https,"https",null,"Tailscale'in kendi sertifikasıyla güvenli adres (Tailscale yönetim sayfasında DNS bölümünde HTTPS Certificates açık olmalı). İnternete açılmaz; yine yalnızca Tailscale ağınızdaki cihazlar."));
+    if(ay.https&&d.dinleyici.https){const hs=d.dinleyici.https;ayarKart.append(e("div",{class:"badge "+(hs.calisiyor?"b-ok":"b-err"),style:"display:block;white-space:normal;margin-top:6px",text:hs.calisiyor?"HTTPS açık: "+hs.url:(hs.hata||"HTTPS açılamadı")}))}
     const port=e("input",{type:"number",min:"1024",max:"65535",value:String(ay.port),style:"width:90px"});
     ayarKart.append(e("div",{class:"row",style:"gap:6px;margin-top:8px"},e("span",{class:"mut",text:"Port"}),port,e("button",{text:"Kaydet",onclick:()=>degistir({port:Number(port.value)})})));
     ayarKart.append(kutu("Uzaktan terminale izin ver",ay.terminal,"terminal","Uzaktan terminal, bu bilgisayarda TAM komut çalıştırma yetkisi verir (dosya silme, program kurma dahil). Anahtarı ele geçiren herkes bunu yapabilir. Yine de açılsın mı?","TAM komut çalıştırma yetkisi. Varsayılan kapalı."));

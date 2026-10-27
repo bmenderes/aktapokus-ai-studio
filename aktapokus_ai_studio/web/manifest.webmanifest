@@ -1,0 +1,14 @@
+{
+  "name": "Aktapokus AI Studio",
+  "short_name": "Aktapokus",
+  "description": "Kodlama ajanı CLI'ları için yerel kontrol katmanı",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7f5f1",
+  "theme_color": "#f5c400",
+  "icons": [
+    {"src": "/simge-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "/simge-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

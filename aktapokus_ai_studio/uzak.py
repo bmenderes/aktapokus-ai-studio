@@ -38,6 +38,7 @@ class Ayar:
     port: int = VARSAYILAN_PORT
     terminal: bool = False  # uzaktan terminal (TAM komut calistirma): ayri ve bilincli acilir
     yonetim: bool = False  # uzaktan CLI/MCP/saglayici/Telegram/beceri tanimlama, klasor gezme, klonlama
+    https: bool = False  # Tailscale `serve` ile https://<ad>.ts.net (ana ekrana uygulama olarak eklemek icin); dinleyici yine yalniz Tailscale adresinde
     anahtar: str = field(default_factory=lambda: secrets.token_urlsafe(32))
 
     def sozluk(self, anahtarli: bool = False) -> dict:
@@ -65,7 +66,7 @@ def oku() -> Ayar:
         anahtar = h.get("anahtar")
         return Ayar(
             acik=h.get("acik") is True, port=h["port"] if port_gecerli(h.get("port")) else VARSAYILAN_PORT,
-            terminal=h.get("terminal") is True, yonetim=h.get("yonetim") is True,
+            terminal=h.get("terminal") is True, yonetim=h.get("yonetim") is True, https=h.get("https") is True,
             anahtar=anahtar if isinstance(anahtar, str) and len(anahtar) >= 32 else secrets.token_urlsafe(32),
         )
     except (OSError, ValueError, json.JSONDecodeError):
@@ -87,7 +88,7 @@ def yaz(ayar: Ayar) -> None:
 def guncelle(degisiklik: dict) -> Ayar:
     """Yerel arayuzden gelen degisiklik. Yalniz bilinen alanlar, tipleri dogrulanir."""
     ayar = oku()
-    for alan in ("acik", "terminal", "yonetim"):
+    for alan in ("acik", "terminal", "yonetim", "https"):
         if alan in degisiklik:
             if not isinstance(degisiklik[alan], bool):
                 raise UzakHatasi(f"'{alan}' true/false olmali")
@@ -162,6 +163,64 @@ def tailscale_durum() -> dict:
         return {"kurulu": True, "calisiyor": calisiyor, "adres": adres, "dns": dns, "hata": hata}
     except (UzakHatasi, json.JSONDecodeError, AttributeError, TypeError) as hata:
         return {"kurulu": True, "calisiyor": False, "adres": None, "dns": None, "hata": f"Tailscale durumu okunamadi ({type(hata).__name__})"}
+
+
+SERVE_PORTU = 443
+
+
+def _serve_calistir(args: list[str]) -> tuple[int | None, str]:
+    """`tailscale serve ...`: (cikis kodu, stdout+stderr). Zaman asiminda kodu None'dur (Tailscale HTTPS'i etkinlestirmeni beklerken takilabilir)."""
+    ts = tailscale_bul()
+    if not ts:
+        raise UzakHatasi("Tailscale kurulu degil")
+    onek = [sys.executable, ts] if ts.lower().endswith(".py") else [ts]
+    try:
+        s = subprocess.run([*onek, "serve", *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15, stdin=subprocess.DEVNULL, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except subprocess.TimeoutExpired as hata:
+        kismi = hata.stdout if isinstance(hata.stdout, str) else (hata.stdout or b"").decode("utf-8", "replace")
+        kismi += hata.stderr if isinstance(hata.stderr, str) else (hata.stderr or b"").decode("utf-8", "replace")
+        return None, kismi
+    except OSError as hata:
+        raise UzakHatasi(f"Tailscale calistirilamadi: {type(hata).__name__}") from None
+    return s.returncode, (s.stdout or "") + (s.stderr or "")
+
+
+def serve_acik_mi(adres: str, port: int) -> bool:
+    """Tailscale `serve` yapilandirmasinda bu dinleyiciye giden bir https vekili var mi (baska vekillere bakmaz)."""
+    try:
+        kod, cikti = _serve_calistir(["status", "--json"])
+        if kod != 0:
+            return False
+        hedef = f"http://{adres}:{port}"
+        for web in (json.loads(cikti).get("Web") or {}).values():
+            for h in (web.get("Handlers") or {}).values():
+                if str(h.get("Proxy", "")).rstrip("/") == hedef:
+                    return True
+    except (UzakHatasi, json.JSONDecodeError, AttributeError, TypeError):
+        pass
+    return False
+
+
+def _serve_hata_metni(kod: int | None, cikti: str) -> str:
+    satirlar = [s.strip() for s in cikti.splitlines() if s.strip()]
+    metin = " ".join(satirlar)[:400]
+    if kod is None or "not enabled" in cikti.lower() or "https certificates" in cikti.lower() or "login.tailscale.com" in cikti:
+        return ("Tailscale HTTPS henuz acik degil. Tailscale yonetim sayfasinda (DNS bolumu) 'HTTPS Certificates' ozelligini acin, sonra yeniden deneyin."
+                + (f" Tailscale'in mesaji: {metin}" if metin else ""))
+    return f"Tailscale serve basarisiz: {metin or 'bilinmeyen hata'}"
+
+
+def serve_ac(adres: str, port: int) -> None:
+    """https://<ad>.ts.net -> http://<tailscale ip>:<port>. Yalniz Tailscale ag icinde (funnel DEGIL: internete acilmaz)."""
+    kod, cikti = _serve_calistir(["--bg", f"--https={SERVE_PORTU}", f"http://{adres}:{port}"])
+    if kod != 0:
+        raise UzakHatasi(_serve_hata_metni(kod, cikti))
+
+
+def serve_kapat(adres: str, port: int) -> None:
+    """Yalniz BU dinleyiciye giden vekil varsa kapatir; kullanicinin baska serve ayarlarina dokunmaz."""
+    if serve_acik_mi(adres, port):
+        _serve_calistir([f"--https={SERVE_PORTU}", "off"])
 
 
 # ---- politika (uzak istekler icin) ---------------------------------------------------------------------------------------

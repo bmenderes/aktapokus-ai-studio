@@ -1574,6 +1574,8 @@ def _origin_gecerli(origin: str | None, portlar: set[int]) -> bool:
     return any(origin == f"http://{ad}:{port}" for ad in ("127.0.0.1", "localhost") for port in portlar)
 
 
+STATIK_DOSYALAR = {"/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json; charset=utf-8"), "/sw.js": ("sw.js", "text/javascript; charset=utf-8"),
+    "/simge-192.png": ("simge-192.png", "image/png"), "/simge-512.png": ("simge-512.png", "image/png")}  # PWA: ana ekrana ekleme; token gerektirmez, ozel icerik yok
 VENDOR_DOSYALARI = {"xterm.js": "application/javascript; charset=utf-8", "xterm.css": "text/css; charset=utf-8", "addon-fit.js": "application/javascript; charset=utf-8",
     "inter-latin-wght-normal.woff2": "font/woff2", "inter-latin-ext-wght-normal.woff2": "font/woff2"}
 
@@ -1596,6 +1598,7 @@ class Dinleyici:
     port: int
     hostlar: frozenset
     durdu: threading.Event = field(default_factory=threading.Event)
+    https_host: str | None = None  # Tailscale `serve` aciksa MagicDNS adi: https://<ad> (portsuz) Host/Origin da kabul edilir
 
 
 class UzakSunucu(ThreadingHTTPServer):
@@ -1605,12 +1608,14 @@ class UzakSunucu(ThreadingHTTPServer):
 def _uzak_host_gecerli(host: str | None, d: Dinleyici) -> bool:
     if not host:
         return False
+    if d.https_host and host.lower() == d.https_host:
+        return True
     ad, _, port = host.rpartition(":") if ":" in host else (host, "", "")
     return ad.lower() in d.hostlar and port.isdigit() and int(port) == d.port
 
 
 def _uzak_origin_gecerli(origin: str | None, d: Dinleyici) -> bool:
-    return origin is None or any(origin == f"http://{h}:{d.port}" for h in d.hostlar)
+    return origin is None or any(origin == f"http://{h}:{d.port}" for h in d.hostlar) or (bool(d.https_host) and origin == f"https://{d.https_host}")
 
 
 def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | None = None):
@@ -1734,6 +1739,11 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if not dosya.is_file():
                     return self._gonder(500, {"hata": "web/index.html yok"})
                 return self._gonder(200, dosya.read_bytes(), "text/html; charset=utf-8", {"Content-Security-Policy": f"default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-src http://127.0.0.1:* http://localhost:*; img-src 'self' data:"})
+            if yontem in ("GET", "HEAD") and yol in STATIK_DOSYALAR:
+                ad, tur = STATIK_DOSYALAR[yol]
+                dosya = WEB / ad
+                if dosya.is_file():
+                    return self._gonder(200, dosya.read_bytes(), tur)
             if yontem in ("GET", "HEAD") and yol == "/favicon.ico":  # pencere/gorev cubugu simgesi (token gerektirmez, herkese acik statik dosya)
                 simge = WEB / "favicon.ico"
                 if simge.is_file():
@@ -2136,6 +2146,7 @@ class ArayuzSunucusu:
         self.uzak_dinleyici: Dinleyici | None = None
         self.uzak_hata: str | None = None
         self.uzak_son: dict | None = None  # son uzak istek: {zaman, ip}
+        self.uzak_https: dict = {"calisiyor": False, "hata": None, "url": None}
         self._uzak_kilit = threading.Lock()
         self.zamanlayici: Zamanlayici | None = None  # yalniz baslat_zamanlayici() ile (testlerde kendiliginden calismaz)
         app.sunucu = self
@@ -2161,17 +2172,24 @@ class ArayuzSunucusu:
 
     def uzak_uygula(self) -> dict:
         """Ayar dosyasina gore uzak dinleyiciyi (yeniden) kurar: kapaliysa durdurur. Tailscale adresi yoksa ya da baglanilamazsa HATA bilgisini saklar."""
+        onceki = self.uzak_dinleyici
         self.uzak_durdur()
         self.uzak_ayar = uzak.oku()
         self.uzak_hata = None
+        self.uzak_https = {"calisiyor": False, "hata": None, "url": None}
         if not self.uzak_ayar.acik or self.kapaniyor.is_set():
+            if onceki is not None and not self.kapaniyor.is_set():
+                try:
+                    uzak.serve_kapat(onceki.adres, onceki.port)  # uzak erisim kapaninca https vekili de kalkar
+                except uzak.UzakHatasi:
+                    pass
             return self.uzak_bilgi()
         ts = uzak.tailscale_durum()
         if not ts["adres"]:
             self.uzak_hata = ts["hata"] or "Tailscale adresi bulunamadi"
             return self.uzak_bilgi()
         hostlar = frozenset({ts["adres"], *( [ts["dns"]] if ts["dns"] else [] )})
-        d = Dinleyici(ts["adres"], self.uzak_ayar.port, hostlar)
+        d = Dinleyici(ts["adres"], self.uzak_ayar.port, hostlar, https_host=ts["dns"] if (self.uzak_ayar.https and ts["dns"]) else None)
         try:
             srv = UzakSunucu((d.adres, d.port), yapi_arayuz(self.app, self, d))
         except OSError as hata:
@@ -2181,14 +2199,31 @@ class ArayuzSunucusu:
         threading.Thread(target=srv.serve_forever, daemon=True).start()
         with self._uzak_kilit:
             self.uzak_http, self.uzak_dinleyici = srv, d
+        self._https_uygula(d)
         return self.uzak_bilgi()
+
+    def _https_uygula(self, d: Dinleyici) -> None:
+        """Ayar `https` aciksa Tailscale serve vekilini kurar (hata kullaniciya gosterilir, dinleyici calismaya devam eder); kapaliysa kendi vekilimizi kaldirir."""
+        self.uzak_https = {"calisiyor": False, "hata": None, "url": None}
+        try:
+            if d.https_host:
+                uzak.serve_ac(d.adres, d.port)
+                self.uzak_https = {"calisiyor": True, "hata": None, "url": f"https://{d.https_host}"}
+            elif self.uzak_ayar.https:
+                self.uzak_https["hata"] = "MagicDNS adi okunamadi; Tailscale'te MagicDNS acik olmali"
+            else:
+                uzak.serve_kapat(d.adres, d.port)
+        except uzak.UzakHatasi as hata:
+            self.uzak_https["hata"] = str(hata)
 
     def uzak_bilgi(self) -> dict:
         d = self.uzak_dinleyici
         adresler = []
         if d is not None:
             adresler = [f"http://{h}:{d.port}/#t={self.uzak_ayar.anahtar}" for h in sorted(d.hostlar, key=lambda x: (x == d.adres, x))]  # MagicDNS adi once, IP sonra
-        return {"calisiyor": d is not None, "adres": d.adres if d else None, "port": d.port if d else None, "hata": self.uzak_hata, "baglantilar": adresler, "son_erisim": self.uzak_son}
+            if self.uzak_https.get("calisiyor"):
+                adresler.insert(0, f"{self.uzak_https['url']}/#t={self.uzak_ayar.anahtar}")
+        return {"calisiyor": d is not None, "adres": d.adres if d else None, "port": d.port if d else None, "hata": self.uzak_hata, "baglantilar": adresler, "son_erisim": self.uzak_son, "https": dict(self.uzak_https)}
 
     def url(self) -> str:
         return f"http://127.0.0.1:{self.port}/#t={self.app.token}"
