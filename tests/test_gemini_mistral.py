@@ -121,6 +121,7 @@ def test_hesap_durumu_dosya_varligina_bakar_icerik_okumaz(tmp_path, monkeypatch)
     monkeypatch.setattr(runners, "gemini_bul", lambda: ["g"])
     monkeypatch.setattr(runners, "vibe_bul", lambda: "v")
     monkeypatch.setattr(hesaplar.Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.setattr(hesaplar, "_windows_kimlik_var", lambda hedef: False)  # bu bilgisayarin gercek anahtar deposundan bagimsiz
     for k in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "MISTRAL_API_KEY", "VIBE_HOME"):
         monkeypatch.delenv(k, raising=False)
     assert hesaplar.gemini()["giris"] is False and hesaplar.mistral()["giris"] is False
@@ -161,3 +162,37 @@ def test_vibe_3_salt_okunur_kipte_plan_yerine_ask_kullanilir(monkeypatch):
     monkeypatch.setattr(runners.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(OSError("yok")))
     runners._VIBE_OKUNUR_AJAN.clear()
     assert runners._vibe_okunur_ajan(["C:/x/yok.exe"]) == "plan"  # okunamazsa eski varsayilan
+
+
+def test_mistral_anahtar_deposundaysa_giris_yapildi_sayilir_deger_okunmaz(tmp_path, monkeypatch):
+    """Gercek durum: Vibe tarayici girisinde anahtari Windows anahtar deposuna yazar (~/.vibe/.env olusmaz); rozet 'giris yok' demesin."""
+    monkeypatch.setattr(runners, "vibe_bul", lambda: "v")
+    monkeypatch.setattr(hesaplar.Path, "home", staticmethod(lambda: tmp_path))
+    monkeypatch.delenv("MISTRAL_API_KEY", raising=False)
+    monkeypatch.delenv("VIBE_HOME", raising=False)
+    sorulan = []
+    monkeypatch.setattr(hesaplar, "_windows_kimlik_var", lambda hedef: sorulan.append(hedef) or True)
+    m = hesaplar.mistral()
+    assert m == {"kurulu": True, "giris": True, "yontem": "Windows anahtar deposu"} and sorulan == ["MISTRAL_API_KEY@ai.mistral.vibe"]
+    monkeypatch.setattr(hesaplar, "_windows_kimlik_var", lambda hedef: False)
+    assert hesaplar.mistral()["giris"] is False
+
+
+def test_windows_kimlik_var_yalniz_kayit_adina_bakar(monkeypatch):
+    class Cikti:
+        returncode = 0
+        stdout = (
+            "Currently stored credentials for X:\n\n"
+            "    Target: MISTRAL_API_KEY@ai.mistral.vibe\n"
+            "    Type: Generic\n"
+            "    User: gizli-kullanici\n"
+        )
+
+    monkeypatch.setattr(hesaplar.os, "name", "nt")
+    monkeypatch.setattr(hesaplar.subprocess, "run", lambda *a, **k: Cikti())
+    assert hesaplar._windows_kimlik_var("MISTRAL_API_KEY@ai.mistral.vibe") is True
+    assert hesaplar._windows_kimlik_var("baska@hedef") is False
+    monkeypatch.setattr(hesaplar.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(OSError("yok")))
+    assert hesaplar._windows_kimlik_var("MISTRAL_API_KEY@ai.mistral.vibe") is False
+    monkeypatch.setattr(hesaplar.os, "name", "posix")
+    assert hesaplar._windows_kimlik_var("MISTRAL_API_KEY@ai.mistral.vibe") is False

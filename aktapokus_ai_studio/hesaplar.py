@@ -81,6 +81,18 @@ def gemini() -> dict:
     return {"kurulu": True, "giris": False, "hata": "Giriş: GEMINI_API_KEY tanımlayın (Google AI Studio; ücretsiz kota sınırlı) ya da terminalde `gemini` yazıp Google ile giriş yapın (ücretsiz Google girişi Haziran 2026'da kapandı)."}
 
 
+def _windows_kimlik_var(hedef: str) -> bool:
+    """Windows Kimlik Yoneticisi'nde `hedef` adli kayit VAR MI? Yalniz kayit ADINA bakar; sifre/anahtar/kullanici bilgisi ASLA okunmaz ya da saklanmaz."""
+    if os.name != "nt":
+        return False
+    try:
+        c = subprocess.run(["cmdkey", f"/list:{hedef}"], capture_output=True, text=True, encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL, timeout=5,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return c.returncode == 0 and any(s.strip().lower() == f"target: {hedef}".lower() for s in c.stdout.splitlines())
+
+
 def mistral() -> dict:
     """Mistral Vibe: ortam anahtari ya da ~/.vibe/.env dosyasinin varligi (icerik OKUNMAZ). Anahtar isletim sistemi anahtar deposundaysa 'giris yok' gorunebilir."""
     if not runners.vibe_bul():
@@ -90,6 +102,8 @@ def mistral() -> dict:
     kok = Path(os.environ.get("VIBE_HOME") or Path.home() / ".vibe")
     if _dolu_dosya(kok / ".env"):
         return {"kurulu": True, "giris": True, "yontem": "Vibe kurulumu (~/.vibe/.env)"}
+    if _windows_kimlik_var("MISTRAL_API_KEY@ai.mistral.vibe"):  # tarayici girisi / 'vibe --setup' anahtari isletim sistemi anahtar deposuna yazar
+        return {"kurulu": True, "giris": True, "yontem": "Windows anahtar deposu"}
     return {"kurulu": True, "giris": False, "hata": "Giriş için terminalde `vibe --setup` çalıştırıp Mistral API anahtarı girin (console.mistral.ai; Experiment planı ücretsiz ama sınırlı, ötesi ücretlidir). Anahtar işletim sistemi anahtar deposundaysa bu durum yanlış görünebilir."}
 
 
