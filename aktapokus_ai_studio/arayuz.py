@@ -58,7 +58,8 @@ def konusma_basi_oku(klasor: Path) -> str | None:
 EK_AZAMI = 25_000_000  # gorev eki (resim/dosya) basina; ham govde olarak yuklenir
 EK_SAYI = 20  # bir gorevde en fazla
 KUYRUK_AZAMI = 10  # calisirken siraya alinabilecek gorev
-EK_UZANTILAR = frozenset({"png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "pdf", "txt", "md", "csv", "json", "log", "xml", "yaml", "yml", "html", "css", "js", "ts", "tsx", "jsx", "py", "zip", "docx", "xlsx", "pptx"})
+EK_UZANTILAR = frozenset({"png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "pdf", "txt", "md", "csv", "json", "log", "xml", "yaml", "yml", "html", "css", "js", "ts", "tsx", "jsx", "py", "zip", "docx", "xlsx", "pptx",
+                         "sldprt", "sldasm", "slddrw", "step", "stp", "iges", "igs", "stl", "dxf", "dwg"})  # CAD: ajan yolu alir; SolidWorks (sld*) ikili, STEP/STL/DXF metin tabanli
 EK_YOL = re.compile(r"^\.aktapokus/ekler/\d{8}-\d{6}-[0-9a-f]{6}/[\w.\- ]{1,80}$")
 WEB = Path(__file__).with_name("web")
 
@@ -1422,7 +1423,7 @@ class Uygulama:
         temiz = re.sub(r"[^\w.\- ]+", "_", os.path.basename(str(ad or "").replace("\\", "/")).strip()).lstrip(". ")
         uzanti = temiz.rsplit(".", 1)[1].lower() if "." in temiz else ""
         if uzanti not in EK_UZANTILAR:
-            raise UygulamaHatasi(f"Bu dosya turu eklenemez ('.{uzanti}' ): resim, PDF, metin/kod, csv/json ve ofis dosyalari desteklenir", 415)
+            raise UygulamaHatasi(f"Bu dosya turu eklenemez ('.{uzanti}' ): resim, PDF, metin/kod, csv/json, zip, ofis (docx/xlsx/pptx) ve CAD (sldprt/sldasm/slddrw/step/stp/iges/igs/stl/dxf/dwg) dosyalari desteklenir", 415)
         govde, _, _ = temiz.rpartition(".")
         temiz = (govde[: max(1, 79 - len(uzanti))] or "ek") + "." + uzanti
         kok = (klasor / ".aktapokus" / "ekler").resolve()

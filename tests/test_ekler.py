@@ -167,3 +167,12 @@ def test_arayuz_resim_gorunumu_ve_surekli_konusma_baglidir():
     for parca in ("ek-kart", "kullaniciKutusu", "resimBuyut", "/api/ek?yol=", "konusmaYukle", "konusmaYoksaYukle", "yeniKonusma", 'class:"ayrac"', "/api/yeni-konusma", "S.sseHazir"):
         assert parca in html, parca
     assert '$("#yeniGorev").onclick=yeniKonusma' in html
+
+
+def test_cad_dosyalari_eklenebilir_calistirilabilirler_yine_reddedilir(sunucu):
+    app, sv, yerel, proje = sunucu
+    for uz in ("sldprt", "sldasm", "slddrw", "step", "stp", "iges", "igs", "stl", "dxf", "dwg", "SLDASM"):
+        st, d = yukle(sv.port, f"parca.{uz}", b"\x00CAD", app.token)
+        assert st == 200 and (proje / d["yol"]).read_bytes() == b"\x00CAD", uz
+    st, d = yukle(sv.port, "calistir.exe", b"MZ", app.token)
+    assert st == 415 and "CAD" in d["hata"] and "sldasm" in d["hata"]  # hata mesaji CAD turlerini de sayar
