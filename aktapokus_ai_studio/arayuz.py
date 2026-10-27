@@ -46,6 +46,10 @@ GIZLI_ADLAR = ("id_rsa", "id_ed25519", ".npmrc", ".pypirc", "credentials")
 AZAMI_DOSYA_SAYISI = 1500
 AZAMI_OKUMA = 300_000
 AZAMI_GOVDE = 1_000_000
+EK_AZAMI = 10_000_000  # gorev eki (resim/dosya) basina; ham govde olarak yuklenir
+EK_SAYI = 5  # bir gorevde en fazla
+EK_UZANTILAR = frozenset({"png", "jpg", "jpeg", "gif", "webp", "bmp", "svg", "pdf", "txt", "md", "csv", "json", "log", "xml", "yaml", "yml", "html", "css", "js", "ts", "tsx", "jsx", "py", "zip", "docx", "xlsx", "pptx"})
+EK_YOL = re.compile(r"^\.aktapokus/ekler/\d{8}-\d{6}-[0-9a-f]{6}/[\w.\- ]{1,80}$")
 WEB = Path(__file__).with_name("web")
 
 
@@ -1363,10 +1367,50 @@ class Uygulama:
         return {k: v for k, v in veri.items() if not k.startswith("_")}
 
     # --- gorev akisi: plan -> onay -> calisma -> karar ---
-    def gorev_olustur(self, gorev: str, testsiz: bool | None = None, otomatik_onay_izni: bool = True) -> dict:
+    def ek_kaydet(self, ad: object, veri: bytes) -> dict:
+        """Gorev eki: projenin `.aktapokus/ekler/<zaman>-<rastgele>/<ad>` klasorune yazilir (anlik goruntuye/git'e girmez). Yalniz izinli uzantilar, en fazla EK_AZAMI bayt."""
+        klasor = self._klasor()
+        if not veri:
+            raise UygulamaHatasi("Dosya bos")
+        if len(veri) > EK_AZAMI:
+            raise UygulamaHatasi(f"Dosya cok buyuk (en fazla {EK_AZAMI // 1_000_000} MB)", 413)
+        temiz = re.sub(r"[^\w.\- ]+", "_", os.path.basename(str(ad or "").replace("\\", "/")).strip()).lstrip(". ")
+        uzanti = temiz.rsplit(".", 1)[1].lower() if "." in temiz else ""
+        if uzanti not in EK_UZANTILAR:
+            raise UygulamaHatasi(f"Bu dosya turu eklenemez ('.{uzanti}' ): resim, PDF, metin/kod, csv/json ve ofis dosyalari desteklenir", 415)
+        govde, _, _ = temiz.rpartition(".")
+        temiz = (govde[: max(1, 79 - len(uzanti))] or "ek") + "." + uzanti
+        kok = (klasor / ".aktapokus" / "ekler").resolve()
+        hedef_dizin = kok / f"{time.strftime('%Y%m%d-%H%M%S')}-{secrets.token_hex(3)}"
+        hedef = hedef_dizin / temiz
+        if not hedef.resolve().is_relative_to(klasor.resolve()):
+            raise UygulamaHatasi("Gecersiz hedef")
+        hedef_dizin.mkdir(parents=True, exist_ok=True)
+        hedef.write_bytes(veri)
+        return {"yol": f".aktapokus/ekler/{hedef_dizin.name}/{temiz}", "ad": temiz, "boyut": len(veri)}
+
+    def _ekleri_ekle(self, klasor: Path, gorev: str, ekler: object) -> str:
+        """Gorev metnine 'Ekli dosyalar' blogu ekler; her yol yuklenmis bir ek olmali (baska yol kabul edilmez)."""
+        if not ekler:
+            return gorev
+        if not isinstance(ekler, list) or len(ekler) > EK_SAYI:
+            raise UygulamaHatasi(f"En fazla {EK_SAYI} dosya eklenebilir")
+        kok = (klasor / ".aktapokus" / "ekler").resolve()
+        satirlar = []
+        for y in ekler:
+            if not isinstance(y, str) or not EK_YOL.fullmatch(y) or ".." in y:
+                raise UygulamaHatasi("Gecersiz ek yolu")
+            dosya = klasor / y
+            if not dosya.is_file() or not dosya.resolve().is_relative_to(kok):
+                raise UygulamaHatasi(f"Ek bulunamadi: {y}", 404)
+            satirlar.append(f"- {y}")
+        return gorev.strip() + "\n\nEkli dosyalar (proje klasorunde; gerekirse bu dosyalari acip okuyun, resimlere de bakin):\n" + "\n".join(satirlar)
+
+    def gorev_olustur(self, gorev: str, testsiz: bool | None = None, otomatik_onay_izni: bool = True, ekler: object = None) -> dict:
         klasor = self._klasor()
         if not isinstance(gorev, str) or not gorev.strip():
             raise UygulamaHatasi("Gorev bos olamaz")
+        gorev = self._ekleri_ekle(klasor, gorev, ekler)
         with self.kilit:
             oturum = self._oturum()
             if oturum.kosu and oturum.kosu.durum in ("plan", "calisiyor", "karar-bekliyor"):
@@ -1658,6 +1702,20 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 raise UygulamaHatasi("Gecersiz JSON") from None
             return self._onbellek
 
+        def _ham_govde(self, azami: int) -> bytes:
+            """Ikili govde (dosya yukleme): JSON degil; `azami` bayti asarsa 413 ve baglanti kapanir."""
+            self._govde_tuketildi = True
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                n = 0
+            if n <= 0:
+                raise UygulamaHatasi("Govde bos")
+            if n > azami:
+                self.close_connection = True
+                raise UygulamaHatasi(f"Dosya cok buyuk (en fazla {azami // 1_000_000} MB)", 413)
+            return self.rfile.read(n)
+
         def _uzak_denetle(self, yontem: str, yol: str) -> str | None:
             """Uzak istek icin ek denetimler (genel politika + govdeye bakan ozel kurallar). Ret sebebi ya da None."""
             sebep = uzak.politika(yontem, yol, sunucu.uzak_ayar)
@@ -1738,7 +1796,7 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 dosya = WEB / "index.html"
                 if not dosya.is_file():
                     return self._gonder(500, {"hata": "web/index.html yok"})
-                return self._gonder(200, dosya.read_bytes(), "text/html; charset=utf-8", {"Content-Security-Policy": f"default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-src http://127.0.0.1:* http://localhost:*; img-src 'self' data:"})
+                return self._gonder(200, dosya.read_bytes(), "text/html; charset=utf-8", {"Content-Security-Policy": f"default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-src http://127.0.0.1:* http://localhost:*; img-src 'self' data: blob:"})
             if yontem in ("GET", "HEAD") and yol in STATIK_DOSYALAR:
                 ad, tur = STATIK_DOSYALAR[yol]
                 dosya = WEB / ad
@@ -1873,6 +1931,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, {"url": sunucu.onizleme_url(o.kimlik), "proje": o.kimlik})
                 if yol == "/api/olaylar":
                     return self._akis(int(q.get("son", "0") or 0))
+            if yontem == "POST" and yol == "/api/ek":
+                return self._gonder(200, app.ek_kaydet(q.get("ad"), self._ham_govde(EK_AZAMI)))
             if yontem == "POST":
                 g = self._govde()
                 if yol == "/api/klasor":
@@ -1985,7 +2045,7 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if yol == "/api/clilar/dene":
                     return self._gonder(200, app.cli_dene(g.get("ad"), g.get("model")))
                 if yol == "/api/gorev":
-                    return self._gonder(200, app.gorev_olustur(g.get("gorev"), g.get("testsiz") if isinstance(g.get("testsiz"), bool) else None))
+                    return self._gonder(200, app.gorev_olustur(g.get("gorev"), g.get("testsiz") if isinstance(g.get("testsiz"), bool) else None, ekler=g.get("ekler")))
                 m = re.match(r"^/api/gorev/([0-9a-f]+)/(onayla|reddet|karar|durdur|testi-atla)$", yol)
                 if m:
                     kimlik, islem = m.groups()

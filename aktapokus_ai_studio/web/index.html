@@ -36,6 +36,11 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 #solKaydir{flex:1;min-height:0;overflow:auto}#solAlt{flex:none;display:flex;flex-direction:row;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
 #solAlt .hesap-chip{margin-bottom:0}#terminalDugme{margin-left:auto}  /* yalniz ad uzunlugu kadar; kalan bos yer dugme degil bosluk olur */
 .yuvarlak{border-radius:999px;flex:none;width:auto}.yuvarlak.simge{width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:16px;text-align:center}
+#ekler{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}#ekler:empty{display:none}
+.ek-cip{display:inline-flex;align-items:center;gap:6px;max-width:190px;border:1px solid var(--line2);border-radius:999px;padding:2px 6px 2px 3px;background:var(--panel2);font-size:12px}.ek-cip.yukleniyor{opacity:.55}
+.ek-cip img,.ek-cip .ek-simge{flex:none;width:22px;height:22px;border-radius:50%;object-fit:cover;display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+.ek-cip .ad{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ek-cip .x{border:0;background:none;padding:0 3px;min-height:0;color:var(--tx3);cursor:pointer}
+#orta.surukle{outline:2px dashed var(--sari);outline-offset:-4px}
 .yuvarlak:not(.simge):not(.pri){padding:3px 14px}.yuvarlak.pri{padding:3px 16px}
 #orta{display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--line);background:var(--panel)}
 #akis{flex:1;overflow:auto;padding:10px}
@@ -207,7 +212,8 @@ body.suruklenir iframe{pointer-events:none}
     <div id="akis"></div>
     <div id="girdi">
       <textarea id="gorev" rows="2" style="width:100%;resize:none" placeholder="Bir görev yazın… (Enter gönderir, Shift+Enter yeni satır)"></textarea>
-      <div class="row" style="justify-content:space-between;margin-top:6px;gap:10px;align-items:flex-start"><span style="min-width:0;flex:1"><span class="row" style="gap:6px;flex-wrap:wrap"><span id="ortamCipi"></span><span id="rolCipleri" class="row" style="gap:6px;flex-wrap:wrap"></span></span><span id="girdiBilgi" class="mut3" style="display:block;margin-top:2px"></span></span><span class="row"><button id="testiAtla" style="display:none" title="Calisan test adimini iptal eder; degisiklikler ve karar adimi devam eder">Testi atla</button><button id="durdur" style="display:none">Durdur</button><button id="gonder" class="pri">Gönder</button></span></div>
+      <div id="ekler"></div><input type="file" id="ekSec" multiple hidden>
+      <div class="row" style="justify-content:space-between;margin-top:6px;gap:10px;align-items:flex-start"><span style="min-width:0;flex:1"><span class="row" style="gap:6px;flex-wrap:wrap"><span id="ortamCipi"></span><span id="rolCipleri" class="row" style="gap:6px;flex-wrap:wrap"></span></span><span id="girdiBilgi" class="mut3" style="display:block;margin-top:2px"></span></span><span class="row"><button id="ekDugme" class="yuvarlak simge" title="Resim veya dosya ekle (yapıştırabilir ya da sürükleyebilirsiniz)" aria-label="Dosya ekle">📎</button><button id="testiAtla" style="display:none" title="Calisan test adimini iptal eder; degisiklikler ve karar adimi devam eder">Testi atla</button><button id="durdur" style="display:none">Durdur</button><button id="gonder" class="pri">Gönder</button></span></div>
     </div>
   </div>
   <div class="bolucu" id="bolucuSag" title="Sürükleyin: genişliği değiştirin · çift tıklayın: sıfırla"></div>
@@ -841,7 +847,24 @@ async function durumYukle(){if(S.tekrar)return;try{const d=await api("/api/durum
   const ke=d.koruyucu_eksik||[];$("#korRozet").className="badge "+(d.klasor?(ke.length?"b-err":"b-ok"):"");$("#korRozet").textContent=d.klasor?(ke.length?"koruyucu eksik":"koruyucu etkin"):"";$("#korRozet").title=ke.join("; ");
   $("#klon").textContent=d.klon_bekleyen==null?"kurulu değil":d.klon_bekleyen+" öneri bekliyor";if(d.klon_bekleyen)$("#klon").title="aktapokus-klon bekleyen komutuyla inceleyin";
   rolleriCiz();akisCipiGuncelle();gecmisYukle();kosuGorunumu();motorUyarisi();$("#klasorSec")&&d.klasor&&$("#klasorSec").remove();if(onceki!==S.projeId){if(S.projeId)delete S.okunmadi[S.projeId];projeGorunumuKur()}}catch(x){gunluge("durum alınamadı: "+x.message)}}
-async function gonder(){const t=$("#gorev").value.trim();if(!t||!S.klasor)return;try{if("Notification" in window&&Notification.permission==="default")Notification.requestPermission().catch(()=>{})}catch(x){}$("#gorev").value="";alttaGoster();try{const p=await api("/api/gorev",{method:"POST",body:{gorev:t}});S.kosu={kimlik:p.kosu,gorev:t,durum:(S.kosu&&S.kosu.kimlik===p.kosu)?S.kosu.durum:(p.otomatik?"calisiyor":"plan")};kosuGorunumu()}catch(x){akisaEkle(e("div",{class:"badge b-err",text:x.message}))}}
+const EK_AZAMI=10000000,EK_SAYI=5;
+function ekCiz(){const k=$("#ekler");k.textContent="";for(const x of S.ekler||[]){const c=e("span",{class:"ek-cip"+(x.yukleniyor?" yukleniyor":""),title:x.ad});c.append(x.onizleme?e("img",{src:x.onizleme,alt:""}):e("span",{class:"ek-simge",text:"📄"}),e("span",{class:"ad",text:x.ad}),e("button",{class:"x",text:"✕",title:"Kaldır",onclick:()=>{S.ekler=S.ekler.filter(y=>y!==x);if(x.onizleme)URL.revokeObjectURL(x.onizleme);ekCiz()}}));k.append(c)}}
+function ekTemizle(){for(const x of S.ekler||[])if(x.onizleme)URL.revokeObjectURL(x.onizleme);S.ekler=[];ekCiz()}
+function ekUyari(m){akisaEkle(e("div",{class:"badge b-err",text:m}))}
+async function ekEkle(dosyalar){if(!S.klasor){ekUyari("Önce bir proje seçin");return}S.ekler=S.ekler||[];
+  for(const f of dosyalar){if(S.ekler.length>=EK_SAYI){ekUyari("En fazla "+EK_SAYI+" dosya eklenebilir");break}
+    if(f.size>EK_AZAMI){ekUyari((f.name||"Dosya")+": en fazla "+(EK_AZAMI/1000000)+" MB eklenebilir");continue}
+    const tur=(f.type||"").split("/");const ad=(f.name&&f.name!=="image.png")?f.name:("yapistirilan-"+new Date().toTimeString().slice(0,8).replace(/:/g,"")+"."+((tur[1]||"png").replace("jpeg","jpg").replace("svg+xml","svg")));
+    const x={ad,yukleniyor:true,onizleme:tur[0]==="image"?URL.createObjectURL(f):null};S.ekler.push(x);ekCiz();
+    try{const r=await fetch("/api/ek?ad="+encodeURIComponent(ad),{method:"POST",headers:{"X-Aktapokus-Token":T,"Content-Type":"application/octet-stream"},body:f});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.hata||("HTTP "+r.status));x.yol=j.yol;x.ad=j.ad||x.ad}
+    catch(h){S.ekler=S.ekler.filter(y=>y!==x);if(x.onizleme)URL.revokeObjectURL(x.onizleme);ekUyari(ad+": "+h.message)}
+    finally{x.yukleniyor=false;ekCiz()}}}
+$("#ekDugme").onclick=()=>$("#ekSec").click();$("#ekSec").onchange=ev=>{ekEkle([...ev.target.files]);ev.target.value=""};
+$("#gorev").addEventListener("paste",ev=>{const d=ev.clipboardData,f=d?[...d.files]:[];if(f.length){ev.preventDefault();ekEkle(f)}});
+{const orta=$("#orta"),dosyaMi=ev=>ev.dataTransfer&&[...ev.dataTransfer.types].includes("Files");
+  orta.addEventListener("dragover",ev=>{if(dosyaMi(ev)){ev.preventDefault();orta.classList.add("surukle")}});orta.addEventListener("dragleave",ev=>{if(!orta.contains(ev.relatedTarget))orta.classList.remove("surukle")});
+  orta.addEventListener("drop",ev=>{orta.classList.remove("surukle");if(dosyaMi(ev)){ev.preventDefault();ekEkle([...ev.dataTransfer.files])}})}
+async function gonder(){const t=$("#gorev").value.trim();if(!t||!S.klasor)return;if((S.ekler||[]).some(x=>x.yukleniyor)){akisaEkle(e("div",{class:"badge b-warn",text:"Dosya yükleniyor, birkaç saniye bekleyin"}));return}try{if("Notification" in window&&Notification.permission==="default")Notification.requestPermission().catch(()=>{})}catch(x){}$("#gorev").value="";const ekYollar=(S.ekler||[]).map(x=>x.yol).filter(Boolean);alttaGoster();try{const p=await api("/api/gorev",{method:"POST",body:{gorev:t,ekler:ekYollar}});ekTemizle();S.kosu={kimlik:p.kosu,gorev:t,durum:(S.kosu&&S.kosu.kimlik===p.kosu)?S.kosu.durum:(p.otomatik?"calisiyor":"plan")};kosuGorunumu()}catch(x){akisaEkle(e("div",{class:"badge b-err",text:x.message}))}}
 $("#gonder").onclick=gonder;$("#gorev").addEventListener("keydown",ev=>{if(ev.key==="Enter"&&!ev.shiftKey){ev.preventDefault();gonder()}});
 $("#durdur").onclick=async()=>{try{await api("/api/gorev/"+S.kosu.kimlik+"/durdur",{method:"POST",body:{}})}catch(x){alert(x.message)}};
 $("#testiAtla").onclick=async()=>{try{$("#testiAtla").disabled=true;await api("/api/gorev/"+S.kosu.kimlik+"/testi-atla",{method:"POST",body:{}})}catch(x){alert(x.message)}$("#testiAtla").disabled=false};
