@@ -139,3 +139,25 @@ def test_arayuz_gemini_mistral_baglidir():
     html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     for parca in ('c.ad==="gemini"||c.ad==="mistral"', "Gemini CLI", "Mistral Vibe"):
         assert parca in html, parca
+
+
+def test_vibe_3_salt_okunur_kipte_plan_yerine_ask_kullanilir(monkeypatch):
+    """Gercek hata: Vibe 3.0.3'te 'plan' ajani yok ("Agent 'plan' not found"); yerlesik ajanlar ask/accept-edits/smart-approve/auto-approve."""
+    from aktapokus_ai_studio import runners
+
+    class Cikti:
+        def __init__(self, metin):
+            self.stdout = metin.encode("utf-8")
+
+    yeni = "--agent <NAME>\n Agent to use (builtin: ask, accept-edits, smart-approve, auto-approve, or custom from ~/.vibe/agents/NAME.toml)"
+    eski = "--agent <NAME>\n Agent to use (builtin: default, plan, accept-edits, auto-approve)"
+    for yol, yardim, beklenen in (("C:/x/vibe3.exe", yeni, "ask"), ("C:/x/vibe2.exe", eski, "plan")):
+        monkeypatch.setattr(runners.subprocess, "run", lambda *a, _y=yardim, **k: Cikti(_y))
+        monkeypatch.setattr(runners, "vibe_bul", lambda y=yol: y)
+        runners._VIBE_OKUNUR_AJAN.clear()
+        k = runners.VibeCalistirici().komut("istem.txt", "cikti", None, False)
+        assert k[k.index("--agent") + 1] == beklenen, yol
+        assert runners.VibeCalistirici().komut("istem.txt", "cikti", None, True)[k.index("--agent") + 1] == "accept-edits"  # onayli kip degismez
+    monkeypatch.setattr(runners.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(OSError("yok")))
+    runners._VIBE_OKUNUR_AJAN.clear()
+    assert runners._vibe_okunur_ajan(["C:/x/yok.exe"]) == "plan"  # okunamazsa eski varsayilan

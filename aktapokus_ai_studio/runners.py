@@ -759,10 +759,29 @@ def vibe_bul() -> str | None:
     return None
 
 
+_VIBE_OKUNUR_AJAN: dict[str, str] = {}
+
+
+def _vibe_okunur_ajan(program: list[str]) -> str:
+    """Salt okunur kip icin Vibe ajan adi: eski surumlerde 'plan'; Vibe 3'te yerlesik ajanlar ask/accept-edits/smart-approve/auto-approve ('plan' yok).
+    `vibe --help` bir kez okunur (yoksa/okunamazsa 'plan'); sonuc program yolu basina onbellege alinir."""
+    anahtar = program[0]
+    if anahtar not in _VIBE_OKUNUR_AJAN:
+        ad = "plan"
+        try:
+            yardim = _metin(subprocess.run([*program, "--help"], capture_output=True, stdin=subprocess.DEVNULL, timeout=30).stdout)
+            if "accept-edits" in yardim and "plan" not in yardim.split("--agent", 1)[-1][:400] and "ask" in yardim.split("--agent", 1)[-1][:400]:
+                ad = "ask"
+        except (OSError, subprocess.TimeoutExpired):
+            pass
+        _VIBE_OKUNUR_AJAN[anahtar] = ad
+    return _VIBE_OKUNUR_AJAN[anahtar]
+
+
 class VibeCalistirici(Calistirici):
     """Mistral Vibe CLI (`vibe -p`). Istem gecici bir dosyadan verilir (--prompt-file; komut satiri uzunlugu/tirnak sorunu yok), cikti duz metin.
     Onayli calisma `--agent accept-edits` (yalniz dosya duzenlemeleri otomatik onaylanir; baska arac cagrilari programli kipte onay bekler/reddedilir),
-    salt okunur `--agent plan`. Model secimi Vibe'in kendi ayarindadir (active_model): rolde model verilirse hata. KORUYUCUSUZ.
+    salt okunur `--agent plan` (Vibe 3'te `ask`: bkz. _vibe_okunur_ajan). Model secimi Vibe'in kendi ayarindadir (active_model): rolde model verilirse hata. KORUYUCUSUZ.
     Token kullanimi `--output-dir` ile yazilan export.json'dan okunur (sema belgelenmemis: bulunamazsa 0).
     BELGEYE GORE yazildi; kurulu olmadigi icin gercek CLI ile denenmedi."""
 
@@ -777,7 +796,7 @@ class VibeCalistirici(Calistirici):
             raise CalistiriciHatasi("Mistral Vibe bulunamadi (uv tool install mistral-vibe) ya da AKTAPOKUS_VIBE ile yol verin.")
         if model:
             raise CalistiriciHatasi("Mistral Vibe'de model Vibe'in kendi ayarindan (~/.vibe/config.toml active_model) secilir; rolde 'model'i bos birakin")
-        return [*program, "--prompt-file", istem_dosyasi, "--output", "text", "--agent", "accept-edits" if onayli else "plan", "--output-dir", cikti_klasoru]
+        return [*program, "--prompt-file", istem_dosyasi, "--output", "text", "--agent", "accept-edits" if onayli else (_vibe_okunur_ajan(program) if not self.komut_oneki else "plan"), "--output-dir", cikti_klasoru]
 
     def calistir(self, istem, klasor, model=None, agent=None, zaman_asimi_sn=900, onayli=True):
         if not istem.strip():
