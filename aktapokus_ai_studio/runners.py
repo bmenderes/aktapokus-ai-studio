@@ -808,7 +808,9 @@ class VibeCalistirici(Calistirici):
         baslangic = time.monotonic()
         with tempfile.TemporaryDirectory(prefix="aktapokus-vibe-") as gecici:
             istem_yolu = Path(gecici) / "istem.txt"
-            istem_yolu.write_bytes(istem.encode("utf-8"))
+            from . import baglam as _baglam
+
+            istem_yolu.write_bytes((_baglam.istem_baglami(klasor) + istem).encode("utf-8"))  # Vibe guvenilmeyen klasorde AGENTS.md'yi yok sayar: baglam istemle gider
             komut = self.komut(str(istem_yolu), str(Path(gecici) / "cikti"), model, onayli)
             try:
                 islem = subprocess.run(komut, cwd=str(klasor), env=_alt_surec_ortami(Path(klasor)), capture_output=True, stdin=subprocess.DEVNULL, timeout=zaman_asimi_sn)

@@ -20,7 +20,8 @@ BITIR = "<!-- aktapokus:bitir -->"
 KAYNAK_ADI = "baglam.md"
 DURUM_ADI = "DURUM.md"
 AZAMI_KURAL = 2000
-AZAMI_DURUM = 1800
+AZAMI_DURUM = 3200
+AZAMI_YANIT = 240  # her calistirmanin son yanitindan alinan parca: sonraki model "ne konusuldu/ne bulundu"yu bilsin
 SON_CALISTIRMA = 6
 VARSAYILAN_KURALLAR = (
     "## Aktapokus çalışma kuralları\n"
@@ -104,6 +105,9 @@ def durum_metni(klasor: str | Path) -> str:
         degisen = ", ".join(f"{y} ({d})" for y, d in list(k.get("degisen", {}).items())[:8])
         satirlar.append(f"- {k.get('zaman', '?')} | {k.get('durum', '?')} | {roller or '-'}")
         satirlar.append(f"  Görev: {' '.join(str(k.get('gorev', '')).split())[:160]}")
+        yanit = next((" ".join(str(a.get("metin", "")).split()) for a in reversed(k.get("adimlar", [])) if a.get("ok") and a.get("metin") and not a.get("dogrulama")), "")
+        if yanit:
+            satirlar.append(f"  Yanıt: {yanit[:AZAMI_YANIT]}{'…' if len(yanit) > AZAMI_YANIT else ''}")
         if degisen:
             satirlar.append(f"  Değişen: {degisen}")
         yarim = k.get("durum") not in ("onaylandi", "degisiklik_yok", "geri_alindi", "reddedildi")
@@ -128,6 +132,22 @@ def guncelle(klasor: str | Path, ayar: Ayar) -> dict[str, str]:
         yol.write_text(metin, encoding="utf-8")
     sonuc[f"{AYAR_KLASORU}/{DURUM_ADI}"] = "ayni" if onceki == metin else ("olusturuldu" if onceki is None else "guncellendi")
     return sonuc
+
+
+def istem_baglami(klasor: str | Path) -> str:
+    """AGENTS.md'yi projeye GUVENMEDIGI icin yok sayan CLI'lar (Mistral Vibe: 'folder is not trusted; AGENTS.md will be ignored') icin kurallar ve onceki
+    calismalar ISTEMIN BASINA konur. Baglam kapaliysa (DURUM.md hic yazilmamissa) bos doner. Klasore guven verilmez (zehirli depo korumasi)."""
+    try:
+        durum = durum_yolu(klasor).read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+    if not durum:
+        return ""
+    return (
+        "[Aktapokus ortak bağlam: kurallar ve önceki çalışmalar (başka modeller dahil)]\n"
+        f"{kurallar(klasor)}\n\n{durum}\n"
+        "[/Aktapokus ortak bağlam]\n\n"
+    )
 
 
 def kaynak_olustur(klasor: str | Path) -> str:
