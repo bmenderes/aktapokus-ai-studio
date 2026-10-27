@@ -170,7 +170,10 @@ body.suruklenir iframe{pointer-events:none}
   #durumCubugu{order:90;flex-wrap:nowrap;overflow:hidden;gap:6px;padding:2px 10px;font-size:11px;min-height:20px}#tokenYazi+span{display:none}#mobilGezinme{order:99;padding-bottom:env(safe-area-inset-bottom)}
   html,body{height:100dvh}  /* tarayici adres cubugu alt kismi kesmesin */
   #girdi{padding:6px 8px}#girdi textarea{min-height:44px}
-  #girdi .row .row{flex-wrap:nowrap!important;overflow-x:auto;min-width:0;scrollbar-width:none}#girdi .cip{flex:none;white-space:nowrap}
+  /* alt satir: once rol cipleri tam genislikte (yana kayar), duğmeler hemen altinda sagda */
+  #girdi>.row{flex-wrap:wrap!important;gap:6px!important}#girdi>.row>span:first-child{flex:1 1 100%!important}#girdi>.row>.row{margin-left:auto;flex:none}
+  #girdi span.row:has(>#rolCipleri){flex-wrap:nowrap!important;min-width:0}#rolCipleri{flex-wrap:nowrap!important;overflow-x:auto;min-width:0;flex:1;scrollbar-width:none}#girdi .cip{flex:none;white-space:nowrap}
+  #durumCubugu .row{flex-wrap:nowrap;white-space:nowrap;gap:6px}#durumCubugu .badge{white-space:nowrap}
   #akis:empty{background-size:96px auto}#akis:empty::after{top:calc(34% + 84px);font-size:13px}
   .cip .yol{display:none}
   #top{padding:5px 10px}#mobilGezinme button{padding:8px 4px}
