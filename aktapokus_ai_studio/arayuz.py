@@ -34,7 +34,7 @@ from typing import Callable
 
 from . import arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal
 from .zamanlayici import Zamanlayici
-from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
+from .config import AyarHatasi, ayar_coz, ayar_model_gecersiz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
 from .pipeline import HatHatasi, _kayit_klasoru, calistir_hat, son_kayit
 from .proje import GitGerekli, hazirla as proje_hazirla
@@ -195,6 +195,7 @@ class Kosu:
     once: str | None = None  # gorevden onceki anlik goruntu ('basladi' olayindan): yarim kalirsa geri alma noktasi
     baslangic: float | None = None  # calismaya basladigi an (time.time()): arayuzde 'ne kadar suredir' gostergesi
     otomasyon: str | None = None  # bu gorevi otomasyon olusturduysa adi
+    model_gecersiz: tuple | None = None  # (calistirici, model): yalniz bu gorev icin tum rollerin modeli (otomasyonda 'model sec')
     bildirimler: list = field(default_factory=list)  # otomasyon akisindaki bildirim dugumlerinin metinleri: gorev BITINCE Telegram'a gider
     bildirim_baglami: dict = field(default_factory=dict)
 
@@ -865,7 +866,7 @@ class Uygulama:
                 except github.GithubHatasi:
                     baglam["dal"] = "(dal yok)"
             try:
-                plan = self.gorev_olustur(otomasyon.degiskenleri_doldur(o.gorev, baglam), otomatik_onay_izni=False)  # otomasyon: onay HER ZAMAN istenir
+                plan = self.gorev_olustur(otomasyon.degiskenleri_doldur(o.gorev, baglam), otomatik_onay_izni=False, model_gecersiz=otomasyon_akis.gorev_modeli(o.akis))  # otomasyon: onay HER ZAMAN istenir
             except UygulamaHatasi as hata:
                 kayit("hata", str(hata))
                 raise
@@ -1502,7 +1503,7 @@ class Uygulama:
             satirlar.append(f"- {y}")
         return gorev.strip() + "\n\nEkli dosyalar (proje klasorunde; gerekirse bu dosyalari acip okuyun, resimlere de bakin):\n" + "\n".join(satirlar)
 
-    def gorev_olustur(self, gorev: str, testsiz: bool | None = None, otomatik_onay_izni: bool = True, ekler: object = None, kuyruga: bool = False) -> dict:
+    def gorev_olustur(self, gorev: str, testsiz: bool | None = None, otomatik_onay_izni: bool = True, ekler: object = None, kuyruga: bool = False, model_gecersiz: tuple | None = None) -> dict:
         """kuyruga=True: bir gorev surerken (calisiyor/karar) gelen yeni gorev reddedilmez, sirayla kosulmak uzere kuyruga alinir."""
         klasor = self._klasor()
         if not isinstance(gorev, str) or not gorev.strip():
@@ -1519,7 +1520,7 @@ class Uygulama:
                 self._kuyruk_yayinla(oturum)
                 self._devam_yaz(oturum)
                 return {"kuyruk": len(oturum.kuyruk)}
-            return self._gorev_kur(oturum, klasor, gorev, testsiz, otomatik_onay_izni)
+            return self._gorev_kur(oturum, klasor, gorev, testsiz, otomatik_onay_izni, model_gecersiz)
 
     def _kuyruk_yayinla(self, oturum: ProjeOturumu) -> None:
         self._yayinla(oturum, {"tur": "kuyruk", "gorevler": [k["gorev"][:200] for k in oturum.kuyruk]})
@@ -1554,14 +1555,17 @@ class Uygulama:
                 self._kuyruk_yayinla(oturum)
                 self._yayinla(oturum, {"tur": "gunluk", "mesaj": f"Kuyruktaki gorev baslatilamadi: {hata}"})
 
-    def _gorev_kur(self, oturum: ProjeOturumu, klasor: Path, gorev: str, testsiz: bool | None, otomatik_onay_izni: bool) -> dict:
+    def _gorev_kur(self, oturum: ProjeOturumu, klasor: Path, gorev: str, testsiz: bool | None, otomatik_onay_izni: bool, model_gecersiz: tuple | None = None) -> dict:
         """Plani kurar ve yayinlar; otomatik onay varsa kosuyu baslatir."""
         with self.kilit:
             try:
                 ayar = ayar_yukle(klasor)
+                if model_gecersiz:
+                    ayar = ayar_model_gecersiz(ayar, *model_gecersiz)
             except AyarHatasi as hata:
                 raise UygulamaHatasi(str(hata)) from None
             oturum.kosu = Kosu(kimlik=secrets.token_hex(4), gorev=gorev.strip(), testsiz=bool(ayar.testi_atla if testsiz is None else testsiz))
+            oturum.kosu.model_gecersiz = model_gecersiz
             oturum.yarim = None  # yeni gorev baslarken eski 'yarim kaldi' karari gecersizdir
             self._devam_yaz(oturum)
             otomatik = bool(ayar.otomatik_onay and otomatik_onay_izni)
@@ -1691,6 +1695,8 @@ class Uygulama:
 
         try:
             ayar = ayar_yukle(klasor)
+            if kosu.model_gecersiz:
+                ayar = ayar_model_gecersiz(ayar, *kosu.model_gecersiz)
             koru[0] = ayar.otomatik_koru
             kosu.dogrulama_rolleri = frozenset(ad for ad, r in ayar.roller.items() if r.dogrulama)
             kosu.sonuc = calistir_hat(klasor, kosu.gorev, ayar, uret, onay, bildir=lambda m: yayinla({"tur": "gunluk", "mesaj": m}), olay=olay, iptal=kosu.iptal, testsiz=kosu.testsiz, testi_atla=kosu.testi_atla)

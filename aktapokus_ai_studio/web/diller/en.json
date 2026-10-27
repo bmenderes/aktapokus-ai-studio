@@ -819,6 +819,7 @@
   "Bu klasörde git deposu başlatır (git init); dosyalarınıza dokunmaz": "Initializes a git repository in this folder (git init); does not touch your files",
   "Devam": "Resume",
   "Yok say": "Dismiss",
+  "Projenin rol ayarı": "Project role settings",
   "Yarım kalan görevin dosya değişiklikleri geri alınsın mı?": "Undo the file changes of the interrupted task?"
  },
  "desen": [

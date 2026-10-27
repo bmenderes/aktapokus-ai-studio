@@ -37,6 +37,28 @@ def _metin(ayar: dict, anahtar: str, azami: int, zorunlu: bool) -> str:
     return m.strip()
 
 
+MOTORLAR = ("opencode-sunucu", "claude", "codex", "gemini", "mistral")  # config.OTOMASYON_MOTORLARI ile ayni (dairesel ice aktarma olmasin diye kopya; test eslesmeyi denetler)
+
+
+def _model(m: object) -> dict:
+    """Gorev dugumunun istege bagli model secimi: {calistirici, model|None}. Yoksa gorev projenin rol ayariyla calisir."""
+    if not isinstance(m, dict) or m.get("calistirici") not in MOTORLAR:
+        raise AkisHatasi(f"Model secimi icin calistirici su degerlerden biri olmali: {', '.join(MOTORLAR)}")
+    ad = m.get("model")
+    if ad is not None and (not isinstance(ad, str) or not ad.strip() or len(ad) > 120 or any(ord(c) < 32 for c in ad)):
+        raise AkisHatasi("Model adi gecersiz")
+    return {"calistirici": m["calistirici"], "model": ad.strip() if ad else None}
+
+
+def gorev_modeli(akis: dict | None) -> tuple[str, str | None] | None:
+    """Akistaki gorev dugumunun model secimi (calistirici, model) ya da None (projenin rol ayari)."""
+    for d in (akis or {}).get("dugumler", []):
+        if d.get("tur") == "gorev" and d.get("ayar", {}).get("model"):
+            m = d["ayar"]["model"]
+            return m["calistirici"], m.get("model")
+    return None
+
+
 def coz(akis: object, zamanlama_coz: Callable[[object], dict]) -> dict:
     """Akisi dogrular ve temizlenmis kopyasini + turetilmis alanlari doner: {dugumler, oklar, tur, zamanlama, gorev}."""
     if not isinstance(akis, dict):
@@ -58,6 +80,8 @@ def coz(akis: object, zamanlama_coz: Callable[[object], dict]) -> dict:
         ayar = d.get("ayar") if isinstance(d.get("ayar"), dict) else {}
         if tur == "gorev":
             temiz = {"gorev": _metin(ayar, "gorev", AZAMI_METIN, True)}
+            if ayar.get("model") is not None:
+                temiz["model"] = _model(ayar["model"])
         elif tur == "bildirim":
             temiz = {"metin": _metin(ayar, "metin", AZAMI_BILDIRIM, True)}
         elif tur == "zamanlayici":

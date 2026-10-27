@@ -1521,6 +1521,11 @@ async function otomasyonBolumu(h){const kap=e("div");h.append(kap);let d=await a
       for(const k of d.gecmis)g.append(e("div",{class:"row mono",style:"gap:6px;margin:2px 0;flex-wrap:wrap"},e("span",{class:"mut3",text:k.zaman}),e("b",{text:k.otomasyon}),e("span",{class:"badge "+(k.sonuc==="plan-olustu"?"b-ok":k.sonuc==="atlandi"||k.sonuc==="kacirildi"?"b-warn":"b-err"),text:k.sonuc}),e("span",{class:"mut3",text:k.tetikleyen+(k.neden?" · "+k.neden:"")})));kap.append(g)}};
   ciz()}
 /* Ad bos birakilirsa gorev metninin ilk sozcuklerinden uretilir (kucuk harf, Turkce harfler sadelesir, en cok 24 karakter, benzersiz) */
+/* Otomasyon model secenekleri: OpenCode/Ollama modelleri + kurulu CLI'lar (Ayarlar > Modeller ile ayni kaynak) */
+async function otoModelSecenekleri(){const s=[];let canli=[];try{canli=(await api("/api/modeller")).modeller||[]}catch(x){}try{await clilarYukle()}catch(x){}
+  for(const m of canli)s.push({g:m.saglayici==="opencode"?"OpenCode (ücretsiz)":m.saglayici==="ollama"?"Yerel (Ollama)":m.saglayici,e:m.ad,c:"opencode-sunucu",m:m.id});
+  for(const c of (S.clilar||[])){if(!["claude","codex","gemini","mistral"].includes(c.ad)||!c.kurulu)continue;for(const m of (c.modeller.length?c.modeller:[null]))s.push({g:c.gorunen_ad,e:m||"CLI'ın varsayılan modeli",c:c.ad,m:m})}
+  return s}
 function otoAdUret(metin,mevcut){const t={ç:"c",ğ:"g",ı:"i",ö:"o",ş:"s",ü:"u"};let k=String(metin||"").toLowerCase().replace(/[çğıöşü]/g,c=>t[c]).replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,24).replace(/-+$/,"")||"otomasyon";let a=k,i=2;while(mevcut.includes(a))a=k.slice(0,22)+"-"+i++;return a}
 function zamanMetni(z){if(!z)return "";if(z.tur==="aralik")return "her "+z.dakika+" dakikada bir";const G=["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"];if(z.tur==="gunluk")return "her gün "+z.saat;return G.filter((g,i)=>(z.gunler||[]).includes(i)).join(", ")+" "+z.saat}
 function otomasyonFormu(kap,d,o,yenile,mesaj){const eski=$("#otoForm");if(eski)eski.remove();const duzenle=!!o;o=o||{acik:true,gorev:"",aciklama:""};const k=e("div",{class:"card",id:"otoForm"});
@@ -1560,13 +1565,21 @@ function otomasyonFormu(kap,d,o,yenile,mesaj){const eski=$("#otoForm");if(eski)e
     return ogeler};
   const panelCiz=()=>{panel.textContent="";const n=dg(sec);if(!n)return;const etYaz=()=>{const x=tuval.querySelector('[data-id="'+n.id+'"] .oto-et');if(x)x.textContent=etiket(n)};
     if(tetik(n)){const t=e("select",{},...[["elle","Elle"],["zamanlayici","Zamanlayıcı"]].map(([v,x])=>{const op=e("option",{value:v,text:x});if(v===n.tur)op.selected=true;return op}));t.onchange=()=>{n.tur=t.value;n.ayar={};ciz()};panel.append(t);if(n.tur==="zamanlayici")panel.append(...zPanel(n))}
-    else if(n.tur==="gorev"){const t=e("textarea",{rows:"4",style:"width:100%",placeholder:"Bu projedeki testleri çalıştır. Tarih: {tarih}"});t.value=n.ayar.gorev||"";t.oninput=()=>{n.ayar.gorev=t.value;etYaz()};panel.append(t)}
+    else if(n.tur==="gorev"){
+      /* Model: bu otomasyonun gorevi hangi modelle calissin (kota dolan modelden kacinmak icin); bos = projenin rol ayari. Proje ayarina yazilmaz. */
+      const ms=e("select",{title:"Model",style:"max-width:100%"},e("option",{value:"",text:"Projenin rol ayarı"})),gr={};
+      for(const x of (modelSecenekleri||[])){const g=gr[x.g]=gr[x.g]||e("optgroup",{label:x.g});g.append(e("option",{value:JSON.stringify({calistirici:x.c,model:x.m}),text:x.e}))}
+      ms.append(...Object.values(gr));const mevcut=n.ayar.model?JSON.stringify({calistirici:n.ayar.model.calistirici,model:n.ayar.model.model}):"";
+      if(mevcut&&![...ms.options].some(o=>o.value===mevcut))ms.append(e("option",{value:mevcut,text:n.ayar.model.calistirici+(n.ayar.model.model?" · "+n.ayar.model.model:"")}));
+      ms.value=mevcut;ms.onchange=()=>{if(ms.value)n.ayar.model=JSON.parse(ms.value);else delete n.ayar.model};
+      const t=e("textarea",{rows:"4",style:"width:100%",placeholder:"Bu projedeki testleri çalıştır. Tarih: {tarih}"});t.value=n.ayar.gorev||"";t.oninput=()=>{n.ayar.gorev=t.value;etYaz()};panel.append(ms,t)}
     else{const t=e("input",{style:"flex:1;min-width:200px",placeholder:"{proje}: {durum} — {yanit}"});t.value=n.ayar.metin||"";t.oninput=()=>{n.ayar.metin=t.value;etYaz()};
       panel.append(t,e("button",{class:"oto-ib",title:"Sil",text:"✕",onclick:()=>{A.dugumler=A.dugumler.filter(x=>x!==n);A.oklar=A.oklar.filter(r=>r.kaynak!==n.id&&r.hedef!==n.id);sec="g1";ciz()}}))}};
   const bildirimEkle=()=>{if(A.dugumler.length>=12)return;let i=1;while(dg("b"+i))i++;const g=A.dugumler.find(x=>x.tur==="gorev"),sayi=A.dugumler.filter(x=>x.tur==="bildirim").length;A.dugumler.push({id:"b"+i,tur:"bildirim",x:Math.min(1100,(g?g.x:250)+210),y:Math.min(300,(g?g.y:40)+sayi*50),ayar:{metin:"{proje}: {durum} — {yanit}"}});if(g)A.oklar.push({kaynak:g.id,hedef:"b"+i});sec="b"+i;ciz()};
   const ekle=e("button",{class:"oto-ib",title:"Bildirim ekle (Telegram)","aria-label":"Bildirim ekle",text:"+",onclick:bildirimEkle});
   const hata=e("div",{class:"badge b-err",style:"display:none;margin-top:5px;white-space:normal"});
   const kaydet=e("button",{class:"oto-ib pri",title:"Kaydet",text:"✓",onclick:async()=>{hata.style.display="none";try{if(!ad.value.trim()&&!duzenle)ad.value=otoAdUret((A.dugumler.find(x=>x.tur==="gorev")||{ayar:{}}).ayar.gorev,d.otomasyonlar.map(x=>x.ad));await api("/api/otomasyonlar",{method:"POST",body:{ad:ad.value.trim(),proje:proje.value,aciklama:o.aciklama||"",acik:acik.checked,akis:A}});await yenile()}catch(x){hata.textContent=x.message;hata.style.display=""}}});
+  let modelSecenekleri=null;otoModelSecenekleri().then(s=>{modelSecenekleri=s;panelCiz()}).catch(()=>{});
   k.append(e("div",{class:"row",style:"gap:6px;flex-wrap:wrap"},ad,proje,e("label",{class:"row mut",style:"gap:4px"},acik,"açık"),ekle,kaydet,e("button",{class:"oto-ib",title:"Vazgeç",text:"✕",onclick:()=>k.remove()})),tuval,panel,hata);kap.append(k);ciz();k.scrollIntoView({block:"nearest"})}
 dilYukle(dilBaslangic()).catch(()=>{});
 (async()=>{if(!T){document.body.textContent="Token yok: arayüzü terminalde yazdırılan adresle açın.";return}await durumYukle();if(!S.klasor)klasorSecimiAc();else{await dosyalariYukle();await onizlemeKur()}olayAkisi();setTimeout(()=>{S.sseHazir=true;konusmaYoksaYukle()},1000);acilisParametreleri();hesapOzetYukle()})();  /* 1 sn: canli akisin gecmis olaylari once gelsin (tekrar cizim olmasin) */

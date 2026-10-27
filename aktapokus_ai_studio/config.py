@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 AYAR_KLASORU = ".aktapokus"
@@ -79,6 +79,19 @@ class Ayar:
 
     def rol_sirasi(self) -> list[Rol]:
         return [self.roller[ad] for ad in self.akis]
+
+
+OTOMASYON_MOTORLARI = ("opencode-sunucu", "claude", "codex", "gemini", "mistral")
+
+
+def ayar_model_gecersiz(ayar: Ayar, calistirici: str, model: str | None) -> Ayar:
+    """Yalniz BU gorev icin tum rollerin calistirici/modelini degistirir (proje ayarina YAZILMAZ). Otomasyon 'model sec' ozelligi: kotasi dolan modelden kacinmak icin.
+    talimat/dogrulama/okuma_riski_kabul AYNEN korunur (gizli dosya onayi projenin ayarinda kalir, genisletilmez); agent ve dusunme motor degisince gecersiz olacagi icin sifirlanir."""
+    if calistirici not in OTOMASYON_MOTORLARI:
+        raise AyarHatasi(f"Model icin calistirici su degerlerden biri olmali: {', '.join(OTOMASYON_MOTORLARI)}")
+    if model is not None and (not isinstance(model, str) or not model.strip() or len(model) > 120 or any(ord(c) < 32 for c in model)):
+        raise AyarHatasi("Model adi gecersiz")
+    return replace(ayar, roller={ad: replace(r, calistirici=calistirici, model=model or None, agent=None, dusunme="") for ad, r in ayar.roller.items()})
 
 
 def ayar_yolu(klasor: str | Path) -> Path:
