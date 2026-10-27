@@ -1698,6 +1698,15 @@ class Uygulama:
             self._kuyruk_ilerlet(oturum, kosu)
             self._devam_yaz(oturum)  # bitti: dosya silinir (sonraki kuyruk gorevi basladiysa onunla yenilenir)
 
+    def konusma_ozeti(self) -> dict:
+        """Projenin tum calisma kayitlarindan konusma ozetini yeniler (`.aktapokus/KONUSMA-OZETI.md`); yeni bir modele verilecek istemi de doner."""
+        from . import baglam as baglam_modulu
+
+        try:
+            return baglam_modulu.konusma_ozeti_yaz(self._klasor())
+        except OSError as hata:
+            raise UygulamaHatasi(f"Ozet yazilamadi: {hata}", 500) from None
+
     # --- kapanista gorev kurtarma (devam.py) ---
     def _devam_yaz(self, oturum: ProjeOturumu) -> None:
         k = oturum.kosu
@@ -2268,6 +2277,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.cli_dene(g.get("ad"), g.get("model")))
                 if yol == "/api/gorev":
                     return self._gonder(200, app.gorev_olustur(g.get("gorev"), g.get("testsiz") if isinstance(g.get("testsiz"), bool) else None, ekler=g.get("ekler"), kuyruga=g.get("kuyruga") is True))
+                if yol == "/api/konusma-ozeti":
+                    return self._gonder(200, app.konusma_ozeti())
                 if yol == "/api/kuyruk/sil":
                     return self._gonder(200, app.kuyruktan_sil(g.get("sira")))
                 if yol == "/api/yarim":

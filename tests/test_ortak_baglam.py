@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from aktapokus_ai_studio import baglam, runners
+from test_arayuz import kur  # noqa: F401  (kur: pytest fixture'i)
 
 
 def _kayit(klasor: Path, ad: str, gorev: str, metin: str, calistirici: str = "claude", dogrulama_metni: str | None = None) -> None:
@@ -51,3 +52,33 @@ def test_vibe_istemin_basina_ortak_baglami_koyar_baglam_kapaliysa_istem_aynen(tm
     (tmp_path / ".aktapokus" / baglam.DURUM_ADI).write_text(baglam.durum_metni(tmp_path), encoding="utf-8")
     v.calistir("yeni istek", tmp_path)
     assert gorulen[-1].endswith("yeni istek") and "onceki gorev" in gorulen[-1] and "onceki yanit" in gorulen[-1] and gorulen[-1].startswith("[Aktapokus ortak bağlam")
+
+
+def test_konusma_ozeti_tum_kayitlari_kronolojik_ozetler_ve_istemi_verir(tmp_path):
+    for i in range(15):
+        _kayit(tmp_path, f"k{i:02d}", f"gorev {i}", f"yanit {i}", "claude" if i % 2 else "opencode-sunucu")
+    r = baglam.konusma_ozeti_yaz(tmp_path)
+    assert r == {"yol": ".aktapokus/KONUSMA-OZETI.md", "kayit": 15, "istem": baglam.OZET_ISTEMI}
+    metin = (tmp_path / ".aktapokus" / "KONUSMA-OZETI.md").read_text(encoding="utf-8")
+    assert "KONUSMA-OZETI.md" in baglam.OZET_ISTEMI and baglam.OZET_ISTEMI in metin
+    assert "## Daha eski çalışmalar" in metin and "gorev 0" in metin and "yanit 0" not in metin  # ilk 3 calisma tek satir (yanit yok)
+    assert metin.index("gorev 3") < metin.index("gorev 14") and "yanit 14" in metin and "yanit 3" in metin  # son 12 calisma tam, eskiden yeniye
+    bos = tmp_path / "bos"
+    bos.mkdir()
+    assert baglam.konusma_ozeti_yaz(bos)["kayit"] == 0 and "Henüz" in (bos / ".aktapokus" / "KONUSMA-OZETI.md").read_text(encoding="utf-8")
+
+
+def test_konusma_ozeti_ucu_ve_dugme_ve_calisma_sonu_guncellemesi(kur):
+    from test_arayuz import klasor_sec
+
+    app, sv, api, _ = kur()
+    klasor_sec(api, kur.proje)
+    assert api("POST", "/api/konusma-ozeti", {}, token=None)[0] == 401
+    st, r = api("POST", "/api/konusma-ozeti", {})
+    assert st == 200 and r["istem"] == baglam.OZET_ISTEMI and (kur.proje / ".aktapokus" / "KONUSMA-OZETI.md").exists()
+    from test_arayuz import tam_kosu
+
+    tam_kosu(app, api, kur.proje, gorev="ozete girecek gorev")
+    assert "ozete girecek gorev" in (kur.proje / ".aktapokus" / "KONUSMA-OZETI.md").read_text(encoding="utf-8")  # calisma bitince kendiliginden yenilendi
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
+    assert 'id="ozetDugme"' in html and 'api("/api/konusma-ozeti"' in html and "t.value=r.istem" in html

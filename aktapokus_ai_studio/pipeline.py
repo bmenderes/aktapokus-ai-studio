@@ -258,6 +258,11 @@ def calistir_hat(
             snapshot.geri_yukle(klasor, once, sonra)
             sonuc.durum = "geri_alindi" if durum == "tamam" else durum
     sonuc.kayit_yolu = _kayit_yaz(klasor, kimlik, gorev, ayar, sonuc)
+    if ayar.baglam:  # basa donen/yeni bir modele 'KONUSMA-OZETI.md'yi oku' denebilsin: ozet her calisma sonunda guncel
+        try:
+            baglam_modulu.konusma_ozeti_yaz(klasor)
+        except OSError:
+            pass
     olay({"tur": "bitti", "durum": sonuc.durum, "mesaj": sonuc.mesaj, "korundu": sonuc.korundu, "token_toplam": sonuc.token_toplam, "degisen": sonuc.degisen})
     return sonuc
 

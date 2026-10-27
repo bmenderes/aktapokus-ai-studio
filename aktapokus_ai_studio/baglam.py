@@ -150,6 +150,61 @@ def istem_baglami(klasor: str | Path) -> str:
     )
 
 
+OZET_ADI = "KONUSMA-OZETI.md"
+OZET_ISTEMI = f"`{AYAR_KLASORU}/{OZET_ADI}` dosyasını önce oku, sonra kaldığın yerden devam et."
+OZET_AYRINTILI = 12  # son bu kadar calisma tam, daha eskiler tek satir
+
+
+def _kisalt(metin: object, n: int) -> str:
+    m = " ".join(str(metin or "").split())
+    return m if len(m) <= n else m[:n].rstrip() + "…"
+
+
+def konusma_ozeti_yaz(klasor: str | Path) -> dict:
+    """Projenin TUM calisma kayitlarindan (hangi model/CLI olursa olsun) kronolojik konusma ozeti: `.aktapokus/KONUSMA-OZETI.md`. Basa donen bir modele
+    OZET_ISTEMI verilir. Her calisma bittiginde ve 'ozeti yenile' dugmesiyle guncellenir. {yol, kayit, istem} doner."""
+    klasor = Path(klasor)
+    kayitlar = []
+    kayit_klasoru = klasor / AYAR_KLASORU / "kayit"
+    for yol in sorted(kayit_klasoru.glob("*.json")) if kayit_klasoru.is_dir() else []:
+        try:
+            k = json.loads(yol.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if isinstance(k, dict) and isinstance(k.get("adimlar"), list):
+            kayitlar.append(k)
+    satir = [
+        "# Konuşma özeti (Aktapokus kayıtlarından üretildi)",
+        "",
+        "Bu projede farklı modellerle (OpenCode, Claude Code, Mistral vb.) yapılan çalışmaların kronolojik özetidir; model değişse de buradan devam edilir.",
+        f"Kullanım: yeni bir modele şunu söyleyin: {OZET_ISTEMI}",
+        "",
+    ]
+    eski, son = kayitlar[:-OZET_AYRINTILI], kayitlar[-OZET_AYRINTILI:]
+    if eski:
+        satir.append("## Daha eski çalışmalar (tek satır)")
+        satir += [f"- {k.get('zaman', '?')} | {k.get('durum', '?')} | {_kisalt(k.get('gorev'), 140)}" for k in eski]
+        satir.append("")
+    satir.append("## Son çalışmalar (eskiden yeniye)" if son else "Henüz Aktapokus ile yapılmış bir çalıştırma yok.")
+    for k in son:
+        roller = ", ".join(f"{a.get('rol')}({a.get('calistirici', '?')})" for a in k["adimlar"][:4] if isinstance(a, dict))
+        satir.append(f"### {k.get('zaman', '?')} — {k.get('durum', '?')} — {roller}")
+        satir.append(f"**İstek:** {_kisalt(k.get('gorev'), 500)}")
+        degisen = list((k.get("degisen") or {}).items())
+        if degisen:
+            satir.append("**Değişen dosyalar:** " + ", ".join(f"{y} ({d})" for y, d in degisen[:10]) + (f" … (+{len(degisen) - 10})" if len(degisen) > 10 else ""))
+        yanit = next((a.get("metin") for a in reversed(k["adimlar"]) if isinstance(a, dict) and a.get("ok") and a.get("metin") and not a.get("dogrulama")), "")
+        if yanit:
+            satir.append("**Son yanıt:** " + _kisalt(yanit, 1500))
+        if k.get("mesaj") and k.get("durum") not in ("onaylandi", "degisiklik_yok", "geri_alindi"):
+            satir.append("**Sorun/not:** " + _kisalt(k.get("mesaj"), 300))
+        satir.append("")
+    hedef = klasor / AYAR_KLASORU / OZET_ADI
+    hedef.parent.mkdir(parents=True, exist_ok=True)
+    hedef.write_text("\n".join(satir), encoding="utf-8")
+    return {"yol": f"{AYAR_KLASORU}/{OZET_ADI}", "kayit": len(kayitlar), "istem": OZET_ISTEMI}
+
+
 def kaynak_olustur(klasor: str | Path) -> str:
     """Kullanicinin duzenleyecegi kural dosyasini yoksa varsayilanla olusturur. 'olusturuldu' | 'mevcut'."""
     yol = kaynak_yolu(klasor)
