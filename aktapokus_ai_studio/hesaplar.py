@@ -78,7 +78,7 @@ def gemini() -> dict:
         return {"kurulu": True, "giris": True, "yontem": "Google hesabı"}
     if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
         return {"kurulu": True, "giris": True, "yontem": "API anahtarı (ortam değişkeni)"}
-    return {"kurulu": True, "giris": False, "hata": "Giriş için bir terminalde `gemini` yazıp Google ile giriş yapın (ya da GEMINI_API_KEY tanımlayın)."}
+    return {"kurulu": True, "giris": False, "hata": "Giriş: GEMINI_API_KEY tanımlayın (Google AI Studio; ücretsiz kota sınırlı) ya da terminalde `gemini` yazıp Google ile giriş yapın (ücretsiz Google girişi Haziran 2026'da kapandı)."}
 
 
 def mistral() -> dict:
@@ -90,7 +90,7 @@ def mistral() -> dict:
     kok = Path(os.environ.get("VIBE_HOME") or Path.home() / ".vibe")
     if _dolu_dosya(kok / ".env"):
         return {"kurulu": True, "giris": True, "yontem": "Vibe kurulumu (~/.vibe/.env)"}
-    return {"kurulu": True, "giris": False, "hata": "Giriş için bir terminalde `vibe --setup` çalıştırın (anahtar işletim sistemi anahtar deposundaysa bu durum yanlış görünebilir)."}
+    return {"kurulu": True, "giris": False, "hata": "Giriş için terminalde `vibe --setup` çalıştırıp Mistral API anahtarı girin (console.mistral.ai; Experiment planı ücretsiz ama sınırlı, ötesi ücretlidir). Anahtar işletim sistemi anahtar deposundaysa bu durum yanlış görünebilir."}
 
 
 def hepsi(github_durum, telegram_durum, uzak_acik: bool) -> dict:

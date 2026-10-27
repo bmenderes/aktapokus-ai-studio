@@ -19,8 +19,8 @@ MOTORLAR = (
     {"ad": "opencode-sunucu", "gorunen": "OpenCode", "kurulum": "https://opencode.ai (masaustu uygulamasi ya da: npm install -g opencode-ai)", "modeller": {"kodcu": VARSAYILAN_MODEL, "test": VARSAYILAN_MODEL}},
     {"ad": "claude", "gorunen": "Claude Code", "kurulum": "npm install -g @anthropic-ai/claude-code  (sonra terminalde bir kez 'claude' yazip giris yapin)", "modeller": {"kodcu": "sonnet", "test": "haiku"}},
     {"ad": "codex", "gorunen": "Codex", "kurulum": "npm install -g @openai/codex  (sonra terminalde 'codex login')", "modeller": {}},
-    {"ad": "gemini", "gorunen": "Gemini CLI", "kurulum": "npm install -g @google/gemini-cli  (sonra terminalde bir kez 'gemini' yazip Google ile giris yapin)", "modeller": {}},
-    {"ad": "mistral", "gorunen": "Mistral Vibe", "kurulum": "uv tool install mistral-vibe  (sonra terminalde 'vibe --setup')", "modeller": {}},
+    {"ad": "gemini", "gorunen": "Gemini CLI", "kurulum": "npm install -g @google/gemini-cli  (sonra GEMINI_API_KEY tanimlayin ya da terminalde bir kez 'gemini' yazip giris yapin; ucretsiz Google girisi Haziran 2026'da kapandi)", "modeller": {}},
+    {"ad": "mistral", "gorunen": "Mistral Vibe", "kurulum": "uv tool install mistral-vibe  (uv yoksa önce 'pip install uv'; sonra terminalde 'vibe --setup' ve API anahtarı)", "modeller": {}},
 )
 _BULUCULAR = {
     "opencode-sunucu": lambda: opencode_bul(),

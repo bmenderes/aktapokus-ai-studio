@@ -17,6 +17,8 @@ def kurulu(monkeypatch, opencode=False, claude=False, codex=False, tercih_zorla=
     monkeypatch.setattr(motorlar, "opencode_bul", lambda: "C:/x/opencode.exe" if opencode else None)
     monkeypatch.setattr(motorlar, "claude_bul", lambda: "C:/x/claude.exe" if claude else None)
     monkeypatch.setattr(motorlar, "codex_bul", lambda: "C:/x/codex.exe" if codex else None)
+    monkeypatch.setattr(motorlar, "gemini_bul", lambda: None)  # bu bilgisayarda kurulu olsalar da testler yalniz istenen motorlari gorur
+    monkeypatch.setattr(motorlar, "vibe_bul", lambda: None)
     if not tercih_zorla:
         monkeypatch.delenv(motorlar.TERCIH_ORTAMI, raising=False)  # conftest testleri sabitlemek icin koyar; burada gercek mantik sinanir
 
@@ -162,6 +164,8 @@ def test_bulunamayan_cli_mesajlari_ne_yapilacagini_soyler(monkeypatch):
     monkeypatch.setattr(runners, "claude_bul", lambda: None)
     monkeypatch.setattr(runners, "codex_bul", lambda: None)
     monkeypatch.setattr(runners, "opencode_bul", lambda: None)
+    monkeypatch.setattr(runners, "gemini_bul", lambda: None)
+    monkeypatch.setattr(runners, "vibe_bul", lambda: None)
     monkeypatch.setattr(sunucu, "opencode_bul", lambda: None)
     for cagri, ipucu in ((lambda: runners.ClaudeCodeCalistirici().komut("a.json", None, True), "Ayarlar > Roller"),
                          (lambda: runners.CodexCalistirici().komut(Path("."), None, True, "s.txt"), "Ayarlar > Roller"),

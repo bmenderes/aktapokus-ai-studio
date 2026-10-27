@@ -193,6 +193,7 @@ class Kosu:
     olaylar: list = field(default_factory=list)  # konusma olarak yeniden oynatilacak olaylar (kayitla birlikte saklanir)
     kayit_kimligi: str | None = None  # pipeline kayit kimligi ('basladi' olayindan)
     once: str | None = None  # gorevden onceki anlik goruntu ('basladi' olayindan): yarim kalirsa geri alma noktasi
+    baslangic: float | None = None  # calismaya basladigi an (time.time()): arayuzde 'ne kadar suredir' gostergesi
 
 
 AKTIF_KOSU = ("plan", "calisiyor", "karar-bekliyor")
@@ -447,7 +448,7 @@ class Uygulama:
             d["koruyucu_eksik"] = guard.dogrula(self.klasor)
             k = son_kayit(self.klasor)
             d["son_kayit"] = {x: k.get(x) for x in ("id", "zaman", "gorev", "durum", "token_toplam")} if k else None
-        d["kosu"] = {"kimlik": self.kosu.kimlik, "gorev": self.kosu.gorev, "durum": self.kosu.durum} if self.kosu else None
+        d["kosu"] = {"kimlik": self.kosu.kimlik, "gorev": self.kosu.gorev, "durum": self.kosu.durum, "gecen_sn": int(time.time() - self.kosu.baslangic) if self.kosu.baslangic and self.kosu.durum in ("calisiyor", "karar-bekliyor") else None} if self.kosu else None
         d["kuyruk"] = [k["gorev"][:200] for k in self.secili.kuyruk] if self.secili else []
         d["yarim"] = self._yarim_ozeti(self.secili) if self.secili else None
         return d
@@ -1583,6 +1584,7 @@ class Uygulama:
             if testsiz is not None:
                 kosu.testsiz = bool(testsiz)
             kosu.durum = "calisiyor"
+            kosu.baslangic = time.time()
             oturum = self._oturum()
             self._devam_yaz(oturum)
         threading.Thread(target=self._kos, args=(oturum, kosu), daemon=True).start()
@@ -1593,6 +1595,7 @@ class Uygulama:
         if not kosu or kosu.kimlik != kimlik or kosu.durum != "plan":
             return
         kosu.durum = "calisiyor"
+        kosu.baslangic = time.time()
         self._devam_yaz(oturum)
         threading.Thread(target=self._kos, args=(oturum, kosu), daemon=True).start()
 

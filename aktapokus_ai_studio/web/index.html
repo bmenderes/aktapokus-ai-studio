@@ -279,7 +279,7 @@ body.suruklenir iframe{pointer-events:none}
 </div>
 <div id="mobilGezinme"><button data-m="sol" class="on">Görevler</button><button data-m="orta">Sohbet</button><button data-m="sag">Panel</button></div>
 <div id="durumCubugu">
-  <div class="row"><span id="gitRozet"></span><span id="korRozet"></span><span id="durumMetni" class="durum-hazir">Hazır</span></div>
+  <div class="row"><span id="gitRozet"></span><span id="korRozet"></span><span id="durumMetni" class="durum-hazir">Hazır</span><span id="gecenSure" class="mut3 mono" title="Geçen süre"></span></div>
   <div class="row mut"><span id="tokenYazi">token 0</span><span style="width:70px;height:4px;background:var(--panel2);border-radius:2px;display:inline-block"><span id="tokenCubuk" style="display:block;height:4px;width:0;background:var(--tx2);border-radius:2px"></span></span><span id="baglanti" class="badge">bağlanıyor</span></div>
 </div>
 <div id="ayarlar"><div id="ayarMenu"></div><div id="ayarIcerik"></div></div>
@@ -561,7 +561,7 @@ async function hesaplarBolumu(h){const kap=e("div",{style:"max-width:760px"});h.
     kap.append(kart("Aktapokus","giriş yok","b-warn",["Yerel kullanıcı: "+(y.kullanici||"?")+(y.bilgisayar?" @ "+y.bilgisayar:""),"Aktapokus'un kendi kullanıcı hesabı yoktur: bu bilgisayarda yerel çalışır, verileriniz burada kalır, giriş gerekmez. (Google ile giriş planlanıyor.) Aşağıdakiler, Aktapokus'un kullandığı araçlardaki kimliklerinizdir."]));
     kap.append(githubKarti(d.github||{},()=>{hesapOzetZ=0;ciz()}));
     const c=d.claude||{};kap.append(kart("Claude Code",c.giris?"giriş yapıldı":(c.kurulu?"giriş yok":"kurulu değil"),c.giris?"b-ok":"b-err",[c.giris?[c.eposta,c.abonelik?"abonelik: "+c.abonelik:null,c.yontem?"yöntem: "+c.yontem:null].filter(Boolean).join(" · "):(c.kurulu?(c.hata||"Giriş için bir terminalde `claude auth login` çalıştırın."):"Claude Code CLI bulunamadı.")],git("roller","Roller")));
-    for(const [ad,baslik,kurulum] of [["gemini","Gemini CLI","Gemini CLI kurulu değil (npm install -g @google/gemini-cli)."],["mistral","Mistral Vibe","Mistral Vibe kurulu değil (uv tool install mistral-vibe)."]]){const v=d[ad]||{};kap.append(kart(baslik,v.giris?"giriş yapıldı":(v.kurulu?"giriş yok":"kurulu değil"),v.giris?"b-ok":(v.kurulu?"b-err":""),[v.giris?(v.yontem||""):(v.kurulu?(v.hata||"Giriş yok."):kurulum)],git("roller","Roller")))}
+    for(const [ad,baslik,kurulum] of [["gemini","Gemini CLI","Gemini CLI kurulu değil: npm install -g @google/gemini-cli"],["mistral","Mistral Vibe","Mistral Vibe kurulu değil: uv tool install mistral-vibe (uv yoksa önce pip install uv)"]]){const v=d[ad]||{};kap.append(kart(baslik,v.giris?"giriş yapıldı":(v.kurulu?"giriş yok":"kurulu değil"),v.giris?"b-ok":(v.kurulu?"b-err":""),[v.giris?(v.yontem||""):(v.kurulu?(v.hata||"Giriş yok."):kurulum)],git("roller","Roller")))}
     const x=d.codex||{};kap.append(kart("Codex",x.giris?"giriş yapıldı":(x.kurulu?"giriş yok":"kurulu değil"),x.giris?"b-ok":"b-err",[x.giris?(x.detay||""):(x.kurulu?"Giriş için bir terminalde `codex login` çalıştırın.":"Codex CLI bulunamadı.")],git("roller","Roller")));
     kap.append(kart("OpenCode ve model sağlayıcıları","anahtarla","",["OpenCode hesapla değil, sağlayıcı API anahtarlarıyla çalışır: hangi sağlayıcıların bağlı olduğu Sağlayıcılar bölümünde görünür."],git("saglayicilar","Sağlayıcılar")));
     const t=d.telegram||{};kap.append(kart("Telegram botu",t.calisiyor?"çalışıyor":"kapalı",t.calisiyor?"b-ok":"",[(t.bot?"Bot: "+t.bot+" · ":"")+t.eslesmis+" eşleşmiş kullanıcı"],git("telegram","Telegram")));
@@ -642,7 +642,11 @@ function durumMetniGuncelle(){const d=$("#durumMetni");let m="Hazır",sinif="haz
   else if(S.kosu&&S.kosu.durum==="plan"){m="Plan onayınızı bekliyor";sinif="bekle"}
   else if(S.kosu&&S.kosu.durum==="karar-bekliyor"){m="Değişiklikler için kararınız bekleniyor";sinif="bekle"}
   else if(S.kosuAktif){const ad=Object.keys(S.rolDurum||{}).find(k=>S.rolDurum[k]==="calisiyor");const x=ad&&S.ayar&&S.ayar.roller?S.ayar.roller[ad]:null;m="Çalışıyor"+(ad?": "+ad+(x?" · "+kisaModel(x.model)+" ("+x.calistirici+")":""):"…");sinif="calisiyor"}
-  d.textContent=m;d.className="durum-"+sinif}
+  d.textContent=m;d.className="durum-"+sinif;
+  const g=$("#gecenSure");if(S.kosuAktif){if(!S.kosuT0)S.kosuT0=Date.now();g.textContent=sureYaz((Date.now()-S.kosuT0)/1000)}else{S.kosuT0=null;g.textContent=""}}
+/* Gorev suresi: dk:sn (1 saati asinca s:dk:sn); sunucudan gelen gecen_sn ile yeniden yuklemede de dogru kalir */
+function sureYaz(sn){const s=Math.max(0,Math.floor(sn)),h=Math.floor(s/3600),m=Math.floor(s%3600/60),r=s%60,iki=x=>String(x).padStart(2,"0");return (h?h+":"+iki(m):m)+":"+iki(r)}
+setInterval(()=>{if(S.kosuAktif)durumMetniGuncelle()},1000);
 const DUSUNME_AD={low:"Düşük",medium:"Orta",high:"Yüksek",xhigh:"Çok yüksek",max:"Maks"};
 const DUSUNME_SEVIYE=c=>c==="claude"?["low","medium","high","xhigh","max"]:c==="codex"?["low","medium","high"]:[];
 function modelMenusuKapat(){const m=$("#modelMenu");if(m)m.remove()}
@@ -958,7 +962,7 @@ function olayIsle(o){
   }}
 async function karar(k){const b=$("#karar-dugmeleri");if(b)b.textContent="";$("#onayBar").textContent="";try{await api("/api/gorev/"+S.kosu.kimlik+"/karar",{method:"POST",body:{korunsun:k}})}catch(x){alert(x.message)}}
 function kosuGorunumu(){const aktif=S.kosu&&["calisiyor","karar-bekliyor"].includes(S.kosu.durum);S.kosuAktif=!!aktif;const plan=S.kosu&&S.kosu.durum==="plan";$("#durdur").style.display=aktif?"":"none";$("#testiAtla").style.display=S.kosu&&S.kosu.durum==="calisiyor"&&S.testAdimi?"":"none";$("#gonder").disabled=!S.klasor||plan;$("#gorev").disabled=!S.klasor||plan;$("#girdiBilgi").textContent=!S.klasor?"önce bir klasör seçin":aktif?"çalışıyor · yeni görev sıraya girer":plan?"plan onayınızı bekliyor":"";durumMetniGuncelle()}
-async function durumYukle(){if(S.tekrar)return;try{const d=await api("/api/durum");const onceki=S.projeId;S.projeId=d.proje||null;S.baglanti=d.baglanti||{};uzakDuzen();S.klasor=d.klasor;S.ayar=d.ayar;S.kosu=d.kosu;S.kuyruk=d.kuyruk||[];kuyrukCiz();S.yerel=d.yerel;hesapChipCiz();$("#klasorAd").textContent=d.klasor?d.klasor.split(/[\\/]/).pop():"";ortamCipiCiz();
+async function durumYukle(){if(S.tekrar)return;try{const d=await api("/api/durum");const onceki=S.projeId;S.projeId=d.proje||null;S.baglanti=d.baglanti||{};uzakDuzen();S.klasor=d.klasor;S.ayar=d.ayar;S.kosu=d.kosu;S.kosuT0=d.kosu&&d.kosu.gecen_sn!=null?Date.now()-d.kosu.gecen_sn*1000:null;S.kuyruk=d.kuyruk||[];kuyrukCiz();S.yerel=d.yerel;hesapChipCiz();$("#klasorAd").textContent=d.klasor?d.klasor.split(/[\\/]/).pop():"";ortamCipiCiz();
   $("#gitRozet").className="badge "+(d.git?"b-ok":"b-err");$("#gitRozet").textContent=d.klasor?(d.git?(d.golge?"geri alma hazır (gölge yedek)":"git hazır"):"geri alma hazır değil"):"";$("#gitRozet").title=d.golge?"Bu klasör git deposu değil: geri alma, klasörün dışındaki gölge yedekten çalışır (klasöre .git eklenmez).":"";
   const ke=d.koruyucu_eksik||[];$("#korRozet").className="badge "+(d.klasor?(ke.length?"b-err":"b-ok"):"");$("#korRozet").textContent=d.klasor?(ke.length?"koruyucu eksik":"koruyucu etkin"):"";$("#korRozet").title=ke.join("; ");
   $("#klon").textContent=d.klon_bekleyen==null?"kurulu değil":d.klon_bekleyen+" öneri bekliyor";if(d.klon_bekleyen)$("#klon").title="aktapokus-klon bekleyen komutuyla inceleyin";
