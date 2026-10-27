@@ -60,6 +60,7 @@ class Rol:
     talimat: str
     agent: str | None = None
     dogrulama: bool = False
+    dusunme: str = ""  # dusunme/ceviklik seviyesi: "" (CLI varsayilani) | low | medium | high | xhigh | max (Claude Code --effort; Codex model_reasoning_effort)
     okuma_riski_kabul: bool = False  # koruyucusu olmayan CLI'lar (Codex...) .env gibi gizli dosyalari OKUYABILIR; kullanici bilerek kabul ederse True
 
 
@@ -72,6 +73,7 @@ class Ayar:
     zaman_asimi_sn: int
     baglam: bool = True  # ortak baglam dosyalari (AGENTS.md blogu, DURUM.md) calistirmadan once guncellensin mi
     otomatik_onay: bool = False  # arayuzden/Telegram'dan yazilan gorevin plani onay beklemeden baslar (otomasyon ve issue gorevleri HER ZAMAN onay ister)
+    otomatik_koru: bool = False  # degisiklikler 'korunsun mu' sorulmadan korunur (geri alma noktasi yine alinir; sonradan Gecmis'ten geri alinabilir)
     testi_atla: bool = False  # dogrulama (test) rolleri varsayilan olarak atlanir; gorev basina degistirilebilir
     claude_oturum: str = "tek"  # Claude Code konusmasi: 'tek' (proje basina tek konusma) | 'yeni' (her calistirmada yeni) | 'hic' (kaydetme)
 
@@ -122,7 +124,10 @@ def ayar_coz(veri: object) -> Ayar:
         risk = r.get("okuma_riski_kabul", False)
         if not isinstance(risk, bool):
             raise AyarHatasi(f"Rol '{ad}': 'okuma_riski_kabul' true/false olmali")
-        roller[ad] = Rol(ad, calistirici, model, talimat, agent, dogrulama, risk)
+        dusunme = r.get("dusunme", "")
+        if dusunme not in ("", "low", "medium", "high", "xhigh", "max"):
+            raise AyarHatasi(f"Rol '{ad}': 'dusunme' bos, low, medium, high, xhigh ya da max olmali")
+        roller[ad] = Rol(ad, calistirici, model, talimat, agent, dogrulama, dusunme=dusunme, okuma_riski_kabul=risk)
     akis = veri.get("akis")
     if not isinstance(akis, list) or not akis or not all(isinstance(a, str) for a in akis):
         raise AyarHatasi("'akis' rol adlarindan olusan bos olmayan bir liste olmali")
@@ -136,7 +141,7 @@ def ayar_coz(veri: object) -> Ayar:
         raise AyarHatasi("'baglam' true/false olmali")
     if veri.get("claude_oturum", "tek") not in ("tek", "yeni", "hic"):
         raise AyarHatasi("'claude_oturum' 'tek', 'yeni' ya da 'hic' olmali")
-    for ad_ in ("otomatik_onay", "testi_atla"):
+    for ad_ in ("otomatik_onay", "otomatik_koru", "testi_atla"):
         if not isinstance(veri.get(ad_, False), bool):
             raise AyarHatasi(f"'{ad_}' true/false olmali")
     return Ayar(
@@ -147,6 +152,7 @@ def ayar_coz(veri: object) -> Ayar:
         zaman_asimi_sn=_tam_sayi(veri, "zaman_asimi_sn", 10, 7200),
         baglam=baglam,
         otomatik_onay=bool(veri.get("otomatik_onay", False)),
+        otomatik_koru=bool(veri.get("otomatik_koru", False)),
         testi_atla=bool(veri.get("testi_atla", False)),
         claude_oturum=veri.get("claude_oturum", "tek"),
     )

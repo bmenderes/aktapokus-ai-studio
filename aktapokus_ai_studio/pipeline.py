@@ -173,7 +173,9 @@ def calistir_hat(
         bildir(f"-> {rol.ad} ({rol.calistirici}/{rol.model or 'varsayilan model'}) calisiyor...")
         olay({"tur": "adim-basladi", "sira": len(sonuc.adimlar) + 1, "rol": rol.ad, "calistirici": rol.calistirici, "model": rol.model})
         try:
-            r: CalistirmaSonucu = calistirici_uret(rol.calistirici).calistir(
+            ru = calistirici_uret(rol.calistirici)
+            ru.dusunme = rol.dusunme or None  # rol basina dusunme seviyesi (Claude Code / Codex)
+            r: CalistirmaSonucu = ru.calistir(
                 istem, klasor, model=rol.model, agent=rol.agent, zaman_asimi_sn=ayar.zaman_asimi_sn, onayli=True
             )
         except Exception as hata:  # calistirici bulunamadi/istem gecersiz vb.

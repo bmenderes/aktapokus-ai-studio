@@ -293,6 +293,8 @@ class ClaudeCodeCalistirici(Calistirici):
             komut += ["--resume", oturum]
         if model:
             komut += ["--model", model]
+        if getattr(self, "dusunme", None) in ("low", "medium", "high", "xhigh", "max"):
+            komut += ["--effort", self.dusunme]
         if onayli:
             komut += ["--permission-mode", "acceptEdits"]
         if mcp_dosyasi and mcp_adlari:
@@ -591,6 +593,8 @@ class CodexCalistirici(Calistirici):
         ]
         if model:
             komut += ["-m", model]
+        if getattr(self, "dusunme", None) in ("low", "medium", "high"):  # Codex'te xhigh/max yok
+            komut += ["-c", f'model_reasoning_effort="{self.dusunme}"']
         if self.mcp:
             from . import mcptanim
 

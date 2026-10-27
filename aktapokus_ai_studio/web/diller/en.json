@@ -798,6 +798,25 @@
   "Bildirim": "Notification",
   "Ad": "Name",
   "Açık": "On",
+  "Bir görev yazın…": "Write a task…",
+  "Sesle yaz": "Dictate",
+  "Hep koru": "Always keep",
+  "Değişiklikleri otomatik koru": "Keep changes automatically",
+  "Görev bitince \"korunsun mu\" sorulmaz; değişiklikler doğrudan kalır. Uzaktan değiştirilemez.": "No \"keep changes?\" prompt when a task ends; changes simply stay. Cannot be changed remotely.",
+  "Git'e aktar": "Add to Git",
+  "Bu klasör bir git deposu değil": "This folder is not a git repository",
+  "Sekmede aç": "Open in tab",
+  "Düşünme": "Effort",
+  "Varsayılan": "Default",
+  "Düşük": "Low",
+  "Orta": "Medium",
+  "Yüksek": "High",
+  "Çok yüksek": "Extra high",
+  "Maks": "Max",
+  "Konuşma": "Conversation",
+  "Claude Code ve OpenCode rolleri için: tek konuşma = bu projenin görevleri her rolün TEK konuşmasına yazılır, yeni sayfa açılmaz (24 saat sonra ya da 'Yeni' ile yenilenir); her seferinde yeni = her görev yeni konuşma açar; kaydetme = Claude Code konuşması kaydedilmez": "For Claude Code and OpenCode roles: single conversation = this project's tasks are written into ONE conversation per role, no new page is opened (renewed after 24 hours or with 'New'); new each time = every task opens a new conversation; no saving = the Claude Code conversation is not saved",
+  "· git deposu değil": "· not a git repository",
+  "Bu klasörde git deposu başlatır (git init); dosyalarınıza dokunmaz": "Initializes a git repository in this folder (git init); does not touch your files",
   "Devam": "Resume",
   "Yok say": "Dismiss",
   "Yarım kalan görevin dosya değişiklikleri geri alınsın mı?": "Undo the file changes of the interrupted task?"
@@ -834,6 +853,14 @@
   [
    "^(\\d+) dakika$",
    "$1 minutes"
+  ],
+  [
+   "^(.*) · (\\d+) görev · (\\d+) dosya$",
+   "$1 · $2 tasks · $3 files"
+  ],
+  [
+   "^(.*) · (\\d+) dosya$",
+   "$1 · $2 files"
   ]
  ]
 }

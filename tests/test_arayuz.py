@@ -835,7 +835,7 @@ def test_proje_gruplari_belirtec_ister(kur):
 
 def test_arayuz_kenar_cubugu_proje_gruplari_icin_gerekli_parcalari_icerir():
     html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
-    for parca in ('id="kenarAra"', 'id="yeniProje"', "/api/proje-gruplari", "projeGorunumuKur", "Son görevler", "Daha fazla göster", "arkaPlanOlayi"):
+    for parca in ('id="kenarAra"', 'id="yeniProje"', "/api/proje-gruplari", "projeGorunumuKur", "Daha fazla göster", "arkaPlanOlayi"):
         assert parca in html, parca
     assert "görev çalışırken proje değiştirilemez" not in html  # P2'den beri proje degistirmek serbest
 

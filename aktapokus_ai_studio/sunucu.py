@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator
 
 from . import winjob
+from .config import AYAR_KLASORU
 from .runners import Calistirici, CalistirmaSonucu, _alt_surec_ortami, _istemi_denetle, opencode_bul
 
 
@@ -321,9 +322,14 @@ def mesajlardan_metin(mesajlar: list[dict]) -> str:
 
 
 class SunucuCalistirici(Calistirici):
-    """Kalici `opencode serve` uzerinden calistirir: her cagri yeni oturum (temiz baglam); sunucu cagrilar arasi acik kalir."""
+    """Kalici `opencode serve` uzerinden calistirir; sunucu cagrilar arasi acik kalir.
+
+    Oturum kipi (`oturum_kipi`, Ayarlar > Genel > Konusma): 'tek' = proje + rol (model/agent) basina TEK OpenCode oturumu surdurulur (ayni projede
+    konusurken her gorev yeni sayfa acmaz; 24 saat sonra ya da 'Yeni' ile yenilenir); 'yeni'/'hic' = her cagri yeni oturum (temiz baglam)."""
 
     ad = "opencode-sunucu"
+    OTURUM_OMRU_SN = 24 * 3600
+    oturum_kipi = "yeni"  # arayuz proje ayarindan (varsayilan "tek") atar; CLI/testlerde eski davranis
 
     def __init__(
         self,
@@ -459,15 +465,75 @@ class SunucuCalistirici(Calistirici):
                 sorunlar.append({"ad": ad, "hata": str(d.get("error") or "baglanilamadi")[:160]})
         return sorunlar
 
+    @staticmethod
+    def oturum_yolu(klasor) -> Path:
+        return Path(klasor) / AYAR_KLASORU / "opencode-oturum.json"
+
+    def _oturum_oku(self, klasor, anahtar: str) -> str | None:
+        try:
+            k = json.loads(self.oturum_yolu(klasor).read_text(encoding="utf-8"))[anahtar]
+            sid, zaman = k["id"], float(k["zaman"])
+        except (OSError, ValueError, KeyError, TypeError):
+            return None
+        if not isinstance(sid, str) or not re.fullmatch(r"[A-Za-z0-9_-]{3,80}", sid) or time.time() - zaman > self.OTURUM_OMRU_SN:
+            return None  # proje klasorundeki dosya guvenilmez: yalniz kimlik bicimi URL'ye girer
+        return sid
+
+    def _oturum_yaz(self, klasor, anahtar: str, sid: str | None) -> None:
+        try:
+            yol = self.oturum_yolu(klasor)
+            try:
+                d = json.loads(yol.read_text(encoding="utf-8"))
+                d = d if isinstance(d, dict) else {}
+            except (OSError, ValueError):
+                d = {}
+            if sid:
+                d[anahtar] = {"id": sid, "zaman": time.time()}
+            else:
+                d.pop(anahtar, None)
+            yol.parent.mkdir(parents=True, exist_ok=True)
+            yol.write_text(json.dumps(d), encoding="utf-8")
+        except OSError:
+            pass
+
+    @staticmethod
+    def _token_fark(simdi: dict, once: dict) -> dict:
+        """Surdurulen oturumun sayaclari birikimlidir: yalniz bu cagrinin kullandigi token."""
+        def f(a, b):
+            return max(0, int(a or 0) - int(b or 0))
+        return {
+            "input": f(simdi.get("input"), once.get("input")),
+            "output": f(simdi.get("output"), once.get("output")),
+            "reasoning": f(simdi.get("reasoning"), once.get("reasoning")),
+            "cache": {"read": f((simdi.get("cache") or {}).get("read"), (once.get("cache") or {}).get("read"))},
+        }
+
     def calistir(self, istem, klasor, model=None, agent=None, zaman_asimi_sn=900, onayli=True):
         baslangic = time.monotonic()
+        anahtar = f"{model or ''}|{agent or ''}"
+        once_tokens: dict = {}
+        once_mesajlar: set | None = None
+        sid = None
         try:
             _istemi_denetle(istem)
             istemci = self._al()
             for sorun in self._mcp_uygula(istemci, Path(klasor)):
                 if self.ilerleme:
                     self.ilerleme({"tur": "mcp-sorun", "ad": sorun["ad"], "hata": sorun["hata"]})
-            sid = istemci.oturum_olustur(klasor, model=model, agent=agent, baslik="aktapokus")
+            if self.oturum_kipi == "tek":
+                aday = self._oturum_oku(klasor, anahtar)
+                if aday:
+                    try:  # surdurulecek oturum hala var ve bos mu? yoksa yenisi acilir
+                        if aday not in istemci.aktif_oturumlar():
+                            once_tokens = (istemci.oturum_al(aday) or {}).get("tokens") or {}
+                            once_mesajlar = {m.get("id") for m in istemci.mesajlar(aday, limit=1000)}
+                            sid = aday
+                    except Exception:
+                        sid, once_tokens, once_mesajlar = None, {}, None
+            if sid is None:
+                sid = istemci.oturum_olustur(klasor, model=model, agent=agent, baslik="aktapokus")
+                if self.oturum_kipi == "tek":
+                    self._oturum_yaz(klasor, anahtar, sid)
         except Exception as hata:
             return CalistirmaSonucu(False, hata=f"{type(hata).__name__}: {hata}", sure_sn=time.monotonic() - baslangic)
         durdur, bitti = threading.Event(), threading.Event()
@@ -505,14 +571,19 @@ class SunucuCalistirici(Calistirici):
                     neden = f"Zaman asimi ({zaman_asimi_sn} sn)" if simdi <= mutlak else f"Zaman asimi (toplam sure siniri {int(mutlak - baslangic)} sn)"
                     return CalistirmaSonucu(False, hata=neden, sure_sn=time.monotonic() - baslangic)
             bilgi = istemci.oturum_al(sid)
-            metin = mesajlardan_metin(istemci.mesajlar(sid))
+            mesajlar = istemci.mesajlar(sid, limit=1000 if once_mesajlar is not None else 100)
+            if once_mesajlar:  # surdurulen oturum: yalniz bu cagrinin yeni mesajlari
+                yeni = [m for m in mesajlar if m.get("id") not in once_mesajlar]
+                mesajlar = yeni or mesajlar
+            metin = mesajlardan_metin(mesajlar)
         except SunucuHatasi as hata:
+            self._oturum_yaz(klasor, anahtar, None) if self.oturum_kipi == "tek" else None
             return CalistirmaSonucu(False, hata=str(hata), sure_sn=time.monotonic() - baslangic)
         finally:
             self._aktif_sid = None
             bitti.wait(timeout=1.5)  # bitis olayi, aktiflik kapandiktan biraz sonra gelebilir
             durdur.set()
-        t = bilgi.get("tokens") or {}
+        t = self._token_fark(bilgi.get("tokens") or {}, once_tokens) if once_tokens else (bilgi.get("tokens") or {})
         sonuc = CalistirmaSonucu(
             ok=bilgi.get("outcome") == "succeeded",
             metin=metin,
@@ -522,5 +593,7 @@ class SunucuCalistirici(Calistirici):
             sure_sn=time.monotonic() - baslangic,
         )
         if not sonuc.ok:
+            if self.oturum_kipi == "tek":
+                self._oturum_yaz(klasor, anahtar, None)  # basarisiz oturum surdurulmez
             sonuc.hata = f"OpenCode oturumu basarisiz bitti (outcome={bilgi.get('outcome')!r})" + (f": {bilgi['error']}" if bilgi.get("error") else "")
         return sonuc

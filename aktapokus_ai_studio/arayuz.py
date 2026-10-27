@@ -39,6 +39,7 @@ from .klasor import KlasorHatasi, guvenli_klasor
 from .pipeline import HatHatasi, _kayit_klasoru, calistir_hat, son_kayit
 from .proje import GitGerekli, hazirla as proje_hazirla
 from .runners import Calistirici, CalistiriciHatasi, ClaudeCodeCalistirici, calistirici_olustur, claude_bul, codex_bul, hepsini_kapat, opencode_bul
+from .sunucu import SunucuCalistirici
 
 ATLANAN_KLASORLER = {".git", "node_modules", "__pycache__", ".aktapokus", ".opencode", ".venv", "venv", "dist", "build", ".idea", ".vscode"}
 GIZLI_UZANTILAR = (".pem", ".key", ".pfx", ".p12", ".keystore", ".jks")
@@ -46,6 +47,23 @@ GIZLI_ADLAR = ("id_rsa", "id_ed25519", ".npmrc", ".pypirc", "credentials")
 AZAMI_DOSYA_SAYISI = 1500
 AZAMI_OKUMA = 300_000
 AZAMI_GOVDE = 1_000_000
+def github_deposu_mu(klasor: Path) -> bool:
+    """Projenin git deposu bir GitHub adresine (origin) bagliysa True; yalniz .git/config okunur (surec baslatmaz)."""
+    try:
+        return bool(re.search(r"^\s*url\s*=\s*\S*github\.com", (klasor / ".git" / "config").read_text(encoding="utf-8", errors="replace"), re.M | re.I))
+    except OSError:
+        return False
+
+
+def konusma_sinirlari_oku(klasor: Path) -> list[str]:
+    """Gecmis 'Yeni' sinirlari (artan): kenar cubugu ayni konusmanin gorevlerini tek satirda toplar."""
+    try:
+        v = json.loads((Path(klasor) / ".aktapokus" / "konusma-basi.json").read_text(encoding="utf-8")).get("sinirlar")
+    except (OSError, ValueError, AttributeError):
+        return []
+    return sorted(x for x in v if isinstance(x, str) and re.fullmatch(r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d", x))[-200:] if isinstance(v, list) else []
+
+
 def konusma_basi_oku(klasor: Path) -> str | None:
     """Projenin 'yeni konusma' siniri ('YYYY-MM-DD HH:MM:SS'); yoksa None. Arayuz konusmayi bu andan sonraki gorevlerle kurar."""
     try:
@@ -404,10 +422,11 @@ class Uygulama:
             return {"hata": str(hata)}
         return {
             "akis": list(a.akis),
-            "roller": {ad: {"calistirici": r.calistirici, "model": r.model, "dogrulama": r.dogrulama} for ad, r in a.roller.items()},
+            "roller": {ad: {"calistirici": r.calistirici, "model": r.model, "dogrulama": r.dogrulama, "dusunme": r.dusunme} for ad, r in a.roller.items()},
             "butce_token": a.butce_token,
             "azami_duzeltme": a.azami_duzeltme,
             "otomatik_onay": a.otomatik_onay,
+            "otomatik_koru": a.otomatik_koru,
             "testi_atla": a.testi_atla,
             "claude_oturum": a.claude_oturum,
         }
@@ -847,7 +866,20 @@ class Uygulama:
                 kayit("hata", str(hata))
                 raise
         kayit("plan-olustu", gorev=plan["kosu"])
+        self._otomasyon_bildir(o, baglam)
         return {"plan": plan, "proje": o.proje, "proje_ad": p["ad"]}
+
+    def _otomasyon_bildir(self, o: "otomasyon.Otomasyon", baglam: dict[str, str]) -> None:
+        """Akistaki bildirim dugumleri: plan olustuktan sonra Telegram'a duz mesaj. Bot kapaliysa sessizce atlanir; onay akisini etkilemez."""
+        metinler = otomasyon_akis.bildirim_metinleri(o.akis)
+        yonetici = self.telegram
+        bot = getattr(yonetici, "_bot", None) if yonetici is not None and yonetici._canli() else None
+        for metin in metinler:
+            try:
+                if bot is not None:
+                    bot._herkese(otomasyon.degiskenleri_doldur(metin, baglam))
+            except Exception as hata:  # bildirim hatasi plani/otomasyonu bozmaz
+                otomasyon.gecmis_ekle(o.ad, "hata", f"bildirim gonderilemedi: {hata}", "bildirim", proje=o.proje)
 
     # --- Uzak erisim: YALNIZ yerel arayuzden yonetilir (uzak istemci /api/uzak'a erisemez: uzak.politika) ---
     def _sunucu(self) -> "ArayuzSunucusu":
@@ -866,21 +898,8 @@ class Uygulama:
             uzak.guncelle(veri)
         except uzak.UzakHatasi as hata:
             raise UygulamaHatasi(str(hata)) from None
-        self._otomasyon_bildir(o, baglam)
         sunucu.uzak_uygula()  # her degisiklikte dinleyici yeniden kurulur: acik uzak baglantilar kesilir, yeni ayar gecerli olur
         return self.uzak_durum()
-    def _otomasyon_bildir(self, o: "otomasyon.Otomasyon", baglam: dict[str, str]) -> None:
-        """Akistaki bildirim dugumleri: plan olustuktan sonra Telegram'a duz mesaj. Bot kapaliysa sessizce atlanir; onay akisini etkilemez."""
-        metinler = otomasyon_akis.bildirim_metinleri(o.akis)
-        yonetici = self.telegram
-        bot = getattr(yonetici, "_bot", None) if yonetici is not None and yonetici._canli() else None
-        for metin in metinler:
-            try:
-                if bot is not None:
-                    bot._herkese(otomasyon.degiskenleri_doldur(metin, baglam))
-            except Exception as hata:  # bildirim hatasi plani/otomasyonu bozmaz
-                otomasyon.gecmis_ekle(o.ad, "hata", f"bildirim gonderilemedi: {hata}", "bildirim", proje=o.proje)
-
 
     def uzak_anahtar_yenile(self) -> dict:
         sunucu = self._sunucu()
@@ -1185,6 +1204,8 @@ class Uygulama:
             gruplar.append({
                 "id": pr["id"], "ad": pr["ad"], "yol": pr["yol"], "var": pr["var"], "secili": pr["id"] == self.secili_kimlik, "acik": o is not None,
                 "konusma_basi": konusma_basi_oku(Path(pr["yol"])) if pr["var"] else None,
+                "github": github_deposu_mu(Path(pr["yol"])) if pr["var"] else False,
+                "konusma_sinirlar": konusma_sinirlari_oku(Path(pr["yol"])) if pr["var"] else [],
                 "durum": aktif, "gorev": k.gorev[:200] if aktif else None,
                 "gorevler": [{x: g.get(x) for x in ("id", "zaman", "gorev", "durum", "token_toplam", "degisen_sayisi", "sabit", "okunmadi", "ozel_ad")} for g in gorevler],
                 "arsiv": [{x: g.get(x) for x in ("id", "zaman", "gorev", "durum", "ozel_ad")} for g in arsivlenen[:30]],
@@ -1410,9 +1431,10 @@ class Uygulama:
             zaman = time.strftime("%Y-%m-%d %H:%M:%S")
             yol = klasor / ".aktapokus" / "konusma-basi.json"
             yol.parent.mkdir(parents=True, exist_ok=True)
-            yol.write_text(json.dumps({"zaman": zaman}), encoding="utf-8")
+            yol.write_text(json.dumps({"zaman": zaman, "sinirlar": [*konusma_sinirlari_oku(klasor), zaman][-200:]}), encoding="utf-8")
             try:
                 ClaudeCodeCalistirici._oturum_yolu(klasor).unlink(missing_ok=True)
+                SunucuCalistirici.oturum_yolu(klasor).unlink(missing_ok=True)
             except OSError:
                 pass
         return {"zaman": zaman}
@@ -1628,7 +1650,11 @@ class Uygulama:
                 r.ilerleme = lambda e: yayinla({**e, "tur": "canli", "alt": e.get("tur")})
             return r
 
+        koru = [False]  # Ayarlar > Genel 'Degisiklikleri otomatik koru': karar sorulmaz
+
         def onay(_soru: str) -> bool:
+            if koru[0] and not kosu.iptal.is_set():
+                return True
             kosu.durum = "karar-bekliyor"
             self._devam_yaz(oturum)
             yayinla({"tur": "karar-bekleniyor", "kosu": kosu.kimlik})
@@ -1652,6 +1678,7 @@ class Uygulama:
 
         try:
             ayar = ayar_yukle(klasor)
+            koru[0] = ayar.otomatik_koru
             kosu.dogrulama_rolleri = frozenset(ad for ad, r in ayar.roller.items() if r.dogrulama)
             kosu.sonuc = calistir_hat(klasor, kosu.gorev, ayar, uret, onay, bildir=lambda m: yayinla({"tur": "gunluk", "mesaj": m}), olay=olay, iptal=kosu.iptal, testsiz=kosu.testsiz, testi_atla=kosu.testi_atla)
             oturum.son_hat = {"once": kosu.sonuc.once, "sonra": kosu.sonuc.sonra, "degisen": kosu.sonuc.degisen, "durum": kosu.sonuc.durum}
@@ -1919,6 +1946,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     eski = {}
                 if isinstance(yeni, dict) and bool(yeni.get("otomatik_onay", False)) != bool(app.ayar_oku().get("otomatik_onay", False)):
                     return "otomatik_onay uzaktan degistirilemez (plan onayini kapatir)"
+                if isinstance(yeni, dict) and bool(yeni.get("otomatik_koru", False)) != bool(app.ayar_oku().get("otomatik_koru", False)):
+                    return "otomatik_koru uzaktan degistirilemez (koru/geri al kararini kapatir)"
                 for ad, rol in (yeni.get("roller", {}) if isinstance(yeni, dict) and isinstance(yeni.get("roller"), dict) else {}).items():
                     if isinstance(rol, dict) and bool(rol.get("okuma_riski_kabul", False)) != bool((eski.get(ad) or {}).get("okuma_riski_kabul", False)):
                         return "okuma_riski_kabul uzaktan degistirilemez (gizli dosya korumasini kapatir)"

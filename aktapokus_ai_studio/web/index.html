@@ -42,6 +42,8 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 .test-nokta{display:inline-block;flex:none;width:9px;height:9px;border-radius:50%;background:var(--line2);margin-left:2px;cursor:pointer}.test-nokta.on{background:var(--tx2)}
 #onayBar:empty{display:none}#onayBar{margin-bottom:6px}
 #kuyrukBar:empty{display:none}#kuyrukBar{margin-bottom:6px;display:flex;flex-direction:column;gap:4px}
+#mikDugme.on{background:var(--saribg);border-color:var(--sarikoyu);animation:nabiz 1.4s ease-in-out infinite}
+.dusunme{display:flex;gap:4px;flex-wrap:wrap;align-items:center;padding:6px 8px 2px}.dusunme button{padding:2px 9px;border-radius:999px;font-size:11.5px}.dusunme button.on{background:var(--saribg);border-color:var(--sarikoyu)}
 .kuyruk-satir{display:flex;align-items:center;gap:8px;padding:4px 6px 4px 12px;border:1px dashed var(--sarikoyu);border-radius:12px;color:var(--tx2)}
 .kuyruk-satir .kuyruk-metin{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .kuyruk-satir button{flex:none;width:22px;height:22px;min-width:22px;padding:0;border-radius:50%;line-height:1}
@@ -50,8 +52,6 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 /* degisen dosya satiri: harf sabit, yol KENDI icinde sarilir (yatay kaydirma ve kesik harf olmaz) */
 .fark-satir{display:flex;gap:8px;align-items:baseline;cursor:pointer;line-height:1.6}.fark-satir>.mut3{flex:none;width:1ch}.fark-yol{min-width:0;overflow-wrap:anywhere;word-break:break-all}
 .bitis-sade{margin:8px 0;font-size:12px;color:var(--tx3)}
-.ayrinti-dugme{border:0;background:none;padding:0 2px;min-height:0;color:var(--tx3);font-size:12px;text-decoration:underline;cursor:pointer}
-.ayrac{display:flex;align-items:center;gap:8px;color:var(--tx3);font-size:12px;margin:14px 0 6px}.ayrac::before,.ayrac::after{content:"";flex:1;height:1px;background:var(--line)}
 .arac-grup{margin:3px 0}.arac-grup>summary{cursor:pointer;list-style:none}.arac-grup>summary::-webkit-details-marker{display:none}.arac-grup>summary::before{content:"›";display:inline-block;width:12px}.arac-grup[open]>summary::before{content:"⌄"}
 .fark-sade{margin:6px 0;font-size:12px;color:var(--tx3)}.fark-tik{cursor:pointer}.fark-tik:hover{color:var(--tx)}
 .ayrinti-dugme{border:0;background:none;padding:0 2px;min-height:0;color:var(--tx3);font-size:12px;text-decoration:underline;cursor:pointer}
@@ -78,17 +78,15 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 .rol{display:flex;gap:6px;align-items:flex-start;margin:5px 0;cursor:pointer}
 .rol .n{font-weight:500}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--line2);margin-top:5px;flex:none}
-.dot.calisiyor{background:var(--acc);animation:nabiz 1.4s ease-in-out infinite}.dot.ok{background:var(--tx3)}.dot.err{background:var(--err)}.dot.bekliyor{background:#d9a21b}
-@keyframes nabiz{50%{opacity:.35}}
+.dot.calisiyor{background:transparent;border:2px solid var(--sarikoyu);border-top-color:var(--acc);box-sizing:border-box;animation:don .8s linear infinite}.dot.ok{background:var(--tx3)}.dot.err{background:var(--err)}.dot.bekliyor{background:#d9a21b}
+@keyframes nabiz{50%{opacity:.35}}@keyframes don{to{transform:rotate(360deg)}}
+.grup-gh{flex:none;color:var(--tx3);font-size:12px;line-height:1}
 .grup-ust{display:flex;align-items:center;gap:6px;padding:3px 4px;margin-top:6px;border-radius:6px;cursor:pointer}.grup-ust:hover{background:var(--panel)}
 .grup-ok{width:10px;color:var(--tx3);font-size:10px;flex:none}.grup-ad{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
 .grup-ust.secili .grup-ad{color:var(--acc)}.grup-ust .dot{margin-top:0}.grup-ust.yok{opacity:.5}
 .grup-art{border:none;background:none;padding:0 6px;color:var(--tx3);font-size:15px;line-height:1;border-radius:6px}.grup-art:hover{background:var(--panel2);color:var(--tx)}
 .grup-govde{margin-left:12px;border-left:1px solid var(--line);padding-left:4px}.grup-daha{border:none;background:none;color:var(--tx3);padding:2px 8px;font-size:12px}.grup-daha:hover{color:var(--tx)}
 .card{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:8px 0;background:var(--panel)}
-.kullanici{margin-left:auto;max-width:92%;background:var(--saribg);border-left:3px solid var(--sari);border-radius:4px 10px 10px 4px;padding:6px 10px;margin-top:8px;white-space:pre-wrap}
-.adim{margin:6px 0}
-.canli{white-space:pre-wrap;color:var(--tx2);max-height:80px;overflow:hidden;font-size:12px}
 .oto-ib{flex:none;width:28px;height:28px;min-width:28px;min-height:0;padding:0;border-radius:50%;line-height:1;text-align:center}
 .oto-tuval{position:relative;height:300px;margin-top:6px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--bg) radial-gradient(var(--line) 1px,transparent 1px) 0 0/18px 18px}
 .oto-oklar{position:absolute;left:0;top:0;width:1400px;height:700px;pointer-events:none}
@@ -110,6 +108,10 @@ pre.yama{background:var(--panel2);border-radius:6px;padding:6px;overflow:auto;ma
 .sekme.on{color:var(--tx);background:var(--saribg);border-color:#ead36b;font-weight:600}
 .panel{flex:1;min-height:0;overflow:auto;padding:8px;display:none}
 .panel.on{display:block}
+#p-ciktilar.on{display:flex;flex-direction:column;overflow:hidden}#ciktiListe{flex:1;min-height:0;overflow:auto}
+#ciktiIzle{flex:none;height:45%;border-top:1px solid var(--line2);margin-top:6px;padding-top:6px;display:flex;flex-direction:column;min-height:0}
+#ciktiIzle iframe{flex:1;min-height:0;width:100%;border:1px solid var(--line2);border-radius:8px;background:#fff}#ciktiIzle pre{flex:1;min-height:0;overflow:auto;margin:0;white-space:pre-wrap;word-break:break-word}
+#ciktiIzle img{max-width:100%;max-height:100%;object-fit:contain;align-self:flex-start}
 #p-onizleme.on{display:flex;flex-direction:column}
 #cerceve{flex:1;min-height:320px;width:100%;border:1px solid var(--line);border-radius:8px;margin-top:6px;background:#fff}
 .agac div{padding:1px 0;white-space:nowrap}
@@ -252,9 +254,9 @@ body.suruklenir iframe{pointer-events:none}
     <div id="girdi">
       <div id="kuyrukBar"></div>
       <div id="onayBar"></div>
-      <textarea id="gorev" rows="2" style="width:100%;resize:none" placeholder="Bir görev yazın… (Enter gönderir, Shift+Enter yeni satır)"></textarea>
+      <textarea id="gorev" rows="2" style="width:100%;resize:none" placeholder="Bir görev yazın…"></textarea>
       <div id="ekler"></div><input type="file" id="ekSec" multiple hidden>
-      <div class="row" style="justify-content:space-between;margin-top:6px;gap:10px;align-items:flex-start"><span style="min-width:0;flex:1"><span class="row" style="gap:6px;flex-wrap:wrap"><span id="ortamCipi"></span><span id="rolCipleri" class="row" style="gap:6px;flex-wrap:wrap"></span></span><span id="girdiBilgi" class="mut3" style="display:block;margin-top:2px"></span></span><span class="row"><button id="ekDugme" class="yuvarlak simge" title="Resim veya dosya ekle (yapıştırabilir ya da sürükleyebilirsiniz)" aria-label="Dosya ekle">📎</button><button id="testiAtla" style="display:none" title="Calisan test adimini iptal eder; degisiklikler ve karar adimi devam eder">Testi atla</button><button id="durdur" style="display:none">Durdur</button><button id="gonder" class="pri">Gönder</button></span></div>
+      <div class="row" style="justify-content:space-between;margin-top:6px;gap:10px;align-items:flex-start"><span style="min-width:0;flex:1"><span class="row" style="gap:6px;flex-wrap:wrap"><span id="ortamCipi"></span><span id="rolCipleri" class="row" style="gap:6px;flex-wrap:wrap"></span></span><span id="girdiBilgi" class="mut3" style="display:block;margin-top:2px"></span></span><span class="row"><button id="mikDugme" class="yuvarlak simge" title="Sesle yaz" aria-label="Sesle yaz" style="display:none">🎤</button><button id="ekDugme" class="yuvarlak simge" title="Resim veya dosya ekle (yapıştırabilir ya da sürükleyebilirsiniz)" aria-label="Dosya ekle">📎</button><button id="testiAtla" style="display:none" title="Calisan test adimini iptal eder; degisiklikler ve karar adimi devam eder">Testi atla</button><button id="durdur" style="display:none">Durdur</button><button id="gonder" style="display:none" tabindex="-1" aria-hidden="true">Gönder</button></span></div>
     </div>
   </div>
   <div class="bolucu" id="bolucuSag" title="Sürükleyin: genişliği değiştirin · çift tıklayın: sıfırla"></div>
@@ -267,7 +269,7 @@ body.suruklenir iframe{pointer-events:none}
       <div class="mut3" style="margin-top:4px">Önizleme ayrı bir kapıda, yalıtılmış çerçevede çalışır; uygulamaya erişemez.</div>
     </div>
     <div id="p-degisiklik" class="panel"></div>
-    <div id="p-ciktilar" class="panel"></div>
+    <div id="p-ciktilar" class="panel"><div id="ciktiListe"></div><div id="ciktiIzle" style="display:none"></div></div>
     <div id="p-git" class="panel"></div>
     <div id="p-github" class="panel"></div>
     <div id="p-belgeler" class="panel"><input id="belgeAra" placeholder="Belgelerde ara… (yazdıkça süzülür)" autocomplete="off" style="width:100%"><div id="belgeSay" class="mut3" style="margin:3px 0"></div><div id="belgeListe" style="max-height:190px;overflow:auto;border:1px solid var(--line);border-radius:8px"></div><select id="belgeSec" style="display:none"></select><div id="belgeIcerik" class="md" style="margin-top:8px"></div></div>
@@ -427,15 +429,23 @@ function aracTuru(o){const ad=String(o.ad||"").toLowerCase();const g=(o.girdi&&t
   return["diger","Araç"]}
 function aracKarti(o){const [tur,etiket]=aracTuru(o);const g=(o.girdi&&typeof o.girdi==="object")?o.girdi:{};const hedef=String(g.path||g.file_path||g.filePath||g.command||g.pattern||g.url||"").slice(0,140);
   return e("div",{class:"arac arac-"+tur},e("span",{class:"arac-t",text:etiket}),e("span",{class:"arac-h",text:hedef||String(o.ad||"")}),o.ad&&hedef?e("span",{class:"mut3",text:String(o.ad)}):null)}
+function aracGrubu(sira,once){S.aracGrup=S.aracGrup||{};let g=S.aracGrup[sira];if(!g){const ozet=e("summary",{class:"mut3"});g={det:e("details",{class:"arac-grup"},ozet,e("div")),ozet,n:0};S.aracGrup[sira]=g;once.parentNode.insertBefore(g.det,once)}return g}  /* adim basina TEK kapali satir: araclar tikayinca acilir */
 function kisaModel(m){return (m||"varsayılan").replace(/^opencode\//,"").split("/").pop()}
 function akisCipiGuncelle(){rolleriCiz()}
 const KONUSMA_AZAMI=12;
 function ayracMetni(z){z=String(z||"");return z.slice(8,10)+"."+z.slice(5,7)+" "+z.slice(11,16)}
 /* Konusma: projenin son gorevleri (son 'Yeni'den beri) TEK akis olarak, eskiden yeniye; yeni gorev altina eklenir. hedef: o gorev gorunur kaydirilir.
    Konusmanin disindaki eski bir gorev (ya da 'Yeni'den onceki) false doner: tek gorev olarak acilir. */
+const zamanMs=z=>new Date(String(z||"").replace(" ","T")).getTime()||0;
+/* Ayni konusma = ayni Claude oturumu: 'Yeni' sinirlari ve 24 saatten uzun bosluklar konusmayi boler */
+function konusmaGruplari(g){const sn=[...(g.konusma_sinirlar||[]),g.konusma_basi||""].filter(Boolean);const asc=[...(g.gorevler||[])].sort((a,b)=>String(a.zaman).localeCompare(String(b.zaman)));const gr=[];
+  for(const t of asc){const son=gr[gr.length-1];const on=son&&son[son.length-1];const kes=!on||zamanMs(t.zaman)-zamanMs(on.zaman)>86400000||sn.some(b=>String(on.zaman)<b&&b<=String(t.zaman));if(kes)gr.push([t]);else son.push(t)}
+  return gr.reverse().map(a=>a.reverse())}
+function konusmaOzeti(a){const yeni=a[0],ilk=a[a.length-1];return Object.assign({},yeni,{gorev:ilk.gorev,ozel_ad:yeni.ozel_ad||ilk.ozel_ad||"",sayi:a.length,idler:a.map(x=>x.id),degisen_sayisi:a.reduce((n,x)=>n+(x.degisen_sayisi||0),0),okunmadi:a.some(x=>x.okunmadi)})}
 async function konusmaYukle(hedef){if(!S.gruplar)await kenarCubugu();const g=S.gruplar&&S.gruplar.projeler.find(x=>x.id===S.projeId);if(!g)return false;
-function aracGrubu(sira,once){S.aracGrup=S.aracGrup||{};let g=S.aracGrup[sira];if(!g){const ozet=e("summary",{class:"mut3"});g={det:e("details",{class:"arac-grup"},ozet,e("div")),ozet,n:0};S.aracGrup[sira]=g;once.parentNode.insertBefore(g.det,once)}return g}  /* adim basina TEK kapali satir: araclar tikayinca acilir */
-  const basi=g.konusma_basi||"";const tum=(g.gorevler||[]).filter(t=>!basi||String(t.zaman||"")>=basi).slice(0,KONUSMA_AZAMI).reverse();
+  const gr=konusmaGruplari(g);let kume=hedef?gr.find(a=>a.some(t=>t.id===hedef)):gr[0];
+  if(!hedef&&kume&&((g.konusma_basi||"")>String(kume[0].zaman||"")||Date.now()-zamanMs(kume[0].zaman)>86400000))kume=null;  /* yeni konusma: bos baslar */
+  const tum=(kume||[]).slice(0,KONUSMA_AZAMI).reverse();
   if(!tum.length||(hedef&&!tum.some(t=>t.id===hedef)))return false;
   S.claudeGorunen=null;clearInterval(S.claudeIv);const veriler=[];
   for(const t of tum){try{veriler.push([t,await api("/api/gecmis?id="+encodeURIComponent(t.id))])}catch(x){}}
@@ -564,6 +574,7 @@ async function genelBolumu(h){let ay;try{ay=await api("/api/ayar")}catch(x){h.ap
   const bag=e("input",{type:"checkbox"});bag.checked=ay.baglam!==false;bag.disabled=kilitli;
   const oto=e("input",{type:"checkbox"});oto.checked=!!ay.otomatik_onay;oto.disabled=kilitli;
   const tat=e("input",{type:"checkbox"});tat.checked=!!ay.testi_atla;tat.disabled=kilitli;
+  const kor=e("input",{type:"checkbox"});kor.checked=!!ay.otomatik_koru;kor.disabled=kilitli;
   const co=e("select",{style:"max-width:240px"},...[["tek","Proje başına tek konuşma"],["yeni","Her seferinde yeni konuşma"],["hic","Konuşmayı kaydetme"]].map(([d,t])=>{const op=e("option",{value:d,text:t});if(d===(ay.claude_oturum||"tek"))op.selected=true;return op}));co.disabled=kilitli;
   const kart=e("div",{class:"ayar-kart"},
     alan("Proje klasörü",S.klasor||"-",e("button",{text:"Değiştir",onclick:()=>{ayarKapat();klasorSecimiAc()}})),
@@ -572,10 +583,11 @@ async function genelBolumu(h){let ay;try{ay=await api("/api/ayar")}catch(x){h.ap
     alan("Adım zaman aşımı (sn)","İlerleme göstermeyen adım bu sürede durdurulur (10-7200)",zaman),
     alan("Ortak bağlam","Çalıştırmadan önce AGENTS.md bloğu ve .aktapokus/DURUM.md güncellensin; model değişince konu başa dönmez",bag),
     alan("Planı otomatik onayla","Yazdığınız görev onay düğmesi beklemeden başlar. Otomasyon ve GitHub issue görevleri yine onay ister; değişiklikleri koru/geri al kararı da sizde kalır. Uzaktan değiştirilemez.",oto),
-    alan("Claude konuşması","Claude Code rolleri için: tek konuşma = bu projenin tüm görevleri Claude Code'da TEK konuşmaya yazılır (24 saat sonra yenilenir); her seferinde yeni = her görev yeni konuşma açar; kaydetme = hiçbir konuşma kaydedilmez",co),
+    alan("Değişiklikleri otomatik koru","Görev bitince \"korunsun mu\" sorulmaz; değişiklikler doğrudan kalır. Uzaktan değiştirilemez.",kor),
+    alan("Konuşma","Claude Code ve OpenCode rolleri için: tek konuşma = bu projenin görevleri her rolün TEK konuşmasına yazılır, yeni sayfa açılmaz (24 saat sonra ya da 'Yeni' ile yenilenir); her seferinde yeni = her görev yeni konuşma açar; kaydetme = Claude Code konuşması kaydedilmez",co),
     alan("Testi varsayılan olarak atla","Test (doğrulama) adımları çalışmaz; her görevin plan kartında istediğiniz zaman açıp kapatabilirsiniz",tat));
   const durum=e("div",{style:"margin-top:8px;white-space:normal"});
-  const kaydet=e("button",{class:"pri",text:"Kaydet",onclick:async()=>{durum.style.display="none";try{const yeni=Object.assign({},ay,{butce_token:parseInt(butce.value,10),azami_duzeltme:parseInt(duz.value,10),zaman_asimi_sn:parseInt(zaman.value,10),baglam:bag.checked,otomatik_onay:oto.checked,testi_atla:tat.checked,claude_oturum:co.value});await api("/api/ayar",{method:"PUT",body:yeni});ay=yeni;await durumYukle();durum.className="badge b-ok";durum.textContent="kaydedildi"}catch(x){durum.className="badge b-err";durum.textContent=x.message}durum.style.display=""}});kaydet.disabled=kilitli;
+  const kaydet=e("button",{class:"pri",text:"Kaydet",onclick:async()=>{durum.style.display="none";try{const yeni=Object.assign({},ay,{butce_token:parseInt(butce.value,10),azami_duzeltme:parseInt(duz.value,10),zaman_asimi_sn:parseInt(zaman.value,10),baglam:bag.checked,otomatik_onay:oto.checked,otomatik_koru:kor.checked,testi_atla:tat.checked,claude_oturum:co.value});await api("/api/ayar",{method:"PUT",body:yeni});ay=yeni;await durumYukle();durum.className="badge b-ok";durum.textContent="kaydedildi"}catch(x){durum.className="badge b-err";durum.textContent=x.message}durum.style.display=""}});kaydet.disabled=kilitli;
   h.append(kart,e("div",{style:"margin-top:8px"},kaydet),durum);if(kilitli)h.append(e("div",{class:"mut3",text:"Görev çalışırken ayarlar değiştirilemez."}))}
 async function modellerBolumu(h){const ara=e("input",{placeholder:"Model ara (ad, sağlayıcı)…",style:"width:100%;margin:2px 0 8px"});const durum=e("div",{class:"mut3",text:"modeller yükleniyor… (OpenCode ilk seferde birkaç saniye ister)"});const liste=e("div");h.append(ara,durum,liste);
   let ay=null;try{ay=await api("/api/ayar")}catch(x){}
@@ -622,7 +634,7 @@ function rolleriCiz(){const r=$("#rolCipleri");r.textContent="";
   for(const ad of S.ayar.akis){const x=S.ayar.roller[ad];const d=S.rolDurum[ad]||"";
     const pasif=!!(x.dogrulama&&S.ayar.testi_atla);
     const anahtar=x.dogrulama?e("span",{class:"test-nokta"+(pasif?"":" on"),title:pasif?"Test pasif: tıklayınca aktif olur (bu projede testler çalışır)":"Test aktif: tıklayınca pasif olur (bu projede test adımı atlanır)",onclick:ev=>{ev.stopPropagation();testiAcKapat()}}):null;
-    const cip=e("button",{class:"cip",style:pasif?"opacity:.6":"",title:ad+" rolünün modelini değiştir",onclick:ev=>{ev.stopPropagation();modelMenusu(ad)}},e("span",{class:"dot "+d}),e("b",{text:ad,style:pasif?"text-decoration:line-through":""}),e("span",{class:"mut",text:kisaModel(x.model)+(x.calistirici.startsWith("opencode")?"":" · "+x.calistirici)}),e("span",{class:"mut3",text:"▾"}),anahtar);r.append(cip)}
+    const cip=e("button",{class:"cip",style:pasif?"opacity:.6":"",title:ad+" rolünün modelini değiştir",onclick:ev=>{ev.stopPropagation();modelMenusu(ad)}},e("span",{class:"dot "+d}),e("b",{text:ad,style:pasif?"text-decoration:line-through":""}),e("span",{class:"mut",text:kisaModel(x.model)+(x.calistirici.startsWith("opencode")?"":" · "+x.calistirici)+(x.dusunme?" · "+DUSUNME_AD[x.dusunme]:"")}),e("span",{class:"mut3",text:"▾"}),anahtar);r.append(cip)}
   durumMetniGuncelle()}
 async function testiAcKapat(){try{const ay=await api("/api/ayar");ay.testi_atla=!ay.testi_atla;await api("/api/ayar",{method:"PUT",body:ay});await durumYukle()}catch(x){alert(x.message)}}
 function durumMetniGuncelle(){const d=$("#durumMetni");let m="Hazır",sinif="hazir";
@@ -631,6 +643,8 @@ function durumMetniGuncelle(){const d=$("#durumMetni");let m="Hazır",sinif="haz
   else if(S.kosu&&S.kosu.durum==="karar-bekliyor"){m="Değişiklikler için kararınız bekleniyor";sinif="bekle"}
   else if(S.kosuAktif){const ad=Object.keys(S.rolDurum||{}).find(k=>S.rolDurum[k]==="calisiyor");const x=ad&&S.ayar&&S.ayar.roller?S.ayar.roller[ad]:null;m="Çalışıyor"+(ad?": "+ad+(x?" · "+kisaModel(x.model)+" ("+x.calistirici+")":""):"…");sinif="calisiyor"}
   d.textContent=m;d.className="durum-"+sinif}
+const DUSUNME_AD={low:"Düşük",medium:"Orta",high:"Yüksek",xhigh:"Çok yüksek",max:"Maks"};
+const DUSUNME_SEVIYE=c=>c==="claude"?["low","medium","high","xhigh","max"]:c==="codex"?["low","medium","high"]:[];
 function modelMenusuKapat(){const m=$("#modelMenu");if(m)m.remove()}
 document.addEventListener("click",ev=>{const m=$("#modelMenu");if(m&&!m.contains(ev.target))modelMenusuKapat()});
 document.addEventListener("keydown",ev=>{if(ev.key==="Escape")modelMenusuKapat()});
@@ -640,8 +654,10 @@ async function modelMenusu(rol){ortamMenusuKapat();const eski=$("#modelMenu");if
   const m=e("div",{id:"modelMenu",class:"model-menu"});m.dataset.rol=rol;
   const ara=e("input",{placeholder:rol+" için model ara…",style:"width:100%",autocomplete:"off"});const liste=e("div",{class:"model-liste"});
   m.append(ara,liste,e("div",{class:"model-alt"},e("button",{text:"Tüm modeller ve ayarlar…",onclick:()=>{modelMenusuKapat();ayarAc("modeller")}})));
+  const seviyeler=DUSUNME_SEVIYE((S.ayar&&S.ayar.roller[rol]||{}).calistirici);
+  if(seviyeler.length){const su=(S.ayar.roller[rol]||{}).dusunme||"";m.append(e("div",{class:"dusunme"},e("span",{class:"mut3",text:"Düşünme"}),...[["","Varsayılan"],...seviyeler.map(k=>[k,DUSUNME_AD[k]])].map(([k,ad])=>e("button",{class:k===su?"on":"",text:ad,onclick:async ev=>{ev.stopPropagation();try{const ham=await api("/api/ayar");ham.roller[rol].dusunme=k;await api("/api/ayar",{method:"PUT",body:ham});modelMenusuKapat();await durumYukle()}catch(x){alert(x.message)}}}))))}
   $("#girdi").append(m);ara.focus();
-  const sec=async(c,model)=>{try{const ham=await api("/api/ayar");const r=ham.roller[rol];r.calistirici=c;r.model=model;await api("/api/ayar",{method:"PUT",body:ham});modelMenusuKapat();await durumYukle()}catch(x){alert(x.message)}};
+  const sec=async(c,model)=>{try{const ham=await api("/api/ayar");const r=ham.roller[rol];if(r.calistirici!==c)r.dusunme="";r.calistirici=c;r.model=model;await api("/api/ayar",{method:"PUT",body:ham});modelMenusuKapat();await durumYukle()}catch(x){alert(x.message)}};
   let canliHata=false,yukleniyor=false;
   const ciz=()=>{if(!document.body.contains(m))return;liste.textContent="";const q=ara.value.trim().toLowerCase();const mevcut=S.ayar&&S.ayar.roller[rol]||{};
     const grup=(ad,satirlar)=>{const sat=satirlar.filter(s=>!q||(s.ad+" "+ad).toLowerCase().includes(q));if(!sat.length)return;liste.append(e("div",{class:"model-grup",text:ad}));
@@ -661,7 +677,7 @@ async function modelMenusu(rol){ortamMenusuKapat();const eski=$("#modelMenu");if
 async function yeniKonusma(){if(S.kosuAktif||(S.kosu&&S.kosu.durum==="plan")){$("#gorev").focus();return}yeniGorev();ekTemizle();try{await api("/api/yeni-konusma",{method:"POST",body:{}});await kenarCubugu()}catch(x){akisaEkle(e("div",{class:"badge b-err",text:x.message}))}}
 function yeniGorev(){if(mobilDar())mobilGoster("orta");if(S.kosuAktif||(S.kosu&&S.kosu.durum==="plan")){$("#gorev").focus();return}
   $("#akis").textContent="";S.fark=null;S.kararBekliyor=false;S.canliDiv=null;degisiklikCiz(null);document.querySelectorAll("#gecmis .rol.on").forEach(x=>x.classList.remove("on"));$("#gorev").value="";$("#gorev").focus()}
-/* ---- Kenar çubuğu: proje grupları, canlı durum noktaları, Son görevler, arama ---- */
+/* ---- Kenar çubuğu: proje grupları, canlı durum noktaları, arama ---- */
 const GRUP_ANAHTAR="aktapokus.gruplar";
 function grupAyar(){try{return JSON.parse(localStorage.getItem(GRUP_ANAHTAR)||"{}")||{}}catch(x){return{}}}
 function grupAyarYaz(a){try{localStorage.setItem(GRUP_ANAHTAR,JSON.stringify(a))}catch(x){}}
@@ -674,12 +690,12 @@ const durumYazisi=d=>d==="plan"?"plan onayı bekliyor":d==="karar-bekliyor"?"kar
 function grupNoktasi(g){return g.durum==="calisiyor"?"calisiyor":(g.durum==="plan"||g.durum==="karar-bekliyor"||S.okunmadi[g.id])?"bekliyor":""}
 async function projeAc(g){if(!g.var){alert("Klasör artık yok: "+g.yol);return false}if(S.projeId===g.id)return true;try{return await projeSec(g.yol)}catch(x){alert(x.message);return false}}
 function gorevSatiri(g,t,o){const baslik=(t.ozel_ad||t.gorev||"").slice(0,60)||"(boş)";
-  const sat=e("div",{class:"rol"+(t.okunmadi?" okunmadi":"")+(S.gecmisGorev===t.id&&S.projeId===g.id?" on":""),title:(t.zaman||"")+" · "+(t.token_toplam||0)+" token"+(t.ozel_ad?"\n"+t.gorev:""),
+  const sat=e("div",{class:"rol"+(t.okunmadi?" okunmadi":"")+((t.idler?t.idler.includes(S.gecmisGorev):S.gecmisGorev===t.id)&&S.projeId===g.id?" on":""),title:(t.zaman||"")+" · "+(t.token_toplam||0)+" token"+(t.ozel_ad?"\n"+t.gorev:""),
     onclick:async()=>{if(!await projeAc(g))return;document.querySelectorAll("#gecmis .rol.on").forEach(x=>x.classList.remove("on"));sat.classList.add("on");gecmisAc(t.id)},
     oncontextmenu:ev=>{ev.preventDefault();gorevMenusu(ev.clientX,ev.clientY,g,t,o,sat)}},
     e("span",{class:"dot "+gorevRengi(t.durum)}),
     e("div",{style:"min-width:0;flex:1"},e("div",{class:"n",style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:(t.sabit?"📌 ":"")+baslik}),
-      e("div",{class:"mut3",text:String(t.zaman||"").slice(5,16)+" · "+(o.son?t.ad:(t.degisen_sayisi||0)+" dosya")})),
+      e("div",{class:"mut3",text:String(t.zaman||"").slice(5,16)+" · "+(t.sayi>1?t.sayi+" görev · ":"")+(o.son?t.ad:(t.degisen_sayisi||0)+" dosya")})),
     e("button",{class:"dots",title:"Seçenekler",text:"⋯",onclick:ev=>{ev.stopPropagation();const b=ev.currentTarget.getBoundingClientRect();gorevMenusu(b.left,b.bottom,g,t,o,sat)}}));
   sat.dataset.gorev=t.id;return sat}
 let MENU=null;
@@ -736,22 +752,19 @@ function kenarCiz(){const k=$("#gecmis");if(!S.gruplar)return;const q=katla($("#
     if(q&&!gorevler.length&&!katla(g.ad).includes(q))continue;n++;
     const acik=q?true:(ayar[g.id]?ayar[g.id]==="a":(g.secili||!!g.durum||!!S.okunmadi[g.id]));
     const ust=e("div",{class:"grup-ust"+(g.secili?" secili":"")+(g.var?"":" yok"),title:g.yol+(g.var?"":"\n(klasör artık yok)"),onclick:()=>{const a=grupAyar();a[g.id]=acik?"k":"a";grupAyarYaz(a);kenarCiz()}},
-      e("span",{class:"grup-ok",text:acik?"▾":"▸"}),e("span",{class:"dot "+grupNoktasi(g)}),e("span",{class:"grup-ad",text:g.ad}),
+      e("span",{class:"grup-ok",text:acik?"▾":"▸"}),e("span",{class:"dot "+grupNoktasi(g)}),e("span",{class:"grup-ad",text:g.ad}),g.github?e("span",{class:"grup-gh",text:"☁",title:"GitHub"}):null,
       e("button",{class:"grup-art",text:"+",title:"Bu projede yeni görev",onclick:async ev=>{ev.stopPropagation();if(await projeAc(g))yeniKonusma()}}));
     k.append(ust);if(!acik)continue;
     const govde=e("div",{class:"grup-govde"});k.append(govde);
     if(g.durum)govde.append(e("div",{class:"rol"+(g.secili?" on":""),onclick:()=>projeAc(g)},e("span",{class:"dot "+(g.durum==="calisiyor"?"calisiyor":"bekliyor")}),e("div",{style:"min-width:0"},e("div",{class:"n",style:"overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:(g.gorev||"").slice(0,60)||"(görev)"}),e("div",{class:"mut3",text:durumYazisi(g.durum)}))));
-    const sinir=q||S.fazla[g.id]?gorevler.length:5;
-    for(const t of gorevler.slice(0,sinir))govde.append(gorevSatiri(g,t,{}));
+    const sinir=q||S.fazla[g.id]?1e9:5;
+    const kg=konusmaGruplari(g).filter(a=>!q||a.some(t=>gorevler.includes(t)));
+    for(const a of kg.slice(0,sinir))govde.append(gorevSatiri(g,konusmaOzeti(a),{}));
     if(!gorevler.length&&!g.durum)govde.append(e("div",{class:"mut3",style:"padding:2px 6px",text:"henüz görev yok"}));
     claudeBolumu(g,govde);
     if((g.arsiv||[]).length&&!q){S.arsivAcik=S.arsivAcik||{};govde.append(e("button",{class:"grup-daha",text:(S.arsivAcik[g.id]?"▾ ":"▸ ")+"Arşiv ("+g.arsiv.length+")",onclick:()=>{S.arsivAcik[g.id]=!S.arsivAcik[g.id];kenarCiz()}}));if(S.arsivAcik[g.id])for(const t of g.arsiv)govde.append(gorevSatiri(g,t,{arsiv:true}))}
-    if(gorevler.length>5&&!q)govde.append(e("button",{class:"grup-daha",text:S.fazla[g.id]?"Daha az göster":"Daha fazla göster",onclick:()=>{S.fazla[g.id]=!S.fazla[g.id];kenarCiz()}}))}
-  const son=S.gruplar.son.filter(t=>!q||katla(t.ad+" "+(t.ozel_ad||"")+" "+t.gorev).includes(q)).slice(0,8);
-  if(son.length){k.append(e("div",{class:"sec",text:"Son görevler"}));
-    for(const t of son){const g=S.gruplar.projeler.find(x=>x.id===t.proje);if(!g)continue;const ayrinti=g.gorevler.find(x=>x.id===t.id)||{};
-      k.append(gorevSatiri(g,Object.assign({},ayrinti,t,{sabit:ayrinti.sabit,degisen_sayisi:ayrinti.degisen_sayisi}),{son:true}))}}
-  if(!n&&!son.length)k.append(e("div",{class:"mut3",text:q?"Eşleşen yok.":"Henüz proje yok. '+ Proje' ile bir klasör ekleyin."}))}
+    if(kg.length>5&&!q)govde.append(e("button",{class:"grup-daha",text:S.fazla[g.id]?"Daha az göster":"Daha fazla göster",onclick:()=>{S.fazla[g.id]=!S.fazla[g.id];kenarCiz()}}))}
+  if(!n)k.append(e("div",{class:"mut3",text:q?"Eşleşen yok.":"Henüz proje yok. '+ Proje' ile bir klasör ekleyin."}))}
 $("#kenarAra").oninput=kenarCiz;$("#yeniProje").onclick=()=>klasorSecimiAc();
 /* proje başına olay saklama: seçili olmayan projelerin olayları yalnız saklanır; projeye geçince yeniden oynatılarak görünüm kurulur */
 function projeGorunumuKur(){S.imza=null;S.tekrar=true;try{$("#akis").textContent="";S.planDugmeleri={};S.planEtiket={};S.rolDurum={};S.adimDiv={};S.canliDiv=null;S.fark=null;S.kararBekliyor=false;degisiklikCiz(null);
@@ -767,11 +780,18 @@ $("#yeniGorev").onclick=yeniKonusma;
 /* ---- Ciktilar (Outputs): projede gorevlerle olusan/degisen dosyalar ---- */
 const CIKTI_ROZET={html:"html",md:"md",gorsel:"img",kod:"kod",diger:"dosya"};
 function boyutYaz(n){return n<1024?n+" B":n<1048576?(n/1024).toFixed(1)+" KB":(n/1048576).toFixed(1)+" MB"}
-function ciktiAc(c){
+/* Cikti secilince liste kapanmaz: altta ayri bir cerceve acilir (html/gorsel canli, diger dosyalar metin) */
+async function ciktiAc(c){const k=$("#ciktiIzle");k.style.display="";k.textContent="";
+  const kapat=e("button",{class:"yuvarlak simge",text:"×","aria-label":"Kapat",title:"Kapat",onclick:()=>{k.style.display="none";k.textContent=""}});
+  k.append(e("div",{class:"row",style:"gap:8px;margin-bottom:6px"},e("b",{class:"mono",style:"flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap",text:c.yol}),e("button",{text:"Sekmede aç",onclick:()=>ciktiSekmedeAc(c)}),kapat));
+  if(c.tur==="html")k.append(e("iframe",{sandbox:"allow-scripts allow-forms allow-same-origin",title:c.ad,src:onizTaban.replace(/\/$/,"")+"/"+c.yol.split("/").map(encodeURIComponent).join("/")}));
+  else if(c.tur==="gorsel")k.append(e("img",{alt:c.ad,src:onizTaban.replace(/\/$/,"")+"/"+c.yol.split("/").map(encodeURIComponent).join("/")}));
+  else{const pre=e("pre",{class:"mono",text:"yükleniyor…"});k.append(pre);try{const r=await api("/api/dosya?yol="+encodeURIComponent(c.yol));pre.textContent=r.ikili?"(ikili dosya)":r.icerik+(r.kesildi?"\n…":"")}catch(x){pre.textContent=x.message}}}
+function ciktiSekmedeAc(c){
   if(c.tur==="html"||c.tur==="gorsel"){$("#onizTur").value="dosya";$("#onizYol").value="/"+c.yol;onizGoster();sekme("p-onizleme")}
   else if(c.tur==="md"){const s=$("#belgeSec");if([...s.options].some(o=>o.value===c.yol))s.value=c.yol;belgeAc(c.yol);sekme("p-belgeler")}
   else{dosyaGoster(c.yol);sekme("p-dosyalar")}}
-async function ciktilariYukle(){const p=$("#p-ciktilar");const dugme=document.querySelector('[data-p="p-ciktilar"]');
+async function ciktilariYukle(){const p=$("#ciktiListe");const dugme=document.querySelector('[data-p="p-ciktilar"]');
   if(!S.klasor){dugme.textContent="Çıktılar";p.textContent="";p.append(e("div",{class:"mut3",text:"Önce bir proje seçin."}));return}
   let d;try{d=await api("/api/ciktilar")}catch(x){p.textContent="";p.append(e("div",{class:"badge b-err",text:x.message}));return}
   dugme.textContent="Çıktılar"+(d.toplam?" ("+d.toplam+")":"");p.textContent="";
@@ -979,11 +999,13 @@ $("#gorev").addEventListener("paste",ev=>{const d=ev.clipboardData,f=d?[...d.fil
 {const orta=$("#orta"),dosyaMi=ev=>ev.dataTransfer&&[...ev.dataTransfer.types].includes("Files");
   orta.addEventListener("dragover",ev=>{if(dosyaMi(ev)){ev.preventDefault();orta.classList.add("surukle")}});orta.addEventListener("dragleave",ev=>{if(!orta.contains(ev.relatedTarget))orta.classList.remove("surukle")});
   orta.addEventListener("drop",ev=>{orta.classList.remove("surukle");if(dosyaMi(ev)){ev.preventDefault();ekEkle([...ev.dataTransfer.files])}})}
-async function gonder(){const t=$("#gorev").value.trim();if(!t||!S.klasor)return;if((S.ekler||[]).some(x=>x.yukleniyor)){akisaEkle(e("div",{class:"badge b-warn",text:"Dosya yükleniyor, birkaç saniye bekleyin"}));return}try{if("Notification" in window&&Notification.permission==="default")Notification.requestPermission().catch(()=>{})}catch(x){}$("#gorev").value="";const ekYollar=(S.ekler||[]).map(x=>x.yol).filter(Boolean);alttaGoster();try{const p=await api("/api/gorev",{method:"POST",body:{gorev:t,ekler:ekYollar,kuyruga:!!S.kosuAktif}});ekTemizle();if(p.kuyruk!==undefined)return;S.kosu={kimlik:p.kosu,gorev:t,durum:(S.kosu&&S.kosu.kimlik===p.kosu)?S.kosu.durum:(p.otomatik?"calisiyor":"plan")};kosuGorunumu()}catch(x){akisaEkle(e("div",{class:"badge b-err",text:x.message}))}}
+async function gonder(){if(S.sesDurdur)S.sesDurdur();const t=$("#gorev").value.trim();if(!t||!S.klasor||$("#gorev").disabled)return;if((S.ekler||[]).some(x=>x.yukleniyor)){akisaEkle(e("div",{class:"badge b-warn",text:"Dosya yükleniyor, birkaç saniye bekleyin"}));return}try{if("Notification" in window&&Notification.permission==="default")Notification.requestPermission().catch(()=>{})}catch(x){}$("#gorev").value="";const ekYollar=(S.ekler||[]).map(x=>x.yol).filter(Boolean);alttaGoster();try{const p=await api("/api/gorev",{method:"POST",body:{gorev:t,ekler:ekYollar,kuyruga:!!S.kosuAktif}});ekTemizle();if(p.kuyruk!==undefined)return;S.kosu={kimlik:p.kosu,gorev:t,durum:(S.kosu&&S.kosu.kimlik===p.kosu)?S.kosu.durum:(p.otomatik?"calisiyor":"plan")};kosuGorunumu()}catch(x){akisaEkle(e("div",{class:"badge b-err",text:x.message}))}}
 /* field-sizing desteklemeyen tarayicilar icin (Firefox): yukseklik elle ayarlanir */
+function sesliKur(){const SR=window.SpeechRecognition||window.webkitSpeechRecognition,b=$("#mikDugme");if(!SR||!window.isSecureContext)return;b.style.display="";let r=null,acik=false;const bitir=()=>{acik=false;b.classList.remove("on");try{r&&r.stop()}catch(x){}};S.sesDurdur=bitir;b.onclick=()=>{if(acik){bitir();return}const t=$("#gorev");const temel=t.value&&!/\s$/.test(t.value)?t.value+" ":t.value;r=new SR();r.lang=DIL.yerel;r.interimResults=true;r.continuous=true;r.onresult=ev=>{let m="";for(let i=0;i<ev.results.length;i++)m+=ev.results[i][0].transcript;t.value=temel+m;t.dispatchEvent(new Event("input"))};r.onend=()=>{acik=false;b.classList.remove("on")};r.onerror=()=>bitir();acik=true;b.classList.add("on");try{r.start()}catch(x){bitir()}}}
+sesliKur();
 function gorevBoyutla(){const t=$("#gorev");t.style.height="auto";t.style.height=Math.min(t.scrollHeight+2,Math.round(innerHeight*0.4))+"px"}
 if(!(window.CSS&&CSS.supports&&CSS.supports("field-sizing","content"))){$("#gorev").addEventListener("input",gorevBoyutla);new MutationObserver(gorevBoyutla).observe($("#gorev"),{attributes:true});setInterval(()=>{if($("#gorev").value==="")gorevBoyutla()},1000)}
-$("#gonder").onclick=gonder;$("#gorev").addEventListener("keydown",ev=>{if(ev.key==="Enter"&&!ev.shiftKey){ev.preventDefault();gonder()}});
+$("#gonder").onclick=gonder;$("#gorev").addEventListener("keydown",ev=>{if(ev.key==="Enter"&&!ev.shiftKey&&!ev.isComposing){ev.preventDefault();gonder()}});
 $("#durdur").onclick=async()=>{try{await api("/api/gorev/"+S.kosu.kimlik+"/durdur",{method:"POST",body:{}})}catch(x){alert(x.message)}};
 $("#testiAtla").onclick=async()=>{try{$("#testiAtla").disabled=true;await api("/api/gorev/"+S.kosu.kimlik+"/testi-atla",{method:"POST",body:{}})}catch(x){alert(x.message)}$("#testiAtla").disabled=false};
 async function dosyalariYukle(){if(!S.klasor||S.tekrar)return;ciktilariYukle();try{const d=await api("/api/dosyalar");S.imza=d.imza;S.degisen=Object.assign({},d.degisen||{});agacCiz(d.dosyalar);belgeleriCiz(d.belgeler)}catch(x){}}
@@ -1273,6 +1295,7 @@ function beceriFormu(kap,b,bitti){const eski=$("#beceriForm");if(eski)eski.remov
   k.append(e("div",{class:"row",style:"margin-top:6px"},kaydet,e("button",{text:"Vazgeç",onclick:()=>k.remove()})),hata);kap.append(k);k.scrollIntoView({block:"nearest"})}
 /* ---- GitHub: sağ panel sekmesi (proje işlemleri) + Ayarlar bölümü (hesap, depo klonlama). Yazan her işlem açık onay penceresiyle. ---- */
 const ghUrlGuvenli=u=>typeof u==="string"&&/^https:\/\/github\.com\//.test(u);
+function gitAktarKutusu(yenile){const b=e("button",{class:"pri",text:"Git'e aktar",title:"Bu klasörde git deposu başlatır (git init); dosyalarınıza dokunmaz",onclick:async()=>{b.disabled=true;try{await api("/api/klasor",{method:"POST",body:{yol:S.klasor,git_baslat:true}});await durumYukle();await yenile()}catch(x){b.disabled=false;b.after(e("div",{class:"badge b-err",style:"display:block;white-space:normal;margin-top:6px",text:x.message}))}}});return e("div",{style:"margin-top:6px"},e("div",{class:"badge b-warn",style:"display:block;white-space:normal;margin-bottom:6px",title:S.klasor},e("b",{class:"mono",text:(S.klasor||"").split(/[\/]/).filter(Boolean).pop()||S.klasor}),e("span",{text:" · git deposu değil"})),b)}
 function ghLink(metin,url){return ghUrlGuvenli(url)?e("a",{href:url,target:"_blank",rel:"noopener noreferrer",text:metin}):e("span",{text:metin})}
 function ghMesaj(kap,metin,tur){let m=kap.querySelector(".gh-mesaj");if(!m){m=e("div",{class:"gh-mesaj",style:"margin:6px 0"});kap.prepend(m)}m.textContent="";m.append(e("div",{class:"badge "+(tur||"b-ok"),style:"display:block;white-space:normal",text:metin}));return m}
 function ghLinkliMesaj(kap,onek,url,tur){const m=ghMesaj(kap,onek,tur);if(ghUrlGuvenli(url)){m.firstChild.append(" ",ghLink(url,url))}}
@@ -1285,7 +1308,7 @@ async function githubPaneliYukle(){const p=$("#p-github");p.textContent="";
   p.append(e("div",{class:"row",style:"justify-content:space-between"},e("span",{class:"row"},e("b",{text:"GitHub"}),hesap.giris?e("span",{class:"badge b-ok",title:"Bu hesapla işlem yapılır (gh oturumu)",text:"@"+hesap.hesap}):e("span",{class:"badge b-err",text:hesap.kurulu?"giriş yok":"gh kurulu değil"})),e("button",{text:"Yenile",onclick:githubPaneliYukle})));
   if(!hesap.giris)p.append(e("div",{class:"badge b-warn",style:"display:block;white-space:normal;margin:6px 0",text:(hesap.hata||"GitHub'a giriş yapılmamış.")+" Ayarlar > Hesaplar bölümünden GitHub'a giriş yapın."}));
   if(hesap.giris){const depoKap=e("div");p.append(depoKap);depoKlonlaKarti(depoKap,true)}
-  if(hata){p.append(e("div",{class:"badge b-err",style:"display:block;white-space:normal;margin-top:6px",text:/git deposu degil/.test(hata)?"Bu klasör bir git deposu değil (geri alma gölge yedekten çalışır, git gerekmez). Commit ve push için klasörde git deposu gerekir; isterseniz Terminal'de `git init` çalıştırın.":hata}));return}
+  if(hata){p.append(/git deposu degil/.test(hata)?gitAktarKutusu(githubPaneliYukle):e("div",{class:"badge b-err",style:"display:block;white-space:normal;margin-top:6px",text:hata}));return}
   const dal=d.dal||"(dal yok)";const uzakAd=d.uzak.depo||d.uzak.url||"";
   p.append(e("div",{class:"card"},e("div",{class:"row",style:"flex-wrap:wrap;gap:6px"},e("span",{class:"badge b-acc",text:"dal: "+dal}),uzakAd?e("span",{class:"badge",text:"origin: "+uzakAd,title:d.uzak.url}):e("span",{class:"badge b-warn",text:"origin tanımlı değil"}),d.upstream?e("span",{class:"badge",text:"↑"+d.onde+" ↓"+d.geride}):null),
     e("div",{class:"mut3",style:"margin-top:4px",text:"commit kimliği: "+(d.kimlik.ad||"(ad yok)")+" <"+(d.kimlik.eposta||"e-posta yok")+">"})));
@@ -1342,7 +1365,7 @@ async function gitFarkGoster(hedef,yol,sha,hazir){hedef.textContent="yükleniyor
 async function gitPaneliYukle(){const p=$("#p-git");p.textContent="";
   if(!S.klasor){p.append(e("div",{class:"mut3",text:"Önce bir proje seçin."}));return}
   p.append(e("div",{class:"mut3",text:"yükleniyor…"}));let d;
-  try{d=await api("/api/github/proje")}catch(x){p.textContent="";p.append(e("div",{class:"row",style:"justify-content:space-between"},e("b",{text:"Git"}),e("button",{text:"Yenile",onclick:gitPaneliYukle})),e("div",{class:"badge b-err",style:"display:block;white-space:normal;margin-top:6px",text:/git deposu degil/.test(x.message)?"Bu klasör bir git deposu değil (geri alma gölge yedekten çalışır, git gerekmez). Git yönetimi için klasörde git deposu gerekir; isterseniz Terminal'de `git init` çalıştırın.":x.message}));return}
+  try{d=await api("/api/github/proje")}catch(x){p.textContent="";p.append(e("div",{class:"row",style:"justify-content:space-between"},e("b",{text:"Git"}),e("button",{text:"Yenile",onclick:gitPaneliYukle})),/git deposu degil/.test(x.message)?gitAktarKutusu(gitPaneliYukle):e("div",{class:"badge b-err",style:"display:block;white-space:normal;margin-top:6px",text:x.message}));return}
   p.textContent="";const dal=d.dal||"(dal yok)";const uzakAd=d.uzak.depo||d.uzak.url||"";
   const yenile=async(mesaj)=>{await gitPaneliYukle();if(mesaj)ghMesaj($("#p-git"),mesaj)};
   const islem=(btn,yol,govde,basari,onay)=>async()=>{if(onay&&!confirm(onay))return;btn.disabled=true;try{const r=await api(yol,{method:"POST",body:govde||{}});await yenile(typeof basari==="function"?basari(r):basari)}catch(x){btn.disabled=false;ghMesaj($("#p-git")||p,x.message,"b-err")}};
