@@ -159,7 +159,7 @@ def test_tam_akis_korunsun(kur):
     assert "1 dosya degisti" in fark["text"] and "A yeni.txt" in fark["text"] and set(kd) == {"Korunsun", "Geri al"}
     assert any("kodcu" in m and "tamam" in m for m in fake.metinler() + [v["text"] for v in fake.gonderilen("editMessageText")])
     fake.dugme(UID, kd["Korunsun"])
-    assert bekle(lambda: any(m.startswith("Bitti: onaylandi") for m in fake.metinler()))
+    assert bekle(lambda: any("Görev tamamlandı, değişiklikler korundu" in m for m in fake.metinler()))
     assert (kur.proje / "yeni.txt").exists()
     assert fake.gonderilen("answerCallbackQuery") and fake.gonderilen("editMessageReplyMarkup")  # dugmeler kaldirildi
 
@@ -170,7 +170,7 @@ def test_geri_al_dugmesi(kur):
     fake.dugme(UID, f"o:{kosu}")
     assert bekle(lambda: son_klavye(fake, "k:")[0] is not None)
     fake.dugme(UID, son_klavye(fake, "k:")[1]["Geri al"])
-    assert bekle(lambda: any(m.startswith("Bitti: geri_alindi") for m in fake.metinler()))
+    assert bekle(lambda: any("Değişiklikler geri alındı" in m for m in fake.metinler()))
     assert not (kur.proje / "yeni.txt").exists()
 
 
@@ -178,7 +178,7 @@ def test_plan_reddi_ve_bayat_dugme(kur):
     bot, fake, app, _ = kur()
     kosu = tam_kosu_baslat(bot, fake, app, kur.proje)
     fake.dugme(UID, f"r:{kosu}")
-    assert bekle(lambda: any(m.startswith("Bitti: reddedildi") for m in fake.metinler()))
+    assert bekle(lambda: any("Plan reddedildi" in m for m in fake.metinler()))
     n = len(fake.gonderilen("answerCallbackQuery"))
     fake.dugme(UID, f"o:{kosu}")  # reddedilmis plana tekrar basildi
     assert bekle(lambda: len(fake.gonderilen("answerCallbackQuery")) > n)
@@ -210,7 +210,7 @@ def test_durdur_komutu(kur):
     fake.dugme(UID, f"o:{kosu}")
     assert e.basladi.wait(5)
     fake.mesaj(UID, "/durdur")
-    assert bekle(lambda: any(m.startswith("Bitti: iptal") for m in fake.metinler()))
+    assert bekle(lambda: any("Görev durduruldu" in m for m in fake.metinler()))
 
 
 def test_goreli_klasor_yolu_reddedilir(kur, tmp_path, monkeypatch):
@@ -715,3 +715,31 @@ def test_otomatik_onayli_plan_telegramda_dugmesiz_gelir(kur, proje):
     fake.mesaj(UID, "/gorev yeni.txt ekle")
     assert bekle(lambda: any("otomatik onaylandi" in m and "Test adimi atlanacak" in m for m in fake.metinler()))
     assert son_klavye(fake, "o:")[0] is None  # onay dugmesi YOK
+
+
+def _korunsun_ile_bitir(bot, fake, app, proje):
+    kosu = tam_kosu_baslat(bot, fake, app, proje)
+    fake.dugme(UID, f"o:{kosu}")
+    assert bekle(lambda: son_klavye(fake, "k:")[0] is not None)
+    fake.dugme(UID, son_klavye(fake, "k:")[1]["Korunsun"])
+    assert bekle(lambda: any("Görev tamamlandı, değişiklikler korundu" in m for m in fake.metinler()))
+
+
+def test_bitis_bildirimi_gorevi_gosterir_ilerleme_mesaji_sessiz_gider(kur):
+    bot, fake, app, _ = kur()
+    _korunsun_ile_bitir(bot, fake, app, kur.proje)
+    bitis = [p for p in fake.gonderilen("sendMessage") if "Görev tamamlandı" in p["text"]][-1]
+    assert "Görev: " in bitis["text"] and "disable_notification" not in bitis  # bitis bildirimi SESLI
+    ilerleme = [p for p in fake.gonderilen("sendMessage") if "calisiyor..." in p["text"]]
+    assert ilerleme and all(p.get("disable_notification") is True for p in ilerleme)  # ara mesajlar sessiz
+    plan = [p for p in fake.gonderilen("sendMessage") if p["text"].startswith("Plan")][-1]
+    assert "disable_notification" not in plan  # onay istegi sesli
+
+
+def test_ilerleme_kapaliyken_yalniz_plan_fark_ve_bitis_gider(kur):
+    bot, fake, app, _ = kur()
+    bot.ayar["ilerleme"] = False
+    _korunsun_ile_bitir(bot, fake, app, kur.proje)
+    tum = fake.metinler() + [v["text"] for v in fake.gonderilen("editMessageText")]
+    assert not any("calisiyor..." in m for m in tum)
+    assert any(m.startswith("Plan") for m in tum) and any("dosya degisti" in m for m in tum)

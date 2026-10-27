@@ -117,6 +117,7 @@ class TelegramYoneticisi:
             "eslesmis": len(ayar.get("izinli", [])) if isinstance(ayar.get("izinli", []), list) else 0,
             "eslestirme": eslestirme,
             "otomatik": bool(arayuz_ayar_oku().get("telegram_otomatik", False)),
+            "ilerleme": ayar.get("ilerleme", True) is not False,
             "kokler": [str(k) for k in ayar.get("kokler", [])],
             "hata": self._hata,
             "log": list(self.log_tamponu)[-60:],
@@ -171,6 +172,14 @@ class TelegramYoneticisi:
 
     def otomatik_ayarla(self, acik: bool) -> dict:
         arayuz_ayar_yaz(telegram_otomatik=bool(acik))
+        return self.durum()
+
+    def ilerleme_ayarla(self, acik: bool) -> dict:
+        ayar = self._ayar()
+        ayar["ilerleme"] = bool(acik)
+        self.ayar_yolu.parent.mkdir(parents=True, exist_ok=True)
+        self.ayar_yolu.write_text(json.dumps(ayar, indent=2), encoding="utf-8")
+        self._bota_yansit()
         return self.durum()
 
     def kok_ekle(self, yol: str) -> dict:

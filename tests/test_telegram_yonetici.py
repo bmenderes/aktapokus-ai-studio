@@ -173,3 +173,24 @@ def test_gunluk_token_icerse_bile_maskeler(kur):
     satir = y.log_tamponu[-1]
     assert TOKEN not in satir and "[TOKEN]" in satir
     assert TOKEN not in json.dumps(y.durum())
+
+
+def test_ilerleme_ayari_kalici_diger_anahtarlari_korur_ve_calisan_bota_yansir(kur):
+    y, fake, app, ayar = kur()
+    assert y.durum()["ilerleme"] is True  # varsayilan: adim adim ilerleme acik
+    y.kok_ekle(str(ayar.parent))  # baska bir ayar anahtari yazilsin
+    y.baslat()
+    assert y._bot.ayar["ilerleme"] is True
+    d = y.ilerleme_ayarla(False)
+    assert d["ilerleme"] is False and y._bot.ayar["ilerleme"] is False  # calisan bot hemen gorur
+    kayit = json.loads(ayar.read_text(encoding="utf-8"))
+    assert kayit["ilerleme"] is False and "kokler" in kayit
+    assert y.ilerleme_ayarla(True)["ilerleme"] is True
+
+
+def test_arayuz_ilerleme_kutusu_ve_ucu_baglidir():
+    from pathlib import Path
+
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
+    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "arayuz.py").read_text(encoding="utf-8")
+    assert 'islem("ilerleme",{acik:ilr.checked})' in html and "otomatik|ilerleme|kok" in kaynak

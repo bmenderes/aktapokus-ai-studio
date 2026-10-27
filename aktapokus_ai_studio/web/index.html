@@ -731,10 +731,12 @@ async function telegramBolumu(h){const kutu=e("div");h.append(kutu);
     const durdur=e("button",{text:"Durdur",onclick:()=>islem("durdur")});durdur.disabled=!d.calisiyor;
     const yeni=e("button",{text:"Yeni eşleştirme kodu",title:"Telefon ya da ikinci bir cihaz eklemek için",onclick:()=>islem("eslestir")});yeni.disabled=!d.calisiyor;
     const oto=e("input",{type:"checkbox"});oto.checked=d.otomatik;oto.onchange=()=>islem("otomatik",{acik:oto.checked});
+    const ilr=e("input",{type:"checkbox"});ilr.checked=d.ilerleme!==false;ilr.onchange=()=>islem("ilerleme",{acik:ilr.checked});
     kutu.append(e("div",{class:"ayar-kart"},
       e("div",{class:"ayar-satir"},e("div",null,e("div",{text:"Telegram botu"}),e("div",{class:"mut3",text:d.bot?d.bot+" · "+d.eslesmis+" eşleşmiş kullanıcı":d.eslesmis+" eşleşmiş kullanıcı"})),e("span",{class:"row"},durumRozet,baslat,durdur)),
       e("div",{class:"ayar-satir"},e("div",null,e("div",{text:"Token"}),e("div",{class:"mut3",style:"white-space:normal",text:d.token_var?"Bulundu (hiçbir yerde gösterilmez).":"Yok. BotFather'dan aldığınız token'ı SİZ ~/.aktapokus/telegram.token dosyasına yazın (bana ya da sohbete yazmayın)."})),e("span",{class:"badge "+(d.token_var?"b-ok":"b-err"),text:d.token_var?"var":"yok"})),
       e("div",{class:"ayar-satir"},e("label",{class:"row",style:"gap:8px"},oto,e("div",null,e("div",{text:"Uygulama açılınca otomatik başlat"}),e("div",{class:"mut3",text:"Kısayolla açtığınızda bot da hazır olur; telefondan kullanmak için bilgisayar açık olmalı."})))),
+      e("div",{class:"ayar-satir"},e("label",{class:"row",style:"gap:8px"},ilr,e("div",{text:"Adım adım ilerleme mesajları (kapalıyken yalnızca onay ve bitiş bildirimi)"}))),
       e("div",{class:"ayar-satir"},e("div",null,e("div",{text:"Eşleştirme"}),e("div",{class:"mut3",text:"Telefonu bota bağlamak için tek kullanımlık kod (10 dk geçerli)."})),yeni)));
     if(d.hata)kutu.append(e("div",{class:"badge b-err",style:"white-space:normal;margin:6px 0",text:d.hata}));
     if(d.eslestirme){const x=d.eslestirme;kutu.append(e("div",{class:"ayar-kart",style:"padding:10px 14px"},e("b",{text:"Eşleştirme kodu hazır ("+x.kalan_sn+" sn)"}),e("div",{class:"mono",style:"margin-top:4px;font-size:15px",text:x.komut}),e("div",{class:"mut3",style:"white-space:normal",text:"Botunuza bu mesajı yazın"+(x.baglanti?"; ya da telefonda şu bağlantıyı açın: "+x.baglanti:"")+"."})));}

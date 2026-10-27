@@ -106,6 +106,13 @@ class TelegramApi:
         return j.get("result")
 
 
+BITIS_METNI = {
+    "tamam": "✅ Görev tamamlandı", "onaylandi": "✅ Görev tamamlandı, değişiklikler korundu", "geri_alindi": "↩️ Değişiklikler geri alındı",
+    "degisiklik_yok": "✅ Görev bitti, dosya değişmedi", "dogrulama_basarisiz": "⚠️ Görev bitti ama doğrulama (test) başarısız",
+    "butce_asildi": "⚠️ Token bütçesi aşıldı, görev durdu", "hata": "❌ Görev başarısız oldu", "reddedildi": "Plan reddedildi, hiçbir şey çalıştırılmadı", "iptal": "⏹ Görev durduruldu",
+}
+
+
 class Bot:
     def __init__(self, app: Uygulama, api: TelegramApi, ayar_yolu: Path | None = None, log: Callable[[str], None] = print, yoklama_sn: int = 25):
         self.app, self.api, self.log, self.yoklama_sn = app, api, log, yoklama_sn
@@ -118,16 +125,18 @@ class Bot:
         self.proje_tablosu: list[Path] = []  # /projeler dugmelerinin (p:N, g:N) gosterdigi klasorler
         self.aktif_proje: dict[int, str] = {}  # sohbet -> proje kimligi (bilgisayardaki secili projeden BAGIMSIZ; yeniden baslayinca sifirlanir)
         self.ilerleme: dict[str, dict] = {}  # kosu -> {chat: (mesaj_id, satirlar)}
+        self.kosu_gorev: dict[str, str] = {}  # kosu -> gorev metni (bitis bildiriminde gosterilir)
         self._olay_kuyrugu: queue.Queue | None = None
 
     # ---- ayar ----
     def _yukle(self) -> dict:
-        varsayilan = {"izinli": [], "icerik_gonder": False, "kokler": [], "gizli": list(GIZLI_VARSAYILAN)}
+        varsayilan = {"izinli": [], "icerik_gonder": False, "ilerleme": True, "kokler": [], "gizli": list(GIZLI_VARSAYILAN)}
         try:
             v = json.loads(self.ayar_yolu.read_text(encoding="utf-8"))
             return {
                 "izinli": [int(x) for x in v.get("izinli", [])],
                 "icerik_gonder": bool(v.get("icerik_gonder", False)),
+                "ilerleme": bool(v.get("ilerleme", True)),  # adim adim ilerleme mesajlari; kapaliyken yalniz onay istekleri ve bitis bildirimi gider
                 "kokler": [str(x) for x in v.get("kokler", [])],
                 "gizli": [str(x) for x in v.get("gizli", GIZLI_VARSAYILAN)],
             }
@@ -166,8 +175,10 @@ class Bot:
         return o.klasor.name if o else ""
 
     # ---- gonderim ----
-    def _gonder(self, chat: int, metin: str, klavye: list | None = None) -> int | None:
+    def _gonder(self, chat: int, metin: str, klavye: list | None = None, sessiz: bool = False) -> int | None:
         govde: dict = {"chat_id": chat, "text": metin[:AZAMI_MESAJ], "disable_web_page_preview": True}
+        if sessiz:
+            govde["disable_notification"] = True  # ilerleme mesaji telefonu calmasin; onay istekleri ve bitis bildirimi sesli gider
         if klavye:
             govde["reply_markup"] = {"inline_keyboard": klavye}
         try:
@@ -187,7 +198,7 @@ class Bot:
             satirlar = (satirlar + [satir])[-15:]
             metin = "\n".join(satirlar)
             if mesaj_id is None:
-                mesaj_id = self._gonder(chat, metin)
+                mesaj_id = self._gonder(chat, metin, sessiz=True)
             else:
                 try:
                     self.api.cagir("editMessageText", {"chat_id": chat, "message_id": mesaj_id, "text": metin[:AZAMI_MESAJ]})
@@ -484,12 +495,15 @@ class Bot:
         if t in ("plan", "adim-basladi", "adim-bitti", "dogrulama", "duzeltme", "fark", "bitti"):  # bilgisayar tarafinda de ilerleme gorunsun
             self.log(f"[{time.strftime('%H:%M:%S')}] {t}" + "".join(f" {o[a]}" for a in ("rol", "sonuc", "durum") if o.get(a)))
         if t == "plan":
+            self.kosu_gorev[k] = str(o.get("gorev") or "")
             adimlar = "\n".join(f"  {a['rol']}: {a['calistirici']} / {a['model'] or 'varsayilan model'}" for a in o["adimlar"])
             self._herkese(
                 f"{et}Plan{' (otomatik onaylandi)' if o.get('otomatik') else ''}\nGorev: {o['gorev']}\n{adimlar}\nButce: {o['butce'] or 'sinirsiz'} token, en cok {o['azami_duzeltme']} duzeltme, yalniz secili klasor"
                 + ("\nTest adimi atlanacak." if o.get("testsiz") else ""),
                 None if o.get("otomatik") else [[{"text": "Onayla", "callback_data": f"o:{k}"}, {"text": "Reddet", "callback_data": f"r:{k}"}]],
             )
+        elif t in ("adim-basladi", "adim-bitti", "dogrulama", "duzeltme") and not self.ayar.get("ilerleme", True):
+            return
         elif t == "adim-basladi":
             self._ilerleme_yaz(k, f"{et}{o['rol']} ({o['model'] or o['calistirici']}) calisiyor...")
         elif t == "adim-bitti":
@@ -507,7 +521,15 @@ class Bot:
                           [[{"text": "Korunsun", "callback_data": f"k:{k}:1"}, {"text": "Geri al", "callback_data": f"k:{k}:0"}]])
         elif t == "bitti":
             self.ilerleme.pop(k, None)
-            self._herkese(f"{et}Bitti: {o['durum']}" + (f"\n{o['mesaj']}" if o.get("mesaj") else "") + (f"\nToplam {o['token_toplam']} token" if o.get("token_toplam") else ""))
+            gorev = self.kosu_gorev.pop(k, "").strip().splitlines()
+            satirlar = [f"{et}{BITIS_METNI.get(o['durum'], 'Görev bitti: ' + str(o['durum']))}"]
+            if gorev:
+                satirlar.append("Görev: " + gorev[0][:120])  # yalniz ilk satir (ekli dosya listesi bildirime girmez)
+            if o.get("mesaj"):
+                satirlar.append(str(o["mesaj"])[:400])
+            if o.get("token_toplam"):
+                satirlar.append(f"Toplam {o['token_toplam']} token")
+            self._herkese("\n".join(satirlar))
 
     def _olay_dongusu(self) -> None:
         assert self._olay_kuyrugu is not None

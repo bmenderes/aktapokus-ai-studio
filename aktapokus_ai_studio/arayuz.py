@@ -579,6 +579,8 @@ class Uygulama:
                 return y.yeni_eslestirme()
             if islem == "otomatik":
                 return y.otomatik_ayarla(bool(g.get("acik")))
+            if islem == "ilerleme":
+                return y.ilerleme_ayarla(bool(g.get("acik")))
             if islem == "kok":
                 return y.kok_ekle(str(g.get("yol", "")))
             if islem == "kok-sil":
@@ -2035,7 +2037,7 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     if islem == "boyut":
                         return self._gonder(200, app.terminal_boyut(kimlik, g.get("satir"), g.get("sutun")))
                     return self._gonder(200, app.terminal_kapat(kimlik))
-                m = re.match(r"^/api/telegram/(baslat|durdur|eslestir|otomatik|kok|kok-sil)$", yol)
+                m = re.match(r"^/api/telegram/(baslat|durdur|eslestir|otomatik|ilerleme|kok|kok-sil)$", yol)
                 if m:
                     return self._gonder(200, app.telegram_islem(m.group(1), g))
                 if yol == "/api/projeler/unut":
