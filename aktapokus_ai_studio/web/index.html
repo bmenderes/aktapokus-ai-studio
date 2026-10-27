@@ -43,6 +43,8 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 #onayBar:empty{display:none}#onayBar{margin-bottom:6px}
 .onay-satir{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;padding:7px 10px;border:1px solid var(--sarikoyu);background:var(--saribg);border-radius:12px}
 .onay-satir .onay-ozet{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.onay-satir button{flex:none}
+/* degisen dosya satiri: harf sabit, yol KENDI icinde sarilir (yatay kaydirma ve kesik harf olmaz) */
+.fark-satir{display:flex;gap:8px;align-items:baseline;cursor:pointer;line-height:1.6}.fark-satir>.mut3{flex:none;width:1ch}.fark-yol{min-width:0;overflow-wrap:anywhere;word-break:break-all}
 .bitis-sade{margin:8px 0;font-size:12px;color:var(--tx3)}
 .ayrinti-dugme{border:0;background:none;padding:0 2px;min-height:0;color:var(--tx3);font-size:12px;text-decoration:underline;cursor:pointer}
 .ayrac{display:flex;align-items:center;gap:8px;color:var(--tx3);font-size:12px;margin:14px 0 6px}.ayrac::before,.ayrac::after{content:"";flex:1;height:1px;background:var(--line)}
@@ -870,7 +872,7 @@ function olayIsle(o){
   case "fark":{S.fark=o;S.degisen=o.degisen;const k=e("div",{class:"card",id:"fark-karti"});const adet=Object.keys(o.degisen).length;
     k.append(e("div",{style:"font-weight:500",text:adet+" dosya değişti"+(o.durum!=="tamam"?"  (UYARI: "+o.durum+")":"")}));
     const yama=e("div");const girdiler=Object.entries(o.degisen).sort();
-    const satir=([yol,d])=>e("div",{class:"mono",style:"cursor:pointer;line-height:1.6",onclick:async()=>{try{const r=await api("/api/fark?once="+o.once+"&sonra="+o.sonra+"&dosya="+encodeURIComponent(yol));yama.textContent="";yama.append(yamaCiz(r.yama||"(fark yok)"))}catch(x){yama.textContent=x.message}}},e("span",{class:"mut3",text:d+" "}),yol);
+    const satir=([yol,d])=>e("div",{class:"mono fark-satir",onclick:async()=>{try{const r=await api("/api/fark?once="+o.once+"&sonra="+o.sonra+"&dosya="+encodeURIComponent(yol));yama.textContent="";yama.append(yamaCiz(r.yama||"(fark yok)"))}catch(x){yama.textContent=x.message}}},e("span",{class:"mut3",text:d}),e("span",{class:"fark-yol",text:yol}));
     girdiler.slice(0,8).forEach(g=>k.append(satir(g)));  /* yuzlerce satir akisi bogmasin: ilk 8, kalani tiklayinca */
     if(girdiler.length>8){const gizli=e("div",{style:"display:none"});girdiler.slice(8).forEach(g=>gizli.append(satir(g)));k.append(gizli,e("button",{class:"ayrinti-dugme",text:"+"+(girdiler.length-8)+" dosya daha",onclick:ev=>{gizli.style.display="";ev.target.remove()}}))}
     k.append(yama);const bt=e("div",{class:"row",id:"karar-dugmeleri",style:"margin-top:6px"});k.append(bt);akisaEkle(k);dosyalariYukle();degisiklikCiz(o);if(adet)sekme("p-degisiklik");break}
