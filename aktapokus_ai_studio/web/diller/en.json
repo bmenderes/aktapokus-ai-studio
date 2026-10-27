@@ -801,6 +801,14 @@
  },
  "desen": [
   [
+   "^1 araç adımı$",
+   "1 tool step"
+  ],
+  [
+   "^(\\d+) araç adımı$",
+   "$1 tool steps"
+  ],
+  [
    "^(\\d+) dosya daha$",
    "$1 more files"
   ],
