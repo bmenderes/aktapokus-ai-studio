@@ -17,6 +17,8 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from . import otomasyon_akis
+
 KAYIT_ORTAMI = "AKTAPOKUS_OTOMASYON"
 AD_DESENI = re.compile(r"^[a-z0-9][a-z0-9_-]{0,30}$")
 AZAMI_OTOMASYON = 20
@@ -45,10 +47,11 @@ class Otomasyon:
     acik: bool = True  # kapaliysa Telegram/otomatik tetikleme calismaz (arayuzden elle 'Simdi calistir' her zaman calisir)
     aciklama: str = ""
     olusturma: str = field(default_factory=lambda: time.strftime(ZAMAN_BICIMI))
+    akis: dict | None = None  # gorsel is akisi (otomasyon_akis); varsa tur/zamanlama/gorev ondan TURETILIR. None: eski sablon
     zamanlama: dict | None = None  # yalniz tur == "zamanli": {tur: aralik|gunluk|haftalik, dakika | saat | saat+gunler(0=pazartesi)}
 
     def sozluk(self) -> dict:
-        return {"ad": self.ad, "proje": self.proje, "gorev": self.gorev, "tur": self.tur, "acik": self.acik, "aciklama": self.aciklama, "olusturma": self.olusturma, "zamanlama": self.zamanlama}
+        return {"ad": self.ad, "proje": self.proje, "gorev": self.gorev, "tur": self.tur, "acik": self.acik, "aciklama": self.aciklama, "olusturma": self.olusturma, "zamanlama": self.zamanlama, "akis": self.akis}
 
 
 def dosya_yolu() -> Path:
@@ -63,6 +66,14 @@ def gecmis_yolu() -> Path:
 def coz(veri: object, eski: Otomasyon | None = None) -> Otomasyon:
     if not isinstance(veri, dict):
         raise OtomasyonHatasi("Tanim bir nesne olmali")
+    akis = None
+    if veri.get("akis") is not None:
+        try:
+            akis = otomasyon_akis.coz(veri["akis"], _zamanlama_coz)
+        except otomasyon_akis.AkisHatasi as hata:
+            raise OtomasyonHatasi(str(hata)) from None
+        veri = {**veri, "tur": akis["tur"], "zamanlama": akis["zamanlama"], "gorev": akis["gorev"]}  # akis tek dogruluk kaynagi
+        akis = {"dugumler": akis["dugumler"], "oklar": akis["oklar"]}
     ad = veri.get("ad")
     if not isinstance(ad, str) or not AD_DESENI.fullmatch(ad):
         raise OtomasyonHatasi("'ad' kucuk harf/rakam/-/_ icermeli ve 31 karakteri gecmemeli (ornek: haftalik-rapor)")
@@ -85,7 +96,7 @@ def coz(veri: object, eski: Otomasyon | None = None) -> Otomasyon:
     if tur != "zamanli" and veri.get("zamanlama") is not None:
         raise OtomasyonHatasi("Zamanlama yalniz 'zamanli' turde olur")
     ek = {"olusturma": eski.olusturma} if eski else {}
-    return Otomasyon(ad=ad, proje=proje, gorev=gorev.strip(), tur=tur, acik=acik, aciklama=aciklama.strip(), zamanlama=zamanlama, **ek)
+    return Otomasyon(ad=ad, proje=proje, gorev=gorev.strip(), tur=tur, acik=acik, aciklama=aciklama.strip(), zamanlama=zamanlama, akis=akis, **ek)
 
 
 def _zamanlama_coz(z: object) -> dict:
