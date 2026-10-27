@@ -66,6 +66,9 @@ def test_arayuz_pwa_ve_sade_yan_cubuk_baglidir():
     # sade yan cubuk: 'Yeni' (uzun etiket yok), hesap kutusunda aciklama satiri yok, terminal/ayar yuvarlak simge dugmeleri, dugmeler ekranla buyumez
     assert "+ Yeni</button>" in html and "+ Yeni görev</button>" not in html
     assert 'id="terminalDugme" class="yuvarlak simge"' in html and 'id="ayarDugme" class="yuvarlak simge"' in html
+    assert "#girdi>.row{flex-wrap:nowrap!important" in html and "#girdiBilgi{display:none!important}" in html and "test-nokta" in html  # yazma kutusu alti her zaman tek satir
+    assert ".arac-komut{background:var(--errbg)" not in html and "gercekHata" in html and "bitis-sade" in html  # kirmizi yalniz gercek hata
+    assert 'id="onayBar"' in html and "onayBar(w)" in html and "karar-satir" in html  # onay/yetki istegi yazma kutusunun ustunde, akista degil
     assert "plan-ayrinti" in html and 'k.style.display="none"' in html  # plan karti sade: ayrintilar kapali, otomatik onayda kart yok
     assert ".hesap-chip .hc{display:none}" in html and "function bas_harfler" in html  # hesap kutusu: yalniz yuvarlak bas harfler (BM)
     assert 'id="terminalDugme" style="width:100%"' not in html and 'id="ayarDugme" style="width:100%"' not in html
