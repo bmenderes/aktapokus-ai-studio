@@ -85,6 +85,13 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 .kullanici{margin-left:auto;max-width:92%;background:var(--saribg);border-left:3px solid var(--sari);border-radius:4px 10px 10px 4px;padding:6px 10px;margin-top:8px;white-space:pre-wrap}
 .adim{margin:6px 0}
 .canli{white-space:pre-wrap;color:var(--tx2);max-height:80px;overflow:hidden;font-size:12px}
+.oto-ib{flex:none;width:28px;height:28px;min-width:28px;min-height:0;padding:0;border-radius:50%;line-height:1;text-align:center}
+.oto-tuval{position:relative;height:300px;margin-top:6px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--bg) radial-gradient(var(--line) 1px,transparent 1px) 0 0/18px 18px}
+.oto-oklar{position:absolute;left:0;top:0;width:1400px;height:700px;pointer-events:none}
+.oto-ok{fill:none;stroke:var(--acc);stroke-width:2}.oto-ok-tut{fill:none;stroke:transparent;stroke-width:12;pointer-events:stroke;cursor:pointer}
+.oto-dugum{position:absolute;display:flex;align-items:center;gap:6px;padding:0 10px;border:1px solid var(--line2);border-radius:18px;background:var(--panel);cursor:grab;user-select:none;touch-action:none;font-size:13px;white-space:nowrap}
+.oto-dugum.sec{border-color:var(--sarikoyu);background:var(--saribg)}.oto-dugum .oto-et{overflow:hidden;text-overflow:ellipsis}
+.oto-port{position:absolute;top:50%;width:12px;height:12px;margin-top:-6px;border-radius:50%;border:2px solid var(--sarikoyu);background:var(--panel)}.oto-port.g{left:-7px}.oto-port.c{right:-7px;cursor:crosshair;background:var(--sari)}
 details>summary{cursor:pointer;color:var(--tx2)}
 pre.yama{background:var(--panel2);border-radius:6px;padding:6px;overflow:auto;max-height:240px;font:12px/1.45 var(--mono);margin:6px 0 0}
 .y-ekle{color:var(--ok)}.y-sil{color:var(--err)}.y-baslik{color:var(--tx3)}
@@ -1469,27 +1476,48 @@ async function otomasyonBolumu(h){const kap=e("div");h.append(kap);let d=await a
   ciz()}
 function zamanMetni(z){if(!z)return "";if(z.tur==="aralik")return "her "+z.dakika+" dakikada bir";const G=["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"];if(z.tur==="gunluk")return "her gün "+z.saat;return G.filter((g,i)=>(z.gunler||[]).includes(i)).join(", ")+" "+z.saat}
 function otomasyonFormu(kap,d,o,yenile,mesaj){const eski=$("#otoForm");if(eski)eski.remove();const duzenle=!!o;o=o||{acik:true,gorev:"",aciklama:""};const k=e("div",{class:"card",id:"otoForm"});
-  const al=(etiket,ad,deger,ipucu,cok)=>{const g=cok?e("textarea",{rows:String(cok),style:"width:100%"}):e("input",{style:"width:100%"});g.value=deger==null?"":deger;if(ipucu)g.placeholder=ipucu;g.dataset.a=ad;return e("label",{class:"mut",style:"display:block;margin-top:5px"},etiket,g)};
-  const proje=e("select",{style:"width:100%"});proje.dataset.a="proje";for(const p of d.projeler.filter(x=>x.var)){const opt=e("option",{value:p.id,text:p.ad+"  ("+p.yol+")"});if(p.id===o.proje)opt.selected=true;proje.append(opt)}
-  const ad=al("Ad (küçük harf, örn. haftalik-rapor; Telegram'da /sablon haftalik-rapor)","ad",o.ad,"haftalik-rapor");if(duzenle)ad.querySelector("input").readOnly=true;
-  const acik=e("input",{type:"checkbox"});acik.checked=o.acik!==false;
-  const z0=o.zamanlama||{tur:"aralik",dakika:60,saat:"09:00",gunler:[0]};const zAcik=e("input",{type:"checkbox"});zAcik.checked=o.tur==="zamanli";
-  const zTur=e("select",{},...[["aralik","Her … dakikada bir"],["gunluk","Her gün"],["haftalik","Haftanın seçili günleri"]].map(([d,t])=>{const op=e("option",{value:d,text:t});if(d===z0.tur)op.selected=true;return op}));
-  const zDk=e("input",{type:"number",min:"5",max:"10080",value:String(z0.dakika||60),style:"width:90px"});const zSaat=e("input",{type:"time",value:z0.saat||"09:00"});
-  const GUN=["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"];const zGun=GUN.map((g,i)=>{const c=e("input",{type:"checkbox"});c.checked=(z0.gunler||[0]).includes(i);return [i,c,e("label",{class:"row mut",style:"gap:2px"},c,g)]});
-  const zAlt=e("div",{class:"row",style:"gap:8px;flex-wrap:wrap;margin-top:4px"});
-  const zCiz=()=>{zAlt.textContent="";zDk.style.display=zSaat.style.display="none";zGunKap.style.display="none";const t=zTur.value;if(t==="aralik")zAlt.append(zDk,e("span",{class:"mut",text:"dakika (en az 5)"}));else{zAlt.append(zSaat);if(t==="haftalik")zAlt.append(zGunKap);zDk.style.display="none";zSaat.style.display="";zGunKap.style.display="flex";}if(t==="aralik")zDk.style.display=""};
-  const zGunKap=e("span",{class:"row",style:"gap:6px;flex-wrap:wrap"},...zGun.map(x=>x[2]));
-  const zKap=e("div",{style:"margin-top:4px"},e("div",{class:"row",style:"gap:6px;flex-wrap:wrap"},zTur),zAlt);
-  const zamanKutusu=e("div",{style:"margin-top:8px"},e("label",{class:"row mut",style:"gap:6px"},zAcik,"Zamanlanmış çalıştır (uygulama açıkken plan üretir; plan yine onayınızı bekler)"),zKap);
-  const zGoster=()=>{zKap.style.display=zAcik.checked?"":"none"};zAcik.onchange=zGoster;zTur.onchange=zCiz;zCiz();zGoster();
-  const zamanlamaAl=()=>{if(!zAcik.checked)return {tur:"sablon"};const t=zTur.value;if(t==="aralik")return {tur:"zamanli",zamanlama:{tur:t,dakika:parseInt(zDk.value,10)}};const z={tur:t,saat:zSaat.value};if(t==="haftalik")z.gunler=zGun.filter(x=>x[1].checked).map(x=>x[0]);return {tur:"zamanli",zamanlama:z}};
-  k.append(e("b",{text:duzenle?(o.ad+" şablonunu düzenle"):"Yeni görev şablonu"}),ad,e("label",{class:"mut",style:"display:block;margin-top:5px"},"Proje",proje),
-    al("Görev metni (ajana verilecek görev; {tarih} {saat} {proje} {dal} değişkenleri kullanılabilir)","gorev",o.gorev,"Bu projedeki testleri çalıştır, başarısız olanları özetle. Tarih: {tarih}",6),al("Açıklama (isteğe bağlı, tek satır)","aciklama",o.aciklama),
-    e("label",{class:"row mut",style:"gap:6px;margin-top:5px"},acik,"Açık (Telegram'dan çalıştırılabilir)"),zamanKutusu);
-  const hata=e("div",{class:"badge b-err",style:"display:none;margin-top:5px;white-space:normal"});const v=a=>k.querySelector('[data-a="'+a+'"]').value;
-  const kaydet=e("button",{class:"pri",text:"Kaydet",onclick:async()=>{hata.style.display="none";try{await api("/api/otomasyonlar",{method:"POST",body:{ad:v("ad").trim(),proje:v("proje"),gorev:v("gorev"),aciklama:v("aciklama").trim(),acik:acik.checked,...zamanlamaAl()}});await yenile()}catch(x){hata.textContent=x.message;hata.style.display=""}}});
-  k.append(e("div",{class:"row",style:"margin-top:6px"},kaydet,e("button",{text:"Vazgeç",onclick:()=>k.remove()})),hata);kap.append(k);k.scrollIntoView({block:"nearest"})}
+  /* Tuval: tetikleyici -> görev -> bildirim. Düğüm ayarlarında onay alanı yoktur; plan onayı her zaman istenir (sunucu da bunu zorlar). */
+  const NS="http://www.w3.org/2000/svg",GEN=150,YUK=36,GUN=["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"],SIM={elle:"▶",zamanlayici:"⏱",gorev:"⚙",bildirim:"✉"},KISA={elle:"Elle",gorev:"Görev",bildirim:"Bildirim"};
+  const A=o.akis?JSON.parse(JSON.stringify(o.akis)):{dugumler:[{id:"t1",tur:o.zamanlama?"zamanlayici":"elle",x:30,y:40,ayar:o.zamanlama?{zamanlama:o.zamanlama}:{}},{id:"g1",tur:"gorev",x:250,y:40,ayar:{gorev:o.gorev||""}}],oklar:[{kaynak:"t1",hedef:"g1"}]};
+  let sec="g1";const tetik=n=>n.tur==="elle"||n.tur==="zamanlayici",dg=id=>A.dugumler.find(n=>n.id===id);
+  const ad=e("input",{placeholder:"haftalik-rapor",title:"Ad",style:"width:150px"});ad.value=o.ad||"";if(duzenle)ad.readOnly=true;
+  const proje=e("select",{title:"Proje",style:"max-width:200px"});for(const p of d.projeler.filter(x=>x.var)){const opt=e("option",{value:p.id,text:p.ad});if(p.id===o.proje)opt.selected=true;proje.append(opt)}
+  const acik=e("input",{type:"checkbox",title:"Açık"});acik.checked=o.acik!==false;
+  const tuval=e("div",{class:"oto-tuval"}),svg=document.createElementNS(NS,"svg");svg.setAttribute("class","oto-oklar");tuval.append(svg);
+  const panel=e("div",{class:"row oto-panel",style:"gap:6px;flex-wrap:wrap;margin-top:6px"});
+  const etiket=n=>{if(n.tur==="zamanlayici")return zamanMetni(n.ayar.zamanlama);const m=n.tur==="gorev"?n.ayar.gorev:n.tur==="bildirim"?n.ayar.metin:"";return m?(m.length>18?m.slice(0,18)+"…":m):KISA[n.tur]};
+  const yol=(a,b)=>{const x1=a.x+GEN,y1=a.y+YUK/2,x2=b.x,y2=b.y+YUK/2,c=Math.max(30,Math.abs(x2-x1)/2);return "M"+x1+" "+y1+" C"+(x1+c)+" "+y1+" "+(x2-c)+" "+y2+" "+x2+" "+y2};
+  const oklariCiz=()=>{svg.textContent="";const tan=document.createElementNS(NS,"defs"),mk=document.createElementNS(NS,"marker"),uc=document.createElementNS(NS,"path");mk.setAttribute("id","otoUc");mk.setAttribute("markerWidth","8");mk.setAttribute("markerHeight","8");mk.setAttribute("refX","7");mk.setAttribute("refY","4");mk.setAttribute("orient","auto");uc.setAttribute("d","M0 0L8 4L0 8z");uc.setAttribute("fill","#8a6500");mk.append(uc);tan.append(mk);svg.append(tan);
+    for(const r of A.oklar){const a=dg(r.kaynak),b=dg(r.hedef);if(!a||!b)continue;const p=document.createElementNS(NS,"path");p.setAttribute("d",yol(a,b));p.setAttribute("class","oto-ok");p.setAttribute("marker-end","url(#otoUc)");svg.append(p);
+      const t=document.createElementNS(NS,"path"),bs=document.createElementNS(NS,"title");t.setAttribute("d",yol(a,b));t.setAttribute("class","oto-ok-tut");bs.textContent="Sil";t.append(bs);t.onclick=()=>{A.oklar=A.oklar.filter(x=>x!==r);oklariCiz()};svg.append(t)}};
+  const baglamaGecerli=(a,b)=>a&&b&&a.id!==b.id&&((tetik(a)&&b.tur==="gorev")||(a.tur==="gorev"&&b.tur==="bildirim"))&&!A.oklar.some(r=>r.kaynak===a.id&&r.hedef===b.id);
+  const sur=(ev,n,div)=>{if(ev.target.classList.contains("oto-port"))return;sec=n.id;const dx=ev.clientX-n.x,dy=ev.clientY-n.y;let tasindi=false;
+    const hareket=m=>{tasindi=true;n.x=Math.max(0,Math.min(1200,m.clientX-dx));n.y=Math.max(0,Math.min(320,m.clientY-dy));div.style.left=n.x+"px";div.style.top=n.y+"px";oklariCiz()};
+    const bitti=()=>{removeEventListener("pointermove",hareket);removeEventListener("pointerup",bitti);ciz()};addEventListener("pointermove",hareket);addEventListener("pointerup",bitti)};
+  const bagla=(ev,n)=>{ev.stopPropagation();ev.preventDefault();const r=tuval.getBoundingClientRect(),gecici=document.createElementNS(NS,"path");gecici.setAttribute("class","oto-ok");gecici.setAttribute("stroke-dasharray","4 3");svg.append(gecici);
+    const hareket=m=>gecici.setAttribute("d",yol(n,{x:m.clientX-r.left+tuval.scrollLeft,y:m.clientY-r.top+tuval.scrollTop-YUK/2}));
+    const bitti=m=>{removeEventListener("pointermove",hareket);removeEventListener("pointerup",bitti);const h=document.elementFromPoint(m.clientX,m.clientY),dv=h&&h.closest?h.closest(".oto-dugum"):null,hedef=dv?dg(dv.dataset.id):null;if(baglamaGecerli(n,hedef))A.oklar.push({kaynak:n.id,hedef:hedef.id});oklariCiz()};addEventListener("pointermove",hareket);addEventListener("pointerup",bitti)};
+  const ciz=()=>{for(const x of tuval.querySelectorAll(".oto-dugum"))x.remove();
+    for(const n of A.dugumler){const div=e("div",{class:"oto-dugum"+(n.id===sec?" sec":"")+" "+n.tur,"data-id":n.id,style:"left:"+n.x+"px;top:"+n.y+"px;width:"+GEN+"px;height:"+YUK+"px"},e("span",{text:SIM[n.tur]}),e("span",{class:"oto-et",text:etiket(n)}));
+      if(!tetik(n))div.append(e("i",{class:"oto-port g"}));
+      if(n.tur!=="bildirim"){const c=e("i",{class:"oto-port c"});c.onpointerdown=ev=>bagla(ev,n);div.append(c)}
+      div.onpointerdown=ev=>sur(ev,n,div);tuval.append(div)}
+    oklariCiz();panelCiz()};
+  const zPanel=n=>{const z=n.ayar.zamanlama||(n.ayar.zamanlama={tur:"aralik",dakika:60}),ogeler=[];
+    const tur=e("select",{},...[["aralik","Her … dakikada bir"],["gunluk","Her gün"],["haftalik","Haftanın seçili günleri"]].map(([v,t])=>{const op=e("option",{value:v,text:t});if(v===z.tur)op.selected=true;return op}));
+    tur.onchange=()=>{n.ayar.zamanlama=tur.value==="aralik"?{tur:"aralik",dakika:60}:tur.value==="gunluk"?{tur:"gunluk",saat:"09:00"}:{tur:"haftalik",saat:"09:00",gunler:[0]};ciz()};ogeler.push(tur);
+    if(z.tur==="aralik"){const dk=e("input",{type:"number",min:"5",max:"10080",value:String(z.dakika),style:"width:90px"});dk.onchange=()=>{z.dakika=parseInt(dk.value,10);ciz()};ogeler.push(dk,e("span",{class:"mut",text:"dakika (en az 5)"}))}
+    else{const s=e("input",{type:"time",value:z.saat});s.onchange=()=>{z.saat=s.value;ciz()};ogeler.push(s);if(z.tur==="haftalik")GUN.forEach((g,i)=>{const c=e("input",{type:"checkbox"});c.checked=(z.gunler||[]).includes(i);c.onchange=()=>{z.gunler=c.checked?[...(z.gunler||[]),i].sort():(z.gunler||[]).filter(x=>x!==i);ciz()};ogeler.push(e("label",{class:"row mut",style:"gap:2px"},c,g))})}
+    return ogeler};
+  const panelCiz=()=>{panel.textContent="";const n=dg(sec);if(!n)return;const etYaz=()=>{const x=tuval.querySelector('[data-id="'+n.id+'"] .oto-et');if(x)x.textContent=etiket(n)};
+    if(tetik(n)){const t=e("select",{},...[["elle","Elle"],["zamanlayici","Zamanlayıcı"]].map(([v,x])=>{const op=e("option",{value:v,text:x});if(v===n.tur)op.selected=true;return op}));t.onchange=()=>{n.tur=t.value;n.ayar={};ciz()};panel.append(t);if(n.tur==="zamanlayici")panel.append(...zPanel(n))}
+    else if(n.tur==="gorev"){const t=e("textarea",{rows:"4",style:"width:100%",placeholder:"Bu projedeki testleri çalıştır. Tarih: {tarih}"});t.value=n.ayar.gorev||"";t.oninput=()=>{n.ayar.gorev=t.value;etYaz()};panel.append(t)}
+    else{const t=e("input",{style:"flex:1;min-width:200px",placeholder:"{proje}: plan hazır"});t.value=n.ayar.metin||"";t.oninput=()=>{n.ayar.metin=t.value;etYaz()};
+      panel.append(t,e("button",{class:"oto-ib",title:"Sil",text:"✕",onclick:()=>{A.dugumler=A.dugumler.filter(x=>x!==n);A.oklar=A.oklar.filter(r=>r.kaynak!==n.id&&r.hedef!==n.id);sec="g1";ciz()}}))}};
+  const ekle=e("button",{class:"oto-ib",title:"Bildirim",text:"✉",onclick:()=>{if(A.dugumler.length>=12)return;let i=1;while(dg("b"+i))i++;const g=A.dugumler.find(x=>x.tur==="gorev"),sayi=A.dugumler.filter(x=>x.tur==="bildirim").length;A.dugumler.push({id:"b"+i,tur:"bildirim",x:Math.min(1100,(g?g.x:250)+210),y:Math.min(300,(g?g.y:40)+sayi*50),ayar:{metin:"{proje}: plan hazır"}});if(g)A.oklar.push({kaynak:g.id,hedef:"b"+i});sec="b"+i;ciz()}});
+  const hata=e("div",{class:"badge b-err",style:"display:none;margin-top:5px;white-space:normal"});
+  const kaydet=e("button",{class:"oto-ib pri",title:"Kaydet",text:"✓",onclick:async()=>{hata.style.display="none";try{await api("/api/otomasyonlar",{method:"POST",body:{ad:ad.value.trim(),proje:proje.value,aciklama:o.aciklama||"",acik:acik.checked,akis:A}});await yenile()}catch(x){hata.textContent=x.message;hata.style.display=""}}});
+  k.append(e("div",{class:"row",style:"gap:6px;flex-wrap:wrap"},ad,proje,e("label",{class:"row mut",style:"gap:4px"},acik,"açık"),ekle,kaydet,e("button",{class:"oto-ib",title:"Vazgeç",text:"✕",onclick:()=>k.remove()})),tuval,panel,hata);kap.append(k);ciz();k.scrollIntoView({block:"nearest"})}
 dilYukle(dilBaslangic()).catch(()=>{});
 (async()=>{if(!T){document.body.textContent="Token yok: arayüzü terminalde yazdırılan adresle açın.";return}await durumYukle();if(!S.klasor)klasorSecimiAc();else{await dosyalariYukle();await onizlemeKur()}olayAkisi();setTimeout(()=>{S.sseHazir=true;konusmaYoksaYukle()},1000);acilisParametreleri();hesapOzetYukle()})();  /* 1 sn: canli akisin gecmis olaylari once gelsin (tekrar cizim olmasin) */
 </script>

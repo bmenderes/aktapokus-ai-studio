@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, gorevmeta, guard, hesaplar, motorlar, otomasyon, uzak, istatistik, mcptanim, projeler, snapshot, terminal
+from . import arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
@@ -861,8 +861,21 @@ class Uygulama:
             uzak.guncelle(veri)
         except uzak.UzakHatasi as hata:
             raise UygulamaHatasi(str(hata)) from None
+        self._otomasyon_bildir(o, baglam)
         sunucu.uzak_uygula()  # her degisiklikte dinleyici yeniden kurulur: acik uzak baglantilar kesilir, yeni ayar gecerli olur
         return self.uzak_durum()
+    def _otomasyon_bildir(self, o: "otomasyon.Otomasyon", baglam: dict[str, str]) -> None:
+        """Akistaki bildirim dugumleri: plan olustuktan sonra Telegram'a duz mesaj. Bot kapaliysa sessizce atlanir; onay akisini etkilemez."""
+        metinler = otomasyon_akis.bildirim_metinleri(o.akis)
+        yonetici = self.telegram
+        bot = getattr(yonetici, "_bot", None) if yonetici is not None and yonetici._canli() else None
+        for metin in metinler:
+            try:
+                if bot is not None:
+                    bot._herkese(otomasyon.degiskenleri_doldur(metin, baglam))
+            except Exception as hata:  # bildirim hatasi plani/otomasyonu bozmaz
+                otomasyon.gecmis_ekle(o.ad, "hata", f"bildirim gonderilemedi: {hata}", "bildirim", proje=o.proje)
+
 
     def uzak_anahtar_yenile(self) -> dict:
         sunucu = self._sunucu()

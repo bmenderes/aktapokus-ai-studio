@@ -791,7 +791,13 @@
   "Şablon değişkenleri: {tarih} {saat} {proje} {dal}. 'Şimdi çalıştır' seçili projeyi DEĞİŞTİRMEDEN şablonun projesinde bir plan oluşturur; plan Telegram'a/arayüze gelir ve siz onaylamadan hiçbir şey çalışmaz. Telegram'dan /sablon ile de tetiklenebilir (tanımlayamaz). Zamanlanmış otomasyonlar yalnızca uygulama açıkken tetiklenir; kapalıyken kaçan zamanlar geçmişte kaçırıldı olarak görünür, geriye dönük çalıştırılmaz. Olay tetikleyici ve zincir sonraki aşamalarda gelecek.": "Template variables: {tarih} {saat} {proje} {dal}. 'Run now' creates a plan in the template's project WITHOUT switching the selected project; the plan arrives on Telegram/the interface and nothing runs until you approve. It can also be triggered from Telegram with /sablon (it cannot define one). Scheduled automations only fire while the app is open; times missed while it was closed show as missed in the past and are not run retroactively. Event triggers and chaining will come in later stages.",
   "Bir görev yazın: ahtapot önce plan çıkarır, siz onaylayınca çalışır.": "Write a task: the octopus makes a plan first and runs once you approve it.",
   "çalışıyor · yeni görev sıraya girer": "running · new tasks are queued",
-  "Sıradan çıkar": "Remove from queue"
+  "Sıradan çıkar": "Remove from queue",
+  "Elle": "Manual",
+  "Zamanlayıcı": "Scheduler",
+  "Görev": "Task",
+  "Bildirim": "Notification",
+  "Ad": "Name",
+  "Açık": "On"
  },
  "desen": [
   [
