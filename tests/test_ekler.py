@@ -81,7 +81,7 @@ def test_gorev_gecersiz_ek_yolunu_reddeder(sunucu, kotu):
     assert app._oturum().kosu is None or app._oturum().kosu.durum not in ("plan", "calisiyor")  # reddedilen gorev baslamaz
 
 
-def test_gorev_en_fazla_bes_ek(sunucu):
+def test_gorev_en_fazla_ek_sayisi_kadar_ek(sunucu):
     app, sv, yerel, proje = sunucu
     yollar = [yukle(sv.port, f"d{i}.txt", b"x", app.token)[1]["yol"] for i in range(EK_SAYI + 1)]
     with pytest.raises(UygulamaHatasi):

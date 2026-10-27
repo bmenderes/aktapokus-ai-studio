@@ -36,7 +36,7 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 #solKaydir{flex:1;min-height:0;overflow:auto}#solAlt{flex:none;display:flex;flex-direction:row;align-items:center;gap:6px;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
 #solAlt .hesap-chip{margin-bottom:0}#terminalDugme{margin-left:auto}  /* yalniz ad uzunlugu kadar; kalan bos yer dugme degil bosluk olur */
 .yuvarlak{border-radius:999px;flex:none;width:auto}.yuvarlak.simge{width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:16px;text-align:center}
-#ekler{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}#ekler:empty{display:none}
+#ekler{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;max-height:84px;overflow:auto}#ekler:empty{display:none}
 .ek-cip{display:inline-flex;align-items:center;gap:6px;max-width:190px;border:1px solid var(--line2);border-radius:999px;padding:2px 6px 2px 3px;background:var(--panel2);font-size:12px}.ek-cip.yukleniyor{opacity:.55}
 .ek-cip img,.ek-cip .ek-simge{flex:none;width:22px;height:22px;border-radius:50%;object-fit:cover;display:inline-flex;align-items:center;justify-content:center;font-size:12px}
 .ek-cip .ad{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ek-cip .x{border:0;background:none;padding:0 3px;min-height:0;color:var(--tx3);cursor:pointer}
@@ -849,7 +849,7 @@ async function durumYukle(){if(S.tekrar)return;try{const d=await api("/api/durum
   const ke=d.koruyucu_eksik||[];$("#korRozet").className="badge "+(d.klasor?(ke.length?"b-err":"b-ok"):"");$("#korRozet").textContent=d.klasor?(ke.length?"koruyucu eksik":"koruyucu etkin"):"";$("#korRozet").title=ke.join("; ");
   $("#klon").textContent=d.klon_bekleyen==null?"kurulu değil":d.klon_bekleyen+" öneri bekliyor";if(d.klon_bekleyen)$("#klon").title="aktapokus-klon bekleyen komutuyla inceleyin";
   rolleriCiz();akisCipiGuncelle();gecmisYukle();kosuGorunumu();motorUyarisi();$("#klasorSec")&&d.klasor&&$("#klasorSec").remove();if(onceki!==S.projeId){if(S.projeId)delete S.okunmadi[S.projeId];projeGorunumuKur()}}catch(x){gunluge("durum alınamadı: "+x.message)}}
-const EK_AZAMI=10000000,EK_SAYI=5;
+const EK_AZAMI=25000000,EK_SAYI=20;
 function ekCiz(){const k=$("#ekler");k.textContent="";for(const x of S.ekler||[]){const c=e("span",{class:"ek-cip"+(x.yukleniyor?" yukleniyor":""),title:x.ad});c.append(x.onizleme?e("img",{src:x.onizleme,alt:""}):e("span",{class:"ek-simge",text:"📄"}),e("span",{class:"ad",text:x.ad}),e("button",{class:"x",text:"✕",title:"Kaldır",onclick:()=>{S.ekler=S.ekler.filter(y=>y!==x);if(x.onizleme)URL.revokeObjectURL(x.onizleme);ekCiz()}}));k.append(c)}}
 function ekTemizle(){for(const x of S.ekler||[])if(x.onizleme)URL.revokeObjectURL(x.onizleme);S.ekler=[];ekCiz()}
 function ekUyari(m){akisaEkle(e("div",{class:"badge b-err",text:m}))}

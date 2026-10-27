@@ -206,3 +206,19 @@ def test_arayuz_akisi_kullanici_en_alttaysa_otomatik_asagi_kayar():
     assert "new MutationObserver(()=>{if(S.altaYapisik)a.scrollTop=a.scrollHeight}).observe(a,{childList:true,subtree:true,characterData:true})" in html
     assert 'case "karar-bekleniyor":{alttaGoster();' in html and 'alttaGoster();try{const p=await api("/api/gorev"' in html
     assert 'Object.keys(o.degisen||{}).length?e("div",{class:"mut3"' in html  # bitti kartinda degisen dosyalar
+
+
+def test_beklenmedik_olay_bicimleri_calistirmayi_bozmaz(monkeypatch, tmp_path):
+    """Gercek hata: Claude bazi olaylarda "message"i duz metin gonderdi ('str' object has no attribute 'get') ve gorev basarisiz sayildi."""
+    claude_taklit(monkeypatch, runners, olaylar=[
+        {"type": "user", "message": "duz metin mesaj"},
+        {"type": "assistant", "message": None},
+        {"type": "assistant", "message": ["liste"]},
+        {"type": "user", "message": {"content": "metin icerik"}},
+        {"type": "system", "message": 5},
+        asistan({"type": "text", "text": "Tamam."}),
+        sonuc_olayi("Tamam."),
+    ])
+    alinan: list = []
+    r = yeni(olaylar=alinan).calistir("istem", tmp_path)
+    assert r.ok and r.metin == "Tamam." and [o["tur"] for o in alinan] == ["metin"]  # bozuk olaylar atlanir, saglam olay iletilir

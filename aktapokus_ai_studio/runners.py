@@ -365,10 +365,11 @@ class ClaudeCodeCalistirici(Calistirici):
         bildir = self.ilerleme
         if bildir is None:
             return
-        icerik = (olay.get("message") or {}).get("content")
-        if not isinstance(icerik, list):
-            return
-        try:
+        try:  # arayuz geri cagrisi (ve olay bicimi) hicbir zaman calistirmayi bozmaz: Claude bazi olaylarda "message"i duz metin gonderir
+            mesaj = olay.get("message")
+            icerik = mesaj.get("content") if isinstance(mesaj, dict) else None
+            if not isinstance(icerik, list):
+                return
             for c in icerik:
                 if not isinstance(c, dict):
                     continue
