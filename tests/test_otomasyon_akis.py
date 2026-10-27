@@ -174,3 +174,11 @@ def test_otomasyon_sayfasi_sade_ad_bos_birakilirsa_gorevden_uretilir():
     assert "oto-bilgi" not in html and "Şablon değişkenleri:" not in html  # uzun aciklama kutusu yok (sade arayuz)
     assert "function otoAdUret(" in html and "if(!ad.value.trim()&&!duzenle)ad.value=otoAdUret(" in html
     assert 'title:"Bildirim ekle (Telegram)"' in html and 'text:"+"' in html  # renkli emoji yerine duz artı
+
+
+def test_gorev_dugumunun_cikis_portu_artı_bildirim_ekler_surukleyince_baglar():
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
+    assert "const bildirimEkle=()=>{" in html and "onclick:bildirimEkle" in html  # arac cubugundaki + ve port ayni islev
+    assert 'class:"oto-port c"+(n.tur==="gorev"?" art":"")' in html and "Bildirim ekle (tıkla) ya da bağla (sürükle)" in html
+    assert 'n.tur==="gorev"&&Math.hypot(m.clientX-x0,m.clientY-y0)<5' in html  # hareketsiz tiklama = ekle; surukleme = bagla
+    assert ".oto-port.c.art{width:20px" in html
