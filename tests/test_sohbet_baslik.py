@@ -17,3 +17,35 @@ def test_baslik_tiklaninca_gorev_adi_degistirilir_yeni_sohbette_tiklanmaz():
     assert "async function sohbetAdiDegistir(g,t)" in HTML and 'api("/api/p/"+g.id+"/gorev-meta",{method:"POST",body:{id:t.id,ad:yeni}})' in HTML
     assert 'b.onclick=t?()=>sohbetAdiDegistir(g,t):null' in HTML and "#sohbetBaslik.duzenlenir{cursor:pointer}" in HTML
     assert "konusmaGruplari(g).find(x=>x.some(y=>y.id===S.gecmisGorev))" in HTML  # kenar cubugundaki ile ayni sohbet/gorev (grubun en yenisi)
+
+
+def test_sohbet_adi_yeni_gorev_eklenince_eski_metne_donmez_en_yeni_ad_gecerlidir():
+    """GERCEK HATA: ad grubun en yeni gorevine yazilir; sohbete yeni gorev eklenince en yeni gorevin adi bos oldugu icin baslik ilk gorev metnine donuyordu."""
+    import json
+    import re
+    import shutil
+    import subprocess
+
+    import pytest
+
+    if shutil.which("node") is None:
+        pytest.skip("node kurulu degil")
+    fn = re.search(r"function konusmaOzeti\(a\)\{.*?\}\n", HTML, re.S).group(0)
+    betik = fn + """
+const g = (id, ad, gorev) => ({id, zaman: id, gorev, ozel_ad: ad, degisen_sayisi: 1});
+const out = {
+  // en yeni basta: [yeni gorev (adsiz), eski gorev (ADLI)] -> ad korunur
+  adli_sonra_yeni: konusmaOzeti([g("3", "", "ucuncu"), g("2", "Benim adim", "ikinci"), g("1", "", "birinci")]).ozel_ad,
+  // iki ad varsa en yenisi gecer
+  iki_ad: konusmaOzeti([g("3", "", "c"), g("2", "Yeni ad", "b"), g("1", "Eski ad", "a")]).ozel_ad,
+  // hic ad yok: bos (arayuz gorev metnini kullanir)
+  hic_ad: konusmaOzeti([g("2", "", "b"), g("1", "", "a")]).ozel_ad,
+  idler: konusmaOzeti([g("2", "", "b"), g("1", "", "a")]).idler,
+};
+console.log(JSON.stringify(out));
+"""
+    s = subprocess.run(["node", "-e", betik], capture_output=True, text=True, encoding="utf-8")
+    assert s.returncode == 0, s.stderr[:500]
+    d = json.loads(s.stdout)
+    assert d == {"adli_sonra_yeni": "Benim adim", "iki_ad": "Yeni ad", "hic_ad": "", "idler": ["2", "1"]}
+    assert 'body:{id:o.id,ad:""}' in HTML  # ad temizlenince sohbetteki eski adlar da temizlenir

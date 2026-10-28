@@ -488,6 +488,7 @@ def _calistir(klasor, port, pencere_ac, bekle_sn, tarayici, baglanti_say, acilis
     from .arayuz import ArayuzSunucusu, Uygulama, UygulamaHatasi
     from .runners import hepsini_kapat
 
+    t0 = time.monotonic()
     sessiz_alt_surecler()
     app = Uygulama()
     app._telegram().otomatik_baslat()  # Ayarlar > Telegram'da 'otomatik baslat' aciksa ve token varsa bot arka planda baslar
@@ -509,6 +510,7 @@ def _calistir(klasor, port, pencere_ac, bekle_sn, tarayici, baglanti_say, acilis
     profil.mkdir(parents=True, exist_ok=True)
     komut = pencere_komutu(tarayici, sunucu.url(), profil)
     log_yaz("baslatildi: " + komut[0])
+    log_yaz(f"sunucu hazir: {time.monotonic() - t0:.1f} sn (pencere simdi aciliyor)")  # tanilama: acilis yavassa nerede beklendigi gorulsun
     def sayac() -> int:
         return app.bus.tarayici_sayisi()  # Telegram botu gibi dahili aboneler sayilmaz: yoksa pencere kapansa da uygulama kapanmaz
 
@@ -516,6 +518,8 @@ def _calistir(klasor, port, pencere_ac, bekle_sn, tarayici, baglanti_say, acilis
 
     def izle() -> int:
         n = (baglanti_say or sayac)()
+        if n > 0 and not gorulen["pencere"]:
+            log_yaz(f"pencere sayfayi yukledi ve baglandi: {time.monotonic() - t_ac:.1f} sn sonra (tarayici acilisi + sayfa)")
         gorulen["pencere"] = gorulen["pencere"] or n > 0
         if n > 0:
             devral_temizle()  # pencere geri geldi (yenileme): eski devral istegi gecersiz
@@ -526,6 +530,7 @@ def _calistir(klasor, port, pencere_ac, bekle_sn, tarayici, baglanti_say, acilis
         return n
 
     try:
+        t_ac = time.monotonic()
         (pencere_ac or (lambda k: subprocess.Popen(k)))(komut)  # surec ID'sine/ömrüne güvenilmez (devir olabilir)
         sonuc = pencere_bekle(izle, bekle_sn, acilis_sn, kopma_sn, erken_cik=devral_var_mi)
         if sonuc == "baglanmadi":

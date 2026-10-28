@@ -449,7 +449,7 @@ const zamanMs=z=>new Date(String(z||"").replace(" ","T")).getTime()||0;
 function konusmaGruplari(g){const sn=[...(g.konusma_sinirlar||[]),g.konusma_basi||""].filter(Boolean);const asc=[...(g.gorevler||[])].sort((a,b)=>String(a.zaman).localeCompare(String(b.zaman)));const gr=[];
   for(const t of asc){const son=gr[gr.length-1];const on=son&&son[son.length-1];const kes=!on||zamanMs(t.zaman)-zamanMs(on.zaman)>86400000||sn.some(b=>String(on.zaman)<b&&b<=String(t.zaman));if(kes)gr.push([t]);else son.push(t)}
   return gr.reverse().map(a=>a.reverse())}
-function konusmaOzeti(a){const yeni=a[0],ilk=a[a.length-1];return Object.assign({},yeni,{gorev:ilk.gorev,ozel_ad:yeni.ozel_ad||ilk.ozel_ad||"",sayi:a.length,idler:a.map(x=>x.id),degisen_sayisi:a.reduce((n,x)=>n+(x.degisen_sayisi||0),0),okunmadi:a.some(x=>x.okunmadi)})}
+function konusmaOzeti(a){const yeni=a[0],ilk=a[a.length-1];return Object.assign({},yeni,{gorev:ilk.gorev,ozel_ad:a.map(x=>x.ozel_ad).find(Boolean)||"",sayi:a.length,idler:a.map(x=>x.id),degisen_sayisi:a.reduce((n,x)=>n+(x.degisen_sayisi||0),0),okunmadi:a.some(x=>x.okunmadi)})}
 async function konusmaYukle(hedef){if(!S.gruplar)await kenarCubugu();const g=S.gruplar&&S.gruplar.projeler.find(x=>x.id===S.projeId);if(!g)return false;
   const gr=konusmaGruplari(g);let kume=hedef?gr.find(a=>a.some(t=>t.id===hedef)):gr[0];
   if(!hedef&&kume&&((g.konusma_basi||"")>String(kume[0].zaman||"")||Date.now()-zamanMs(kume[0].zaman)>86400000))kume=null;  /* yeni konusma: bos baslar */
@@ -703,7 +703,9 @@ function sohbetBasligiCiz(){const b=$("#sohbetBaslik");if(!b)return;const g=S.gr
   const grup=g&&S.gecmisGorev&&!S.sohbetYeni?konusmaGruplari(g).find(x=>x.some(y=>y.id===S.gecmisGorev)):null,t=grup?konusmaOzeti(grup):null;
   b.title=proje+(ad?" · "+ad:"");b.append(e("b",{text:proje}),e("span",{class:"mut",text:" · "+(ad||"Yeni görev")}));
   b.classList.toggle("duzenlenir",!!t);b.onclick=t?()=>sohbetAdiDegistir(g,t):null;if(t){b.title="✎ Yeniden adlandır";b.append(e("span",{class:"mut3",text:" ✎"}))}}
-async function sohbetAdiDegistir(g,t){const yeni=prompt("Görev adı (boş bırakırsanız görev metni kullanılır):",t.ozel_ad||t.gorev||"");if(yeni===null)return;try{await api("/api/p/"+g.id+"/gorev-meta",{method:"POST",body:{id:t.id,ad:yeni}});await kenarCubugu()}catch(x){alert(x.message)}}
+async function sohbetAdiDegistir(g,t){const yeni=prompt("Görev adı (boş bırakırsanız görev metni kullanılır):",t.ozel_ad||t.gorev||"");if(yeni===null)return;try{await api("/api/p/"+g.id+"/gorev-meta",{method:"POST",body:{id:t.id,ad:yeni}});
+    if(!yeni.trim())for(const o of g.gorevler.filter(x=>x.ozel_ad&&x.id!==t.id&&(t.idler||[]).includes(x.id)))await api("/api/p/"+g.id+"/gorev-meta",{method:"POST",body:{id:o.id,ad:""}});  /* ad temizlenince sohbetteki eski adlar da gider: yoksa eski bir ad geri gelirdi */
+    await kenarCubugu()}catch(x){alert(x.message)}}
 function yeniGorev(){if(mobilDar())mobilGoster("orta");if(S.kosuAktif||(S.kosu&&S.kosu.durum==="plan")){$("#gorev").focus();return}
   S.sohbetYeni=true;sohbetBasligiCiz();$("#akis").textContent="";S.fark=null;S.kararBekliyor=false;S.canliDiv=null;degisiklikCiz(null);document.querySelectorAll("#gecmis .rol.on").forEach(x=>x.classList.remove("on"));$("#gorev").value="";$("#gorev").focus()}
 /* ---- Kenar çubuğu: proje grupları, canlı durum noktaları, arama ---- */
