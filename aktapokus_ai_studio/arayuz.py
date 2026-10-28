@@ -33,7 +33,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import opcua, arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, oneriler, izinler, uyanik, otomatik_baslat, gonderme_kontrol, yayin
+from . import opcua, opcua_depo, opcua_toplayici, arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, oneriler, izinler, uyanik, otomatik_baslat, gonderme_kontrol, yayin
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_model_gecersiz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
@@ -298,6 +298,9 @@ class Uygulama:
         saglayici_istemci_uret: Callable[[], object] | None = None,
     ):
         self.calistirici_uret = calistirici_uret
+        self._opcua_toplayici = None
+        self._opcua_depo = None
+        self._opcua_kilit = threading.Lock()
         self._saglayici_istemci_uret = saglayici_istemci_uret
         self.telegram = None  # TelegramYoneticisi: ilk kullanimda olusur (Ayarlar > Telegram)
         self.terminaller: dict[str, terminal.Terminal] = {}
@@ -1261,6 +1264,45 @@ class Uygulama:
     # --- OPC UA: yalniz okuma/gezme/abonelik (PLC'ye YAZMAZ). Adres her istekte gelir; uzaktan yonetim kapaliyken POST'lar uzak.py'de yasak. ---
     def opcua_durum(self) -> dict:
         return {"kurulu": opcua.kurulu(), "test_adres": "opc.tcp://127.0.0.1:4840/aktapokus/test"}
+
+    def _opcua_depoyu_ac(self):
+        if self._opcua_depo is None:
+            self._opcua_depo = opcua_depo.Depo()
+        return self._opcua_depo
+
+    def opcua_toplama_durumu(self) -> dict:
+        with self._opcua_kilit:
+            t = self._opcua_toplayici
+            durum = t.durum() if t is not None else {"calisiyor": False, "bagli": False, "adres": None, "kimlikler": [], "yazilan": 0, "hata": None}
+            durum["kayit"] = self._opcua_depoyu_ac().say()
+            return durum
+
+    def opcua_topla(self, g: dict) -> dict:
+        adres, kimlikler, adlar = g.get("adres"), g.get("kimlikler"), g.get("adlar")
+        if not isinstance(adres, str) or not adres.startswith("opc.tcp://") or len(adres) > 300:
+            raise UygulamaHatasi("Adres opc.tcp:// ile baslamali")
+        if not isinstance(kimlikler, list) or not kimlikler or len(kimlikler) > 200 or not all(isinstance(k, str) and k for k in kimlikler):
+            raise UygulamaHatasi("Dugum kimlikleri gerekli")
+        adlar = {k: str(v)[:100] for k, v in adlar.items() if isinstance(k, str)} if isinstance(adlar, dict) else {}
+        if not opcua.kurulu():
+            raise UygulamaHatasi("asyncua kurulu degil", 501)
+        with self._opcua_kilit:
+            if self._opcua_toplayici is not None and self._opcua_toplayici.calisiyor:
+                raise UygulamaHatasi("Toplama zaten calisiyor", 409)
+            self._opcua_toplayici = opcua_toplayici.Toplayici(adres, kimlikler, adlar, self._opcua_depoyu_ac())
+            self._opcua_toplayici.baslat()
+        return self.opcua_toplama_durumu()
+
+    def opcua_durdur(self) -> dict:
+        with self._opcua_kilit:
+            if self._opcua_toplayici is not None:
+                self._opcua_toplayici.durdur()
+        return self.opcua_toplama_durumu()
+
+    def opcua_veri(self, kimlik: object, n: object) -> dict:
+        n = int(n) if isinstance(n, str) and n.isdigit() else 50
+        with self._opcua_kilit:
+            return {"olcumler": self._opcua_depoyu_ac().son(kimlik if isinstance(kimlik, str) and kimlik else None, min(max(n, 1), 1000))}
 
     def opcua_islem(self, eylem: str, g: dict) -> dict:
         adres = g.get("adres")
@@ -2478,6 +2520,10 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.mcp_listele())
                 if yol == "/api/opcua":
                     return self._gonder(200, app.opcua_durum())
+                if yol == "/api/opcua/toplama":
+                    return self._gonder(200, app.opcua_toplama_durumu())
+                if yol == "/api/opcua/veri":
+                    return self._gonder(200, app.opcua_veri(q.get("kimlik"), q.get("n")))
                 if yol == "/api/motorlar":
                     return self._gonder(200, app.motorlar())
                 if yol == "/api/git/gecmis":
@@ -2645,6 +2691,10 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.github_issue_gorev(g.get("no")))
                 if yol == "/api/github/issue-yorum":
                     return self._gonder(200, app.github_issue_yorum(g.get("no"), g.get("metin")))
+                if yol == "/api/opcua/topla":
+                    return self._gonder(200, app.opcua_topla(g))
+                if yol == "/api/opcua/durdur":
+                    return self._gonder(200, app.opcua_durdur())
                 if yol in ("/api/opcua/agac", "/api/opcua/oku", "/api/opcua/abone"):
                     return self._gonder(200, app.opcua_islem(yol.rsplit("/", 1)[1], g))
                 if yol == "/api/mcp-sunuculari":
@@ -2993,6 +3043,8 @@ class ArayuzSunucusu:
             self.zamanlayici.durdur()
         self.uzak_durdur()
         self.uyku_engeli.kapat()
+        if self.app._opcua_toplayici is not None:
+            self.app.opcua_durdur()
         self.app.terminalleri_kapat()  # terminal surecleri arayuzle birlikte kapanir
         with self._onizleme_kilit:
             onizlemeler = list(self.onizlemeler.values())

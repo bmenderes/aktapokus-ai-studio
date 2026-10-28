@@ -140,7 +140,7 @@ YASAK_VARSAYILAN = [
     ("GET", "/api/terminal"), ("POST", "/api/terminal/ac"), ("POST", "/api/terminal/abcd/girdi"), ("GET", "/api/terminal/abcd/akis"),
     ("POST", "/api/clilar"), ("POST", "/api/clilar/sil"), ("POST", "/api/clilar/dene"),
     ("POST", "/api/mcp-sunuculari"), ("POST", "/api/mcp-sunuculari/sil"), ("POST", "/api/mcp-sunuculari/dene"), ("POST", "/api/mcp-sunuculari/proje"),
-    ("POST", "/api/opcua/agac"), ("POST", "/api/opcua/oku"), ("POST", "/api/opcua/abone"),
+    ("POST", "/api/opcua/agac"), ("POST", "/api/opcua/oku"), ("POST", "/api/opcua/abone"), ("POST", "/api/opcua/topla"), ("POST", "/api/opcua/durdur"),
     ("POST", "/api/saglayicilar/baglan"), ("POST", "/api/saglayicilar/kaldir"),
     ("POST", "/api/telegram/baslat"), ("POST", "/api/telegram/kok"), ("POST", "/api/telegram/eslestir"),
     ("POST", "/api/beceriler"), ("POST", "/api/beceriler/sil"),

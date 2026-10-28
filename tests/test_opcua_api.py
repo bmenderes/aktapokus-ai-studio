@@ -56,3 +56,34 @@ def test_uctan_uca_test_sunucusuyla(api):
     _sunucuda(dene)
     st, d = api("POST", "/api/opcua/oku", {"adres": "opc.tcp://127.0.0.1:1/x", "kimlik": "ns=2;i=1"})
     assert st == 502 and "hata" in d
+
+
+def test_toplama_dogrulama_ve_durum(api):
+    st, d = api("GET", "/api/opcua/toplama")
+    assert st == 200 and d["calisiyor"] is False and d["kayit"] == 0
+    for govde in ({}, {"adres": "http://x", "kimlikler": ["a"]}, {"adres": "opc.tcp://127.0.0.1:1", "kimlikler": []}):
+        assert api("POST", "/api/opcua/topla", govde)[0] == 400, govde
+    assert api("GET", "/api/opcua/veri")[1] == {"olcumler": []}
+    assert api("POST", "/api/opcua/durdur", {})[0] == 200
+
+
+def test_toplama_uctan_uca(api):
+    pytest.importorskip("asyncua")
+    import time
+
+    def dene(s):
+        kimlik = s.dugumler["Sayac"].nodeid.to_string()
+        g = {"adres": s.adres, "kimlikler": [kimlik], "adlar": {kimlik: "Sayac"}}
+        st, d = api("POST", "/api/opcua/topla", g)
+        assert st == 200 and d["calisiyor"]
+        assert api("POST", "/api/opcua/topla", g)[0] == 409
+        for _ in range(100):
+            if api("GET", "/api/opcua/toplama")[1]["yazilan"] >= 3:
+                break
+            time.sleep(0.1)
+        st, d = api("POST", "/api/opcua/durdur", {})
+        assert d["calisiyor"] is False and d["kayit"] >= 3
+        st, d = api("GET", "/api/opcua/veri?n=2&kimlik=" + kimlik.replace(";", "%3B").replace("=", "%3D"))
+        assert st == 200 and len(d["olcumler"]) == 2 and d["olcumler"][0]["ad"] == "Sayac"
+
+    _sunucuda(dene)

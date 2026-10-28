@@ -86,3 +86,7 @@ Bu belge, kullanıcının listelediği fikirlerin **hiçbirini düşürmemek** i
 - Test sunucusu: `python -m aktapokus_ai_studio.opcua_test_sunucusu` (asyncua gerekir, `pip install .[opcua]`). Istemci: `opcua.py` (agac, oku, abone_ol; yazma yok).
 - API ucları (sonraki adim): GET `/api/opcua` (kurulu mu + kayitli baglantilar), POST `/api/opcua/agac` {adres}, POST `/api/opcua/oku` {adres, kimlik}, POST `/api/opcua/abone` {adres, kimlikler, sure}. Kayit dosyasi `~/.aktapokus/opcua.json` (ortam degiskeniyle yalitilir, conftest).
 - Dagitim (MQTT vb.) ve OPC UA sunucu modu ayri adimlar; gercek PLC guvenligi (politika/sertifika/kullanici) henuz yok.
+
+### OPC UA toplama (yapildi)
+- Surekli toplama: `POST /api/opcua/topla|durdur`, `GET /api/opcua/toplama|veri`; olcumler SQLite'a (`~/.aktapokus/opcua.db`, `AKTAPOKUS_OPCUA_DB`). SQLite secildi: standart kutuphane, ek kurulum yok. Postgres/Mongo ileride ayri bir "hedef" olarak eklenebilir.
+- Eksik: toplama ayari kalici degil (yeniden acilista durur), eski kayit temizligi yok, MQTT dagitimi yok.
