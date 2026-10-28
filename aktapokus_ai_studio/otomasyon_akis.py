@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from typing import Callable
 
-from . import web_getir
+from . import github, web_getir, yayin
 
 AZAMI_DUGUM = 12
 AZAMI_OK = 16
@@ -16,7 +16,7 @@ AZAMI_METIN = 4000
 AZAMI_BILDIRIM = 500
 KIMLIK_DESENI = re.compile(r"^[a-z0-9][a-z0-9_-]{0,19}$")
 TETIKLEYICILER = ("elle", "zamanlayici")
-TURLER = TETIKLEYICILER + ("web", "gorev", "bildirim")
+TURLER = TETIKLEYICILER + ("web", "gorev", "yayinla", "bildirim")
 KOORDINAT_SINIRI = 20000
 
 
@@ -89,6 +89,14 @@ def coz(akis: object, zamanlama_coz: Callable[[object], dict]) -> dict:
                 temiz = {"adresler": web_getir.adres_listesi(ayar.get("adresler"))}
             except web_getir.WebHatasi as hata:
                 raise AkisHatasi(str(hata)) from None
+        elif tur == "yayinla":
+            depo = ayar.get("depo")
+            if not isinstance(depo, str) or not github.DEPO_DESENI.fullmatch(depo.strip()):
+                raise AkisHatasi("Yayinla icin hedef depo 'sahip/ad' biciminde olmali (ornek: aktapokus/aktapokus.github.io)")
+            try:
+                temiz = {"depo": depo.strip(), "kaynak": yayin.kaynak_goreli(ayar.get("kaynak")), "hedef_yol": yayin.hedef_yol_dogrula(ayar.get("hedef_yol"))}
+            except yayin.YayinHatasi as hata:
+                raise AkisHatasi(str(hata)) from None
         elif tur == "bildirim":
             temiz = {"metin": _metin(ayar, "metin", AZAMI_BILDIRIM, True)}
         elif tur == "zamanlayici":
@@ -105,14 +113,17 @@ def coz(akis: object, zamanlama_coz: Callable[[object], dict]) -> dict:
     web = [d for d in dugumler.values() if d["tur"] == "web"]
     if len(web) > 1:
         raise AkisHatasi("Akista en cok bir web getir dugumu olabilir")
+    yay = [d for d in dugumler.values() if d["tur"] == "yayinla"]
+    if len(yay) > 1:
+        raise AkisHatasi("Akista en cok bir yayinla dugumu olabilir")
     oklar: list[dict] = []
     for o in ham_o:
         if not isinstance(o, dict) or o.get("kaynak") not in dugumler or o.get("hedef") not in dugumler:
             raise AkisHatasi("Ok bilinen iki dugumu baglamali")
         k, h = dugumler[o["kaynak"]]["tur"], dugumler[o["hedef"]]["tur"]
-        gecerli = (k in TETIKLEYICILER and h == "web") or (k == "web" and h == "gorev") or (k in TETIKLEYICILER and h == "gorev" and not web) or (k == "gorev" and h == "bildirim")
+        gecerli = (k in TETIKLEYICILER and h == "web") or (k == "web" and h == "gorev") or (k in TETIKLEYICILER and h == "gorev" and not web) or (k == "gorev" and h in ("bildirim", "yayinla"))
         if not gecerli:
-            raise AkisHatasi("Ok yalniz tetikleyici -> (web getir) -> gorev ve gorev -> bildirim yonunde olabilir")
+            raise AkisHatasi("Ok yalniz tetikleyici -> (web getir) -> gorev ve gorev -> (yayinla | bildirim) yonunde olabilir")
         if any(x["kaynak"] == o["kaynak"] and x["hedef"] == o["hedef"] for x in oklar):
             raise AkisHatasi("Ayni ok iki kez cizilemez")
         oklar.append({"kaynak": o["kaynak"], "hedef": o["hedef"]})
@@ -122,6 +133,8 @@ def coz(akis: object, zamanlama_coz: Callable[[object], dict]) -> dict:
             raise AkisHatasi("Tetikleyici web getir dugumune, o da gorev dugumune baglanmali")
     elif not var(tetik[0], gorevler[0]):
         raise AkisHatasi("Tetikleyici gorev dugumune baglanmali")
+    if yay and not var(gorevler[0], yay[0]):
+        raise AkisHatasi("Gorev dugumu yayinla dugumune baglanmali")
     z = tetik[0]["ayar"].get("zamanlama")
     return {"dugumler": list(dugumler.values()), "oklar": oklar, "tur": "zamanli" if z else "sablon", "zamanlama": z, "gorev": gorevler[0]["ayar"]["gorev"]}
 
@@ -135,6 +148,11 @@ def sablondan_akis(gorev: str, zamanlama: dict | None) -> dict:
 def web_adresleri(akis: dict | None) -> list[str]:
     """Akistaki web getir dugumunun adresleri (yoksa bos liste)."""
     return next((list(d["ayar"]["adresler"]) for d in (akis or {}).get("dugumler", []) if d.get("tur") == "web"), [])
+
+
+def yayin_ayari(akis: dict | None) -> dict | None:
+    """Akistaki yayinla dugumunun ayari ({depo, kaynak, hedef_yol}) ya da None."""
+    return next((dict(d["ayar"]) for d in (akis or {}).get("dugumler", []) if d.get("tur") == "yayinla"), None)
 
 
 def bildirim_metinleri(akis: dict | None) -> list[str]:

@@ -29,7 +29,7 @@ AZAMI_ARALIK_DK = 7 * 24 * 60
 EN_KISA_ARALIK_DK = 5
 SAAT_DESENI = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 ZAMAN_BICIMI = "%Y-%m-%d %H:%M:%S"
-DEGISKENLER = ("tarih", "saat", "proje", "dal", "durum", "yanit")  # durum/yanit yalniz bildirim dugumunde (gorev bitince) dolar
+DEGISKENLER = ("tarih", "saat", "proje", "dal", "durum", "yanit", "yayin")  # durum/yanit yalniz bildirim dugumunde (gorev bitince) dolar
 _kilit = threading.Lock()
 _durum_kilit = threading.RLock()
 

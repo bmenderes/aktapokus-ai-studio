@@ -201,7 +201,7 @@ def test_akis_uzak_politika_ayni_uc_uzerinden_yonetim_ister():
 
 def test_akis_dugum_turlerinde_onay_alani_yok():
     assert "otomatik_onay" not in Path(akis_mod.__file__).read_text(encoding="utf-8")
-    assert set(akis_mod.TURLER) == {"elle", "zamanlayici", "web", "gorev", "bildirim"}
+    assert set(akis_mod.TURLER) == {"elle", "zamanlayici", "web", "gorev", "yayinla", "bildirim"}
 
 
 def test_otomasyon_sayfasi_sade_ad_bos_birakilirsa_gorevden_uretilir():

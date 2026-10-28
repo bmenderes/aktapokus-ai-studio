@@ -199,6 +199,7 @@ class Kosu:
     onaysiz: bool = False  # kullanicinin Ayarlar > Izinler'de bu otomasyona verdigi izin: plan onayi ve 'degisiklikler korunsun mu' sorulmaz
     bildirimler: list = field(default_factory=list)  # otomasyon akisindaki bildirim dugumlerinin metinleri: gorev BITINCE Telegram'a gider
     bildirim_baglami: dict = field(default_factory=dict)
+    yayin: dict | None = None  # otomasyon akisindaki yayinla dugumunun ayari: gorev BASARIYLA bitince hedef depoya yayinlanir (kontrollu, gozetimsiz)
 
 
 AKTIF_KOSU = ("plan", "calisiyor", "karar-bekliyor")
@@ -1070,15 +1071,67 @@ class Uygulama:
         kayit("plan-olustu", gorev=plan["kosu"])
         if oturum.kosu and oturum.kosu.kimlik == plan["kosu"]:
             oturum.kosu.otomasyon, oturum.kosu.bildirimler, oturum.kosu.bildirim_baglami = o.ad, otomasyon_akis.bildirim_metinleri(o.akis), dict(baglam)
+            oturum.kosu.yayin = otomasyon_akis.yayin_ayari(o.akis)
         return {"plan": plan, "proje": o.proje, "proje_ad": p["ad"]}
 
+    def _otomasyon_yayinla(self, oturum: ProjeOturumu, kosu: Kosu) -> str | None:
+        """Otomasyonun YAYINLA dugumu: gorev BASARIYLA bitince klasoru hedef depoya kopyalar, commit eder, gonderme kontrolunden (kural tabanli + yapay zeka) gecirip push eder.
+        GOZETIMSIZ calistigi icin kimse bulguyu kabul edemez: yuksek/orta her bulgu ya da yapilamayan yapay zeka kontrolu yayini ENGELLER ve hedef depo eski haline doner
+        (kopya silinir, commit geri alinir). Sonuc gecmise ve bildirim metnine ({yayin}) yazilir; hata gorevi bozmaz."""
+        ay = kosu.yayin
+        if not ay or not kosu.otomasyon:
+            return None
+
+        def sonuc(durum: str, satir: str, neden: str = "") -> str:
+            otomasyon.gecmis_ekle(kosu.otomasyon, durum, (neden or satir)[:300], "yayin", proje=oturum.kimlik)
+            return satir
+
+        st = kosu.sonuc
+        if st is None or st.durum not in ("onaylandi", "degisiklik_yok"):
+            return sonuc("atlandi", f"Yayin atlandi: gorev basarili bitmedi ({st.durum if st else 'hata'})")
+        try:
+            with self.proje_baglami(oturum.kimlik):
+                h = self.yayin_hazirla(ay.get("kaynak"), ay.get("depo"), ay.get("hedef_yol"))
+            with self.proje_baglami(h["proje"]):
+                return self._yayin_tamamla(h, kosu.otomasyon, sonuc)
+        except UygulamaHatasi as hata:
+            return sonuc("yayin-hata", f"Yayin HATASI: {hata}")
+        except Exception as hata:  # yayin hatasi gorevi/bildirimi bozmaz
+            return sonuc("yayin-hata", f"Yayin HATASI: {type(hata).__name__}: {hata}")
+
+    def _yayin_tamamla(self, h: dict, ad: str, sonuc) -> str:
+        hedef_k = Path(h["klasor"])
+        onceki = github._git(hedef_k, "rev-parse", "HEAD", kontrol=False).strip()
+        kk = self.github_commit_kontrol(False)
+        if kk["dosya_sayisi"] == 0:
+            return sonuc("yayin-yok", "Yayin: degisiklik yok (site zaten guncel)")
+        engel = gonderme_kontrol.engel_nedenleri(kk["bulgular"])
+        if engel:
+            yayin.calisma_geri_al(hedef_k, h["hedef_yol"])
+            return sonuc("yayin-engellendi", f"Yayin ENGELLENDI (icerik gonderilmedi): {'; '.join(engel[:3])}", "; ".join(engel))
+        self.github_commit(f"{ad}: otomatik yayin {time.strftime('%Y-%m-%d %H:%M')}", False, [])
+        k = self.github_gonderme_kontrol()
+        engel = gonderme_kontrol.engel_nedenleri(k["bulgular"], k["ai"])
+        if engel:
+            try:
+                yayin.commit_geri_al(hedef_k, onceki)
+            except yayin.YayinHatasi as hata:
+                engel.append(str(hata))
+            return sonuc("yayin-engellendi", f"Yayin ENGELLENDI (icerik gonderilmedi): {'; '.join(engel[:3])}", "; ".join(engel))
+        self.github_push(k["kontrol"], [], False)
+        return sonuc("yayinlandi", f"Yayin: yayinlandi -> {h['adres']}")
+
     def _otomasyon_bildir(self, oturum: ProjeOturumu, kosu: Kosu) -> None:
-        """Otomasyonun bildirim dugumleri: GOREV BITINCE Telegram'a duz mesaj ({durum}, {yanit} dolu). Bot kapaliysa gecmise yazilir; gorevi etkilemez."""
-        if not kosu.otomasyon or not kosu.bildirimler:
+        """Gorev bitince: (varsa) YAYINLA dugumu calisir; sonra otomasyonun bildirim dugumleri Telegram'a duz mesaj yollar ({durum}, {yanit}, {yayin} dolu; yayin dugumu
+        varsa ve metinde {yayin} yoksa sonuc satiri mesajin sonuna eklenir). Bot kapaliysa gecmise yazilir; gorevi etkilemez."""
+        if not kosu.otomasyon:
+            return
+        yayin_satiri = self._otomasyon_yayinla(oturum, kosu)
+        if not kosu.bildirimler:
             return
         sonuc = kosu.sonuc
         yanit = next((" ".join(str(a.metin or "").split()) for a in reversed(sonuc.adimlar) if a.ok and a.metin and not a.dogrulama), "") if sonuc else ""
-        baglam = {**kosu.bildirim_baglami, "durum": (sonuc.durum if sonuc else "hata"), "yanit": yanit[:900] or "(yanit yok)"}
+        baglam = {**kosu.bildirim_baglami, "durum": (sonuc.durum if sonuc else "hata"), "yanit": yanit[:900] or "(yanit yok)", "yayin": yayin_satiri or ""}
         yonetici = self.telegram
         bot = getattr(yonetici, "_bot", None) if yonetici is not None and yonetici._canli() else None
         for metin in kosu.bildirimler:
@@ -1086,7 +1139,10 @@ class Uygulama:
                 if bot is None:
                     otomasyon.gecmis_ekle(kosu.otomasyon, "atlandi", "bildirim: Telegram botu calismiyor (Ayarlar > Telegram)", "bildirim", proje=oturum.kimlik)
                     break
-                bot._herkese(otomasyon.degiskenleri_doldur(metin, baglam))
+                mesaj = otomasyon.degiskenleri_doldur(metin, baglam)
+                if yayin_satiri and "{yayin}" not in metin:
+                    mesaj += "\n" + yayin_satiri
+                bot._herkese(mesaj)
             except Exception as hata:  # bildirim hatasi gorevi/otomasyonu bozmaz
                 otomasyon.gecmis_ekle(kosu.otomasyon, "hata", f"bildirim gonderilemedi: {hata}", "bildirim", proje=oturum.kimlik)
 

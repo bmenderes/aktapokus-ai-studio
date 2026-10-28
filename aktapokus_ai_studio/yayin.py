@@ -44,13 +44,20 @@ def hedef_yol_dogrula(h: object) -> str:
     return h
 
 
-def kaynak_coz(proje_klasoru: Path, goreli: object) -> Path:
-    if not isinstance(goreli, str) or not goreli.strip():
+def kaynak_goreli(goreli: object) -> str:
+    """Kaynak klasorun SOZ DIZIMI dogrulamasi (diske bakmaz; otomasyon kaydederken de kullanilir). Normallestirilmis goreli yolu doner."""
+    if not isinstance(goreli, str) or not goreli.strip() or len(goreli) > 200:
         raise YayinHatasi("Kaynak klasor yazilmali (projenin icindeki klasor, ornek: aktapokus.github.io/haberler)")
     g = goreli.strip().strip("/").replace("\\", "/")
     parcalar = g.split("/")
     if re.match(r"^[A-Za-z]:", g) or g.startswith("/") or ".." in parcalar or any(p == "" or p.startswith(".") for p in parcalar) or "\x00" in g:
         raise YayinHatasi("Kaynak, projenin icinde bir klasor olmali (tam yol, '..' ve gizli klasor olamaz)")
+    return g
+
+
+def kaynak_coz(proje_klasoru: Path, goreli: object) -> Path:
+    g = kaynak_goreli(goreli)
+    parcalar = g.split("/")
     kok = Path(proje_klasoru).resolve()
     yol = kok.joinpath(*parcalar)
     try:
@@ -114,6 +121,21 @@ def aynala(kaynak: Path, depo_koku: Path, hedef_yol: str) -> dict:
         h.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(p, h)
     return {"kopyalanan": len(dosyalar), "silinen": silinen, "atlanan": atlanan[:20]}
+
+
+def calisma_geri_al(depo_koku: Path, hedef_yol: str) -> None:
+    """Kopyalanan ama commit EDILMEMIS icerigi geri alir (yayin engellendiginde hedef depo eski haline doner): izlenen dosyalar HEAD'e doner, yeniler silinir."""
+    hedef_yol = hedef_yol_dogrula(hedef_yol)
+    github._git(Path(depo_koku), "restore", "--staged", "--worktree", "--source=HEAD", "--", hedef_yol, kontrol=False)
+    github._git(Path(depo_koku), "clean", "-fdq", "--", hedef_yol, kontrol=False)
+
+
+def commit_geri_al(depo_koku: Path, onceki_head: str) -> None:
+    """Yalniz BIZIM yaptigimiz son commit'i geri alir (HEAD'in ebeveyni `onceki_head` ise); baska bir durumda dokunmaz ve hata verir."""
+    k = Path(depo_koku)
+    if github._git(k, "rev-parse", "HEAD~1", kontrol=False).strip() != onceki_head or not re.fullmatch(r"[0-9a-f]{40}", onceki_head or ""):
+        raise YayinHatasi("Son commit bizim degil; otomatik geri alma yapilmadi (hedef depoyu kontrol edin)")
+    github._git(k, "reset", "--hard", onceki_head)
 
 
 def yayin_adresi(depo: str, hedef_yol: str) -> str:

@@ -69,3 +69,10 @@ Bu iki seçenekten biri kullanıcıya sorulmadan uygulanmaz; ikinci dilim 1. se�
 - **İzinler (Ayarlar › İzinler):** varsayılan KAPALI. Bir otomasyona verilen `onaysiz` izni plan onayını ve "değişiklikler korunsun mu" sorusunu atlar (geri alma yedeği yine alınır; gizli dosya okuma onayı bundan bağımsız kalır). İzin yalnız yerel arayüzden verilir: `/api/otomasyonlar/izin` uzaktan her zaman reddedilir, uzaktan kayıtta `onaysiz: true` reddedilir, `onaysiz` göndermeyen bir düzenleme izni sıfırlar (güvenli yön). Verirken onay penceresi çıkar.
 - Önceki "HER ZAMAN onay" kuralı bu kararla değişti: kullanıcı kilitlenmeye başladığı için onay otomasyon bazında isteğe bağlı kaldırılabilir.
 - Sıradakiler: dosya yaz, webhook, e-posta (dış dünyaya yazan kutular; izin sayfasına eklenecek).
+
+## Dördüncü dilim (yapıldı): Yayınla düğümü
+- **Düğüm:** `yayinla` (en çok 1), `gorev → yayinla`. Ayar: `depo` (`sahip/ad`), `kaynak` (projede klasör), `hedef_yol` (depoda klasör). Kayıtta söz dizimi doğrulanır; diske bakan asıl doğrulama çalışırken (`yayin.kaynak_coz`).
+- **Ne zaman çalışır:** görev BAŞARIYLA bitince (`onaylandi`/`degisiklik_yok`); başarısızsa "atlandı". Bildirimden ÖNCE çalışır; sonucu `{yayin}` değişkeni olarak bildirime verir (metinde yoksa mesajın sonuna eklenir).
+- **Akış:** `yayin_hazirla` (hedefi klonla/çek, klasörü kopyala) → `github_commit_kontrol` → commit (mesaj: "<otomasyon>: otomatik yayin <tarih>") → `github_gonderme_kontrol` (kural tabanlı + yapay zekâ) → `github_push`.
+- **Gözetimsiz güvenlik:** kimse bulguyu kabul edemez, bu yüzden yüksek VE orta bulgu (kural ya da yapay zekâ) ve yapılamayan yapay zekâ kontrolü yayını engeller (`gonderme_kontrol.engel_nedenleri`). Engelde hedef depo eski haline döner: commit öncesi `yayin.calisma_geri_al`, commit sonrası `yayin.commit_geri_al` (yalnız kendi commit'imizse). Düşük bulgu (genel IP) engellemez.
+- **Onay:** editörde kaydederken "her çalışmada şu depoya yayınlayacak" onayı istenir; plan onayı (ya da İzinler'deki "onaysız") otomasyonun tamamını, yayın dahil, kapsar.

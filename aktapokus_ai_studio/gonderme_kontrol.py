@@ -331,6 +331,17 @@ def ai_sonucu(cikti: str, toplanan: dict, ai_mesaj_iste: bool = True) -> dict:
     return {"durum": "tamam", "neden": None, "sorunlar": sorunlar, "commit_mesaji": mesaj}
 
 
+def engel_nedenleri(bulgular: list[dict], ai: dict | None = None) -> list[str]:
+    """GOZETIMSIZ yayin (otomasyon) icin: kimse bulguyu kabul edemez, bu yuzden yuksek VE orta siddetli her bulgu (kural tabanli ya da yapay zeka) yayini engeller;
+    yapay zeka kontrolu verilmisse yapilamamasi da engeldir. Bos liste = yayinlanabilir."""
+    nedenler = [f"{b['dosya']}{':' + str(b['satir']) if b.get('satir') else ''} {b['tur']} ({b['siddet']})" for b in bulgular if b.get("siddet") in ("yuksek", "orta")]
+    if ai is not None:
+        if ai.get("durum") != "tamam":
+            nedenler.append(f"yapay zeka kontrolu yapilamadi ({ai.get('neden') or ai.get('durum')})")
+        nedenler += [f"{s['dosya']} {s['ornek'][:80]} ({s['siddet']}, yapay zeka)" for s in ai.get("sorunlar", []) if s.get("siddet") in ("yuksek", "orta")]
+    return nedenler
+
+
 def agac_parmak_izi(klasor: Path) -> str:
     """Calisma agacinin durum + fark ozeti: yapay zeka cagrisi dosyalari degistirdi mi anlamak icin (yalniz git, gizli dosya icerigi okunmaz)."""
     durum = github._git(klasor, "status", "--porcelain=v1", "-z", "--untracked-files=all", kontrol=False)
