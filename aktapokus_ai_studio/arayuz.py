@@ -33,7 +33,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, oneriler, izinler, uyanik, otomatik_baslat, gonderme_kontrol, yayin
+from . import opcua, arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, oneriler, izinler, uyanik, otomatik_baslat, gonderme_kontrol, yayin
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_model_gecersiz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
@@ -1258,6 +1258,31 @@ class Uygulama:
 
     # --- MCP sunuculari ve beceriler: tanimlar YALNIZ bu yerel, belirtecli arayuzden yazilir (Telegram'dan degil): ikisi de bu bilgisayarda
     # program/talimat calistirmak demektir. Ortam/baslik DEGERLERI arayuze geri verilmez. ---
+    # --- OPC UA: yalniz okuma/gezme/abonelik (PLC'ye YAZMAZ). Adres her istekte gelir; uzaktan yonetim kapaliyken POST'lar uzak.py'de yasak. ---
+    def opcua_durum(self) -> dict:
+        return {"kurulu": opcua.kurulu(), "test_adres": "opc.tcp://127.0.0.1:4840/aktapokus/test"}
+
+    def opcua_islem(self, eylem: str, g: dict) -> dict:
+        adres = g.get("adres")
+        if not isinstance(adres, str) or not adres.startswith("opc.tcp://") or len(adres) > 300:
+            raise UygulamaHatasi("Adres opc.tcp:// ile baslamali")
+        kimlik = g.get("kimlik")
+        kimlikler = g.get("kimlikler")
+        try:
+            if eylem == "agac":
+                return {"agac": opcua.agac(adres)}
+            if eylem == "oku":
+                if not isinstance(kimlik, str) or not kimlik:
+                    raise UygulamaHatasi("Dugum kimligi gerekli")
+                return {"deger": opcua.oku(adres, kimlik)}
+            if not isinstance(kimlikler, list) or not kimlikler or not all(isinstance(k, str) for k in kimlikler) or len(kimlikler) > 50:
+                raise UygulamaHatasi("Dugum kimlikleri gerekli")
+            sure = g.get("sure")
+            sure = min(max(float(sure), 0.5), 10.0) if isinstance(sure, (int, float)) else 2.0
+            return {"olaylar": opcua.abone_ol(adres, kimlikler, sure)[:500]}
+        except opcua.OpcUaHatasi as hata:
+            raise UygulamaHatasi(str(hata), 502) from None
+
     def mcp_listele(self) -> dict:
         return {
             "sunucular": mcptanim.listele(),
@@ -2451,6 +2476,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.telegram_islem("durum", {}))
                 if yol == "/api/mcp-sunuculari":
                     return self._gonder(200, app.mcp_listele())
+                if yol == "/api/opcua":
+                    return self._gonder(200, app.opcua_durum())
                 if yol == "/api/motorlar":
                     return self._gonder(200, app.motorlar())
                 if yol == "/api/git/gecmis":
@@ -2618,6 +2645,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.github_issue_gorev(g.get("no")))
                 if yol == "/api/github/issue-yorum":
                     return self._gonder(200, app.github_issue_yorum(g.get("no"), g.get("metin")))
+                if yol in ("/api/opcua/agac", "/api/opcua/oku", "/api/opcua/abone"):
+                    return self._gonder(200, app.opcua_islem(yol.rsplit("/", 1)[1], g))
                 if yol == "/api/mcp-sunuculari":
                     return self._gonder(200, app.mcp_kaydet(g))
                 if yol == "/api/mcp-sunuculari/sil":

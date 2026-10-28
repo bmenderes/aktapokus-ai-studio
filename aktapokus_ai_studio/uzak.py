@@ -229,6 +229,7 @@ def serve_kapat(adres: str, port: int) -> None:
 YONETIM_KAPALIYKEN_YASAK = (
     ({"POST", "PUT", "DELETE"}, "/api/clilar"),
     ({"POST", "PUT", "DELETE"}, "/api/mcp-sunuculari"),
+    ({"POST"}, "/api/opcua"),  # istek sunucusundan ag adreslerine baglanir
     ({"POST", "PUT", "DELETE"}, "/api/saglayicilar"),
     ({"POST", "PUT", "DELETE"}, "/api/telegram"),
     ({"POST", "PUT", "DELETE"}, "/api/beceriler"),

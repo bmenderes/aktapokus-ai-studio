@@ -515,7 +515,7 @@ async function istatistikYukle(hedef){const p=hedef||S.istHedef||$("#ayarIcerik"
   p.append(e("div",{class:"mut3",style:"margin-top:10px;white-space:normal",text:"Not: abonelik kotanızın (Claude Pro, ChatGPT/Codex) kalan miktarı CLI'lardan güvenilir okunamıyor; burada yalnızca harcanan token ve limite takılma anı görünür."}))}
 function kapsamSecici(){const b=(ad,v)=>e("button",{class:S.istKapsam===v?"pri":"",text:ad,onclick:()=>{S.istKapsam=v;istatistikYukle()}});return e("div",{class:"row"},b("Bu proje","proje"),b("Tüm projeler","tum"),e("button",{text:"Yenile",onclick:()=>istatistikYukle()}))}
 /* ---- AYARLAR: sol menulu tam sayfa . Bolumler: Genel, Saglayicilar, Modeller, CLI'lar, Roller, Kullanim, Hakkinda ---- */
-const AYAR_BOLUMLERI=[["hesaplar","Hesaplar"],["genel","Genel"],["saglayicilar","Sağlayıcılar"],["modeller","Modeller"],["clilar","CLI'lar"],["mcp","MCP sunucuları"],["beceriler","Beceriler"],["onerilenler","Önerilenler"],["github","GitHub"],["roller","Roller"],["telegram","Telegram"],["otomasyon","Otomasyonlar"],["izinler","İzinler"],["uzak","Uzak erişim"],["kullanim","Kullanım"],["hakkinda","Hakkında"]];
+const AYAR_BOLUMLERI=[["hesaplar","Hesaplar"],["genel","Genel"],["saglayicilar","Sağlayıcılar"],["modeller","Modeller"],["clilar","CLI'lar"],["mcp","MCP sunucuları"],["opcua","OPC UA"],["beceriler","Beceriler"],["onerilenler","Önerilenler"],["github","GitHub"],["roller","Roller"],["telegram","Telegram"],["otomasyon","Otomasyonlar"],["izinler","İzinler"],["uzak","Uzak erişim"],["kullanim","Kullanım"],["hakkinda","Hakkında"]];
 function ayarAc(id){$("#ayarlar").classList.add("on");$("#ayarUst").classList.add("on");ayarGit(id||S.ayarBolum||"genel")}
 function ayarKapat(){$("#ayarlar").classList.remove("on");$("#ayarUst").classList.remove("on");hesapOzetYukle()}
 async function clilarYukle(){S.clilar=(await api("/api/clilar")).clilar;return S.clilar}
@@ -531,6 +531,7 @@ async function ayarGit(id){if(S.telegramZ){clearInterval(S.telegramZ);S.telegram
     else if(id==="modeller"){baslik("Modeller","Bağlı sağlayıcıların ve kurulu CLI'ların modelleri. Bir modeli role atayın ya da deneyin.");await modellerBolumu(h)}
     else if(id==="clilar"){baslik("CLI'lar","Modelleri çalıştıran programlar. Yeni bir CLI'ı kod yazmadan tanımlayarak ekleyebilirsiniz.");await clilarYukle();h.append(cliBolumu())}
     else if(id==="mcp"){baslik("MCP sunucuları","Modellere ek araç ve bilgi veren sunucular. Bir kez tanımlayın, hangi projelerde açılacağını seçin; OpenCode, Claude Code ve Codex'e kendiliğinden aktarılır.");await mcpBolumu(h)}
+    else if(id==="opcua"){baslik("OPC UA");await opcuaBolumu(h)}
     else if(id==="beceriler"){baslik("Beceriler","Modelin gerektiğinde yüklediği talimat paketleri. Sizin oluşturduklarınız ~/.agents/skills klasöründe durur; başka yerlerden bulunanlar yalnızca gösterilir.");await beceriBolumu(h)}
     else if(id==="onerilenler"){baslik("Önerilenler");await onerilenlerBolumu(h)}
     else if(id==="github"){baslik("GitHub","Bilgisayardaki gh (GitHub CLI) girişini kullanır; uygulama token'ı görmez ya da saklamaz. Depo klonlama burada; commit, push, pull request ve issue işlemleri proje panelindeki GitHub sekmesinde.");await githubBolumu(h)}
@@ -1248,6 +1249,21 @@ $("#terminalDugme").onclick=()=>$("#terminalSayfa").classList.contains("on")?ter
 $("#terminalUst").onclick=()=>$("#terminalDugme").click();$("#ayarUst").onclick=()=>$("#ayarlar").classList.contains("on")?ayarKapat():ayarAc();
 document.addEventListener("keydown",ev=>{if(ev.ctrlKey&&!ev.altKey&&!ev.metaKey&&(ev.key==="`"||ev.code==="Backquote")){ev.preventDefault();ev.stopPropagation();$("#terminalDugme").click()}},true);
 document.addEventListener("keydown",ev=>{if(ev.altKey&&ev.key==="3"){ev.preventDefault();$("#terminalDugme").click()}});
+/* ---- Ayarlar > OPC UA (yalniz okuma) ---- */
+async function opcuaBolumu(h){const d=await api("/api/opcua");
+  if(!d.kurulu){h.append(e("div",{class:"badge b-warn",text:"asyncua kurulu değil"}));return}
+  const adres=e("input",{type:"text",value:d.test_adres,class:"mono",style:"flex:1;min-width:0"});
+  const secili=new Map(),cikti=e("div",{class:"mono mut3",style:"white-space:pre;overflow-x:auto;margin-top:6px"}),agacKap=e("div",{style:"margin-top:6px"});
+  const hata=e("div",{class:"badge b-err",style:"display:none;margin-top:6px"});
+  const calis=async(yol,govde)=>{hata.style.display="none";try{return await api("/api/opcua/"+yol,{method:"POST",body:{adres:adres.value.trim(),...govde}})}catch(x){hata.textContent=x.message;hata.style.display="";return null}};
+  const dugum=(n)=>{if(n.cocuklar.length){const d2=e("details",{style:"margin-left:12px"},e("summary",{text:n.ad}));n.cocuklar.forEach(c=>d2.append(dugum(c)));return d2}
+    const kutu=e("input",{type:"checkbox",onchange:()=>{if(kutu.checked)secili.set(n.kimlik,n.ad);else secili.delete(n.kimlik)}});
+    const sonuc=e("span",{class:"mono mut3"});
+    const oku=e("button",{class:"yuvarlak simge",text:"↓",title:"Oku",style:"width:22px;height:22px",onclick:async()=>{const r=await calis("oku",{kimlik:n.kimlik});if(r)sonuc.textContent=String(r.deger)}});
+    return e("div",{class:"row",style:"margin-left:12px;gap:6px;white-space:nowrap",title:n.kimlik},kutu,e("span",{text:n.ad}),oku,sonuc)};
+  const agac=e("button",{class:"yuvarlak",text:"Ağaç",onclick:async()=>{agac.disabled=true;const r=await calis("agac",{});agac.disabled=false;if(!r)return;secili.clear();agacKap.textContent="";r.agac.forEach(n=>agacKap.append(dugum(n)))}});
+  const dinle=e("button",{class:"yuvarlak",text:"Dinle",onclick:async()=>{if(!secili.size)return;dinle.disabled=true;cikti.textContent="";const r=await calis("abone",{kimlikler:[...secili.keys()],sure:3});dinle.disabled=false;if(!r)return;cikti.textContent=r.olaylar.map(o=>(secili.get(o.kimlik)||o.kimlik)+" = "+o.deger).join("\n")}});
+  h.append(e("div",{class:"row",style:"gap:6px;flex-wrap:nowrap"},adres,agac,dinle),hata,agacKap,cikti)}
 /* ---- Ayarlar > MCP sunucuları ve Beceriler ---- */
 function mcpOzet(s){return s.tur==="remote"?s.url:s.komut.join(" ")}
 async function mcpBolumu(h){const kap=e("div");h.append(kap);let d=await api("/api/mcp-sunuculari");
