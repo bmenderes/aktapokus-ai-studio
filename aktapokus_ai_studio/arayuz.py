@@ -697,7 +697,7 @@ class Uygulama:
             raise UygulamaHatasi(f"Depo klonlandi ({hedef}) ama proje olarak acilamadi: {hata}") from None
         return {"klasor": str(hedef), "durum": d}
 
-    def yayin_hazirla(self, kaynak: object, depo: object, hedef_yol: object) -> dict:
+    def yayin_hazirla(self, kaynak: object, depo: object, hedef_yol: object, kok: object = False) -> dict:
         """Yayinla (1/2): bu projedeki `kaynak` klasorunu `depo` (sahip/ad) deposuna KOPYALAR. Hedef depo kayitli projelerde varsa o, yoksa uygulama klasorune klonlanir
         ve proje olarak acilir; hedefte commit edilmemis degisiklik varsa durulur, upstream varsa ff-only cekilir. Commit ve push BURADA yapilmaz: arayuz bunlari
         hedef projenin /api/p/<id>/ uclarindan, gonderme kontroluyle (tarama + yapay zeka + onay) yapar."""
@@ -705,7 +705,7 @@ class Uygulama:
             raise UygulamaHatasi("Hedef depo 'sahip/ad' biciminde olmali (ornek: aktapokus/aktapokus.github.io)", 400)
         kaynak_proje = self._klasor()
         try:
-            hedef_yol = yayin.hedef_yol_dogrula(hedef_yol)
+            hedef_yol = yayin.hedef_yol_dogrula(hedef_yol, kok is True)  # bos hedef (kok) yalniz acik istekle: arayuz onay penceresinden sonra kok=true gonderir
             kaynak_yol = yayin.kaynak_coz(kaynak_proje, kaynak)
         except yayin.YayinHatasi as hata:
             raise UygulamaHatasi(str(hata), 400) from None
@@ -735,7 +735,7 @@ class Uygulama:
             if d["upstream"]:
                 gityonet.pull(k)
             try:
-                s = yayin.aynala(kaynak_yol, k, hedef_yol)
+                s = yayin.aynala(kaynak_yol, k, hedef_yol, kok_izinli=kok is True)
             except yayin.YayinHatasi as hata:
                 raise github.GithubHatasi(str(hata)) from None
             return {**s, "dal": d["dal"]}
@@ -2513,7 +2513,7 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if yol == "/api/github/commit":
                     return self._gonder(200, app.github_commit(g.get("mesaj"), g.get("yalniz_hazir"), g.get("kabul")))
                 if yol == "/api/github/yayin-hazirla":
-                    return self._gonder(200, app.yayin_hazirla(g.get("kaynak"), g.get("depo"), g.get("hedef_yol")))
+                    return self._gonder(200, app.yayin_hazirla(g.get("kaynak"), g.get("depo"), g.get("hedef_yol"), g.get("kok")))
                 if yol == "/api/github/commit-kontrol":
                     return self._gonder(200, app.github_commit_kontrol(g.get("yalniz_hazir")))
                 if yol == "/api/github/gonderme-kontrol":

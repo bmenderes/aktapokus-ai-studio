@@ -35,10 +35,13 @@ def yayin_klasoru() -> Path:
     return Path(ortam) if ortam else Path.home() / ".aktapokus" / "yayin"
 
 
-def hedef_yol_dogrula(h: object) -> str:
+def hedef_yol_dogrula(h: object, kok_izinli: bool = False) -> str:
+    """kok_izinli=True iken bos hedef deponun KOKU demektir ("" doner); aksi halde klasor zorunludur."""
     if not isinstance(h, str):
         raise YayinHatasi("Hedef klasor metin olmali (ornek: haberler)")
     h = h.strip().strip("/").replace("\\", "/")
+    if not h and kok_izinli:
+        return ""
     if not HEDEF_DESENI.fullmatch(h) or any(p in (".", "..") or p.lower() in YASAK_HEDEF for p in h.split("/")) or h.endswith("."):
         raise YayinHatasi("Hedef klasor depo icinde, harf/rakam/./-/_ iceren goreli bir yol olmali (ornek: haberler); .git/.github olamaz")
     return h
@@ -95,11 +98,38 @@ def dosyalari_listele(kaynak: Path) -> tuple[list[tuple[str, Path]], list[str]]:
     return dosyalar, atlanan
 
 
-def aynala(kaynak: Path, depo_koku: Path, hedef_yol: str) -> dict:
-    """Kaynaktaki dosyalari depo_koku/hedef_yol'a kopyalar; hedefin onceki icerigi silinir. {kopyalanan, silinen, atlanan}."""
-    hedef_yol = hedef_yol_dogrula(hedef_yol)
+def _kok_aynala(dosyalar: list[tuple[str, Path]], kok: Path) -> tuple[int, list[str]]:
+    """Deponun KOKUNE ekler: hicbir sey silinmez; ayni adli dosyalar degisir (degisenlerin listesi doner). .git/.github/.aktapokus'a yazilmaz."""
+    ezilen: list[str] = []
+    for rel, p in dosyalar:
+        if rel.split("/", 1)[0] in YASAK_HEDEF:
+            raise YayinHatasi(f"Kok yayininda yazilamaz: {rel}")
+        h = kok.joinpath(*rel.split("/"))
+        ara = kok
+        for parca in rel.split("/")[:-1]:
+            ara = ara / parca
+            if ara.is_symlink():
+                raise YayinHatasi("Hedef yolda sembolik baglanti var")
+        if h.is_symlink() or (h.exists() and not h.is_file()):
+            raise YayinHatasi(f"Hedefte ayni adli bir klasor/baglanti var: {rel}")
+        if h.is_file() and h.read_bytes() != p.read_bytes():
+            ezilen.append(rel)
+    for rel, p in dosyalar:
+        h = kok.joinpath(*rel.split("/"))
+        h.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(p, h)
+    return len(dosyalar), ezilen
+
+
+def aynala(kaynak: Path, depo_koku: Path, hedef_yol: str, kok_izinli: bool = False) -> dict:
+    """Kaynaktaki dosyalari depo_koku/hedef_yol'a kopyalar; hedefin onceki icerigi silinir. {kopyalanan, silinen, atlanan}.
+    hedef_yol bos (ve kok_izinli) ise deponun kokune EKLER: hicbir sey silinmez, ayni adli dosyalar degisir ({ezilen} listesi)."""
+    hedef_yol = hedef_yol_dogrula(hedef_yol, kok_izinli)
     dosyalar, atlanan = dosyalari_listele(kaynak)
     kok = Path(depo_koku).resolve()
+    if not hedef_yol:
+        sayi, ezilen = _kok_aynala(dosyalar, kok)
+        return {"kopyalanan": sayi, "silinen": 0, "atlanan": atlanan[:20], "ezilen": ezilen[:20], "ezilen_sayisi": len(ezilen)}
     hedef = kok.joinpath(*hedef_yol.split("/"))
     try:
         hedef.resolve().relative_to(kok)
@@ -124,8 +154,9 @@ def aynala(kaynak: Path, depo_koku: Path, hedef_yol: str) -> dict:
 
 
 def calisma_geri_al(depo_koku: Path, hedef_yol: str) -> None:
-    """Kopyalanan ama commit EDILMEMIS icerigi geri alir (yayin engellendiginde hedef depo eski haline doner): izlenen dosyalar HEAD'e doner, yeniler silinir."""
-    hedef_yol = hedef_yol_dogrula(hedef_yol)
+    """Kopyalanan ama commit EDILMEMIS icerigi geri alir (yayin engellendiginde hedef depo eski haline doner): izlenen dosyalar HEAD'e doner, yeniler silinir.
+    Bos hedef (kok): hedef depo kopyalamadan once temizdi (yayin_hazirla bunu sart kosar), bu yuzden tum calisma agaci geri alinir."""
+    hedef_yol = hedef_yol_dogrula(hedef_yol, True) or "."
     github._git(Path(depo_koku), "restore", "--staged", "--worktree", "--source=HEAD", "--", hedef_yol, kontrol=False)
     github._git(Path(depo_koku), "clean", "-fdq", "--", hedef_yol, kontrol=False)
 
@@ -142,4 +173,4 @@ def yayin_adresi(depo: str, hedef_yol: str) -> str:
     """Olasi GitHub Pages adresi: `<sahip>.github.io` deposu kokten, diger depolar `<sahip>.github.io/<depo>/` altindan yayinlanir (Pages acik olmali)."""
     sahip, ad = depo.split("/", 1)
     taban = f"https://{ad}" if ad.lower() == f"{sahip.lower()}.github.io" else f"https://{sahip}.github.io/{ad}"
-    return f"{taban}/{hedef_yol}/"
+    return f"{taban}/{hedef_yol}/" if hedef_yol else f"{taban}/"

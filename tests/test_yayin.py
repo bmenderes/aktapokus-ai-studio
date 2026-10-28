@@ -217,3 +217,70 @@ def test_arayuz_yayinla_penceresi_baglidir():
     html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     for parca in ("/api/github/yayin-hazirla", "function yayinPenceresi", "yayinAkisi", '"/github/gonderme-kontrol"', '"/git/commit-oneri?yz=1"'):
         assert parca in html, parca
+
+
+# ---------- kok modu: deponun kokune EKLE (silme yok, ayni adli dosyalar degisir; yalniz acik istekle) ----------
+def test_kok_hedefi_yalniz_acik_izinle_gecerlidir():
+    assert yayin.hedef_yol_dogrula("", True) == "" and yayin.hedef_yol_dogrula(" / ", True) == "" and yayin.hedef_yol_dogrula("haberler", True) == "haberler"
+    for kotu in ("", " ", "/"):
+        with pytest.raises(yayin.YayinHatasi):
+            yayin.hedef_yol_dogrula(kotu)
+    assert yayin.yayin_adresi("bmenderes/bmenderes.github.io", "") == "https://bmenderes.github.io/"
+
+
+def test_kok_aynala_hicbir_seyi_silmez_ayni_adlilari_listeler(tmp_path):
+    kaynak, depo = tmp_path / "k", tmp_path / "d"
+    (kaynak / "alt").mkdir(parents=True)
+    (kaynak / "index.html").write_text("yeni", encoding="utf-8")
+    (kaynak / "alt" / "a.txt").write_text("a", encoding="utf-8")
+    (kaynak / ".env").write_text("SIR=1", encoding="utf-8")
+    (depo / "sorun-ne").mkdir(parents=True)
+    (depo / "index.html").write_text("eski yazi", encoding="utf-8")
+    (depo / "sorun-ne" / "x.html").write_text("kalmali", encoding="utf-8")
+    (depo / "alt").mkdir()
+    (depo / "alt" / "a.txt").write_text("a", encoding="utf-8")  # ayni icerik: ezilmis sayilmaz
+    s = yayin.aynala(kaynak, depo, "", kok_izinli=True)
+    assert s["silinen"] == 0 and s["kopyalanan"] == 2 and s["ezilen"] == ["index.html"] and s["ezilen_sayisi"] == 1 and s["atlanan"] == [".env"]
+    assert (depo / "index.html").read_text(encoding="utf-8") == "yeni" and (depo / "sorun-ne" / "x.html").read_text(encoding="utf-8") == "kalmali"  # baska dosyalar yerinde
+    assert not (depo / ".env").exists()
+    with pytest.raises(yayin.YayinHatasi):
+        yayin.aynala(kaynak, depo, "")  # izin yoksa bos hedef reddedilir (depo silinmesin)
+
+
+def test_kok_aynala_klasor_dosya_cakismasini_reddeder(tmp_path):
+    kaynak, depo = tmp_path / "k", tmp_path / "d"
+    kaynak.mkdir()
+    depo.mkdir()
+    (kaynak / "alt").write_text("dosya", encoding="utf-8")
+    (depo / "alt").mkdir()
+    with pytest.raises(yayin.YayinHatasi):
+        yayin.aynala(kaynak, depo, "", kok_izinli=True)
+
+
+def test_kok_yayini_uc_noktada_acik_istek_ister_ve_mevcut_icerigi_korur(tmp_path, ortam):
+    app, sv, istek, kaynak, hedef, uzak, istemler = yayin_ortami(tmp_path, ortam)
+    try:
+        onceki = sorted(p.name for p in hedef.iterdir() if p.name != ".git")
+        st, h = istek("POST", "/api/github/yayin-hazirla", {"kaynak": "site", "depo": "sahte/hedef", "hedef_yol": ""})
+        assert st == 400 and sorted(p.name for p in hedef.iterdir() if p.name != ".git") == onceki  # kok=true yok: hicbir sey kopyalanmadi
+        st, h = istek("POST", "/api/github/yayin-hazirla", {"kaynak": "site", "depo": "sahte/hedef", "hedef_yol": "", "kok": True})
+        assert st == 200 and h["hedef_yol"] == "" and h["silinen"] == 0 and h["adres"] == "https://sahte.github.io/hedef/"
+        assert (hedef / "index.html").read_text(encoding="utf-8") == "<h1>Haberler</h1>" and all((hedef / n).exists() for n in onceki)  # onceki dosyalar duruyor
+    finally:
+        sv.kapat()
+
+
+def test_kok_yayini_engellenirse_calisma_agaci_eski_haline_doner(tmp_path):
+    depo = tmp_path / "d"
+    depo.mkdir()
+    subprocess.run(["git", "init", "-q", str(depo)], check=True)
+    (depo / "index.html").write_text("eski", encoding="utf-8")
+    subprocess.run(["git", "-C", str(depo), "-c", "user.name=t", "-c", "user.email=t@t", "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(depo), "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "ilk"], check=True)
+    kaynak = tmp_path / "k"
+    kaynak.mkdir()
+    (kaynak / "index.html").write_text("yeni", encoding="utf-8")
+    (kaynak / "yeni.html").write_text("y", encoding="utf-8")
+    yayin.aynala(kaynak, depo, "", kok_izinli=True)
+    yayin.calisma_geri_al(depo, "")
+    assert (depo / "index.html").read_text(encoding="utf-8") == "eski" and not (depo / "yeni.html").exists()

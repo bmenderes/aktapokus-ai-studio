@@ -1430,8 +1430,8 @@ function gondermeDiyalogu(o){return new Promise(coz=>{
 const yayinHatirla=(a,d)=>{try{if(d!==undefined)localStorage.setItem("aktapokus.yayin."+a,d);return localStorage.getItem("aktapokus.yayin."+a)||""}catch(x){return""}};
 const yayinAdresiGuvenli=u=>typeof u==="string"&&/^https:[/][/][a-z0-9.-]+[.]github[.]io[/]/.test(u);
 async function yayinAkisi(g,ust){const dur=m=>ghMesaj(ust,m);
-  dur("Klasör hedef depoya kopyalanıyor…");const h=await api("/api/github/yayin-hazirla",{method:"POST",body:{kaynak:g.kaynak,depo:g.depo,hedef_yol:g.hedefYol}});const on="/api/p/"+h.proje;
-  dur(h.kopyalanan+" dosya kopyalandı"+(h.silinen?" ("+h.silinen+" eski dosya değiştirildi)":"")+(h.atlanan.length?" · "+h.atlanan.length+" gizli dosya atlandı":"")+". Commit mesajı içeriğe göre yazılıyor…");
+  dur("Klasör hedef depoya kopyalanıyor…");const h=await api("/api/github/yayin-hazirla",{method:"POST",body:{kaynak:g.kaynak,depo:g.depo,hedef_yol:g.hedefYol,kok:!g.hedefYol}});const on="/api/p/"+h.proje;
+  dur(h.kopyalanan+" dosya kopyalandı"+(h.silinen?" ("+h.silinen+" eski dosya değiştirildi)":"")+(h.ezilen_sayisi?" · "+h.ezilen_sayisi+" mevcut dosya değişti: "+h.ezilen.slice(0,5).join(", "):"")+(h.atlanan.length?" · "+h.atlanan.length+" gizli dosya atlandı":"")+". Commit mesajı içeriğe göre yazılıyor…");
   const o=await api(on+"/git/commit-oneri?yz=1");
   const kk=await api(on+"/github/commit-kontrol",{method:"POST",body:{yalniz_hazir:false}});let kabul=[];
   if(kk.bulgular.length){const sec=await gondermeDiyalogu({baslik:"Commit'ten önce kontrol",bulgular:kk.bulgular,ai:null,ozet:kk.dosya_sayisi+" dosya commit'e girecek",onay:"Yine de commit et"});if(!sec)return {iptal:"Commit yapılmadı; kopyalanan dosyalar "+h.depo+" klasöründe duruyor (Git sekmesinden atabilirsiniz).",h};kabul=sec.kabul}
@@ -1448,16 +1448,19 @@ function yayinPenceresi(d,p){if($("#yayinPenceresi"))return;
   const klasorler=[...new Set((d.degisen||[]).flatMap(x=>{const p2=x.yol.split("/");return p2.slice(0,-1).map((_,i)=>p2.slice(0,i+1).join("/"))}))].slice(0,100);
   const kaynak=e("input",{style:"width:100%",list:"yayinKlasorler",placeholder:"Projedeki klasör (örn. aktapokus.github.io/haberler)",autocomplete:"off",spellcheck:"false"}),kl=e("datalist",{id:"yayinKlasorler"},...klasorler.map(x=>e("option",{value:x})));
   const depo=e("input",{style:"width:100%",list:"yayinDepolar",placeholder:"Hedef depo (örn. aktapokus/aktapokus.github.io)",autocomplete:"off",spellcheck:"false"}),dl=e("datalist",{id:"yayinDepolar"});
-  const hedef=e("input",{style:"width:100%",placeholder:"Depodaki klasör (örn. haberler)",autocomplete:"off",spellcheck:"false"});
+  const hedef=e("input",{style:"width:100%",placeholder:"Depodaki klasör (örn. haberler; boş: deponun kökü)",autocomplete:"off",spellcheck:"false"});
   kaynak.value=yayinHatirla("kaynak");depo.value=yayinHatirla("depo");hedef.value=yayinHatirla("hedef");
   kaynak.oninput=()=>{if(!hedef.dataset.elle)hedef.value=kaynak.value.replace(/[/]+$/,"").split("/").pop()};hedef.oninput=()=>{hedef.dataset.elle="1"};
   api("/api/github/depolar").then(r=>dl.append(...r.depolar.map(x=>e("option",{value:x.depo})))).catch(()=>{});
   const hata=e("div",{class:"badge b-err",style:"display:none;white-space:normal;margin-top:6px"});
   const basla=e("button",{class:"pri",text:"Kopyala, kontrol et ve gönder"});
-  basla.onclick=async()=>{hata.style.display="none";if(!kaynak.value.trim()||!depo.value.trim()||!hedef.value.trim()){hata.textContent="Üç alanı da doldurun";hata.style.display="block";return}
+  basla.onclick=async()=>{hata.style.display="none";if(!kaynak.value.trim()||!depo.value.trim()){hata.textContent="Kaynak klasör ve hedef depo gerekli";hata.style.display="block";return}
+    if(!hedef.value.trim()&&!confirm("Depodaki klasör boş: dosyalar deponun KÖKÜNE eklenir.
+
+Hiçbir dosya silinmez; aynı adlı dosyalar (örn. index.html) değişir. Devam edilsin mi?"))return;
     basla.disabled=true;const g={kaynak:kaynak.value.trim(),depo:depo.value.trim(),hedefYol:hedef.value.trim()};
     try{kapat();const s=await yayinAkisi(g,$("#p-git")||p);yayinHatirla("kaynak",g.kaynak);yayinHatirla("depo",g.depo);yayinHatirla("hedef",g.hedefYol);await kenarCubugu();await gitPaneliYukle();
-      if(s.tamam){const bilgi=e("div",{class:"badge b-ok",style:"display:block;white-space:normal;margin-top:6px"},"Gönderildi: "+s.h.depo+" · "+s.h.hedef_yol+" ");if(yayinAdresiGuvenli(s.h.adres))bilgi.append("Olası yayın adresi: ",e("a",{href:s.h.adres,target:"_blank",rel:"noopener noreferrer",text:s.h.adres}),e("span",{class:"mut3",text:" (GitHub Pages açıksa bir iki dakika sonra görünür)"}));$("#p-git").prepend(bilgi)}
+      if(s.tamam){const bilgi=e("div",{class:"badge b-ok",style:"display:block;white-space:normal;margin-top:6px"},"Gönderildi: "+s.h.depo+" · "+(s.h.hedef_yol||"/")+" ");if(yayinAdresiGuvenli(s.h.adres))bilgi.append("Olası yayın adresi: ",e("a",{href:s.h.adres,target:"_blank",rel:"noopener noreferrer",text:s.h.adres}),e("span",{class:"mut3",text:" (GitHub Pages açıksa bir iki dakika sonra görünür)"}));$("#p-git").prepend(bilgi)}
       else ghMesaj($("#p-git"),s.iptal)}catch(x){await gitPaneliYukle().catch(()=>{});ghMesaj($("#p-git")||p,x.message,"b-err")}};
   k.append(e("b",{text:"Başka bir depoya yayınla"}),e("label",{class:"mut",style:"display:block;margin-top:8px"},"Kaynak klasör",kaynak,kl),e("label",{class:"mut",style:"display:block;margin-top:6px"},"Hedef depo",depo,dl),e("label",{class:"mut",style:"display:block;margin-top:6px"},"Depodaki klasör",hedef),hata,
     e("div",{class:"row",style:"margin-top:8px;gap:6px"},basla,e("button",{text:"Vazgeç",onclick:kapat})));document.body.append(arka);kaynak.focus()}
