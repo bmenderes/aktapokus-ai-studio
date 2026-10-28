@@ -65,7 +65,32 @@ def git_dizini(klasor: str | Path) -> Path:
 
 
 def _golge_ortami(klasor: Path) -> dict:
-    return {"GIT_DIR": str(golge_dizini(klasor)), "GIT_WORK_TREE": str(Path(klasor).resolve())} if golge_mi(klasor) else {}
+    if golge_mi(klasor):
+        return {"GIT_DIR": str(golge_dizini(klasor)), "GIT_WORK_TREE": str(Path(klasor).resolve())}
+    golge = golge_dizini(klasor)
+    if (golge / "objects").is_dir() and (Path(klasor) / ".git").exists():
+        # Klasor sonradan GERCEK git deposu oldu ("Git'e aktar") ama eski anlik goruntuler (geri alma noktalari) golge depoda kaldi: nesneleri OKUMAK icin
+        # alternatif nesne dizini olarak eklenir. Gercek hata: kosu sirasinda git'e gecilince 'once' goruntusu bulunamadi ('bad object') ve kayit yazilmadi.
+        return {"GIT_ALTERNATE_OBJECT_DIRECTORIES": str(golge / "objects")}
+    return {}
+
+
+def etiketten_commit(klasor: str | Path, etiket: str) -> str | None:
+    """refs/aktapokus altinda konusu `etiket` olan anlik goruntu commit'i (once gercek depoda, sonra golge depoda). Bulunamazsa None."""
+    klasor = Path(klasor)
+    adaylar: list[dict | None] = [None]
+    if golge_dizini(klasor).is_dir():
+        adaylar.append({"GIT_DIR": str(golge_dizini(klasor)), "GIT_WORK_TREE": str(klasor.resolve())})
+    for env in adaylar:
+        try:
+            cikti = _git(klasor, "for-each-ref", "--format=%(objectname) %(subject)", "refs/aktapokus", env=env, kontrol=False)
+        except GitHatasi:
+            continue
+        for satir in cikti.splitlines():
+            sha, _, konu = satir.partition(" ")
+            if konu.strip() == etiket and len(sha) == 40:
+                return sha
+    return None
 
 
 def golge_baslat(klasor: str | Path) -> bool:

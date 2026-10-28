@@ -240,10 +240,19 @@ def calistir_hat(
         onceki = r.metin
         duzeltme_notu = None
         idx += 1
-    sonra = snapshot.anlik_goruntu(klasor, f"aktapokus {kimlik} sonrasi")
-    sonuc.sonra = sonra
-    sonuc.degisen = snapshot.degisenler(klasor, once, sonra)
-    sonuc.fark_ozeti = snapshot.fark_ozeti(klasor, once, sonra) if sonuc.degisen else ""
+    sonra = ""
+    try:
+        sonra = snapshot.anlik_goruntu(klasor, f"aktapokus {kimlik} sonrasi")
+        sonuc.sonra = sonra
+        sonuc.degisen = snapshot.degisenler(klasor, once, sonra)
+        sonuc.fark_ozeti = snapshot.fark_ozeti(klasor, once, sonra) if sonuc.degisen else ""
+    except snapshot.GitHatasi as hata:
+        # Gercek hata: kosu surerken proje git deposu oldu, 'once' goruntusu okunamadi, kayit HIC yazilmadi ve konusma listeden dustu.
+        # Kayit ASLA kaybolmaz: fark hesaplanamadi diye isaretlenir, yanit ve gunluk saklanir; degisiklik karari sorulmaz (geri alma noktasi okunamiyor).
+        sonuc.degisen, sonuc.fark_ozeti = {}, ""
+        durum = durum or "hata"
+        sonuc.mesaj = ((sonuc.mesaj + " ") if sonuc.mesaj else "") + f"Degisiklik farki hesaplanamadi (geri alma noktasi okunamadi); dosyalari kendiniz kontrol edin. Kayit saklandi. Ayrinti: {str(hata)[:200]}"
+        bildir("UYARI: " + sonuc.mesaj)
     if not durum:
         durum = "tamam"
         if belirsiz:
@@ -297,6 +306,77 @@ def _kayit_yaz(klasor: Path, kimlik: str, gorev: str, ayar: Ayar, sonuc: HatSonu
     yol = klasoru / f"{kimlik}.json"
     yol.write_text(json.dumps(kayit, ensure_ascii=False, indent=2), encoding="utf-8")
     return yol
+
+
+def _zaman_kimlikten(kimlik: str, ek_sn: float = 0.0) -> str:
+    """'20261028-101328-790-c84a' -> '2026-10-28 10:13:28' (+ek_sn: kosu suresi, kaydin bitis zamani gibi olmasi icin)."""
+    try:
+        t = time.mktime(time.strptime(kimlik[:15], "%Y%m%d-%H%M%S")) + ek_sn
+    except (ValueError, OverflowError):
+        return ""
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t))
+
+
+def kayit_olaylardan(klasor: Path, kimlik: str, olaylar: list) -> dict | None:
+    """Kayit dosyasi KAYBOLMUS ama olay gunlugu (konusmanin tamami) duruyorsa kaydi olaylardan yeniden kurar. Olay gunlugu yoksa/bozuksa None."""
+    olaylar = [o for o in olaylar if isinstance(o, dict)]
+    plan = next((o for o in olaylar if o.get("tur") == "plan"), None)
+    basladi = next((o for o in olaylar if o.get("tur") == "basladi"), None)
+    if plan is None or basladi is None:
+        return None
+    adimlar: dict[int, dict] = {}
+    for o in olaylar:
+        if o.get("tur") == "adim-basladi" and isinstance(o.get("sira"), int):
+            adimlar[o["sira"]] = {"sira": o["sira"], "rol": o.get("rol"), "calistirici": o.get("calistirici"), "model": o.get("model"), "ok": False, "metin": "", "token_girdi": 0,
+                                  "token_cikti": 0, "token_onbellek": 0, "sure_sn": 0.0, "hata": None, "dogrulama": None, "oturum": None}
+        elif o.get("tur") == "adim-bitti" and isinstance(o.get("sira"), int):
+            a = adimlar.setdefault(o["sira"], {"sira": o["sira"], "rol": o.get("rol"), "calistirici": None, "model": None, "token_onbellek": 0, "dogrulama": None, "oturum": None})
+            a.update({"ok": bool(o.get("ok")), "hata": o.get("hata"), "token_girdi": o.get("token_girdi", 0), "token_cikti": o.get("token_cikti", 0), "sure_sn": o.get("sure_sn", 0.0),
+                      "metin": str(o.get("metin") or "")[:2000]})
+    bitti = next((o for o in reversed(olaylar) if o.get("tur") == "bitti"), None)
+    sure = sum(float(a.get("sure_sn") or 0) for a in adimlar.values())
+    once = basladi.get("once") if isinstance(basladi.get("once"), str) else ""
+    sonra = snapshot.etiketten_commit(klasor, f"aktapokus {kimlik} sonrasi") or ""
+    degisen: dict = dict(bitti.get("degisen") or {}) if bitti and isinstance(bitti.get("degisen"), dict) else {}
+    durum = (bitti or {}).get("durum") or "hata"
+    mesaj = str((bitti or {}).get("mesaj") or "") if bitti else "Kosunun bitis kaydi yok (uygulama kapanmis olabilir)."
+    onarim = "Kayit olay gunlugunden yeniden olusturuldu."
+    if once and sonra and not degisen:
+        try:  # kayit, geri alma noktasi okunamadigi icin dusmusse: artik okunabiliyorsa farki simdi hesapla
+            degisen = snapshot.degisenler(klasor, once, sonra)
+            if durum == "hata" and any(i in mesaj for i in ("bad object", "Gecersiz anlik goruntu", "git diff")):
+                durum, mesaj = ("onaylandi" if degisen else "degisiklik_yok"), ""  # dosyalar calisma klasorunde duruyor: geri alinmamis
+        except snapshot.GitHatasi:
+            pass
+    return {
+        "id": kimlik, "zaman": _zaman_kimlikten(kimlik, sure), "gorev": str(plan.get("gorev") or ""), "akis": [a.get("rol") for a in (plan.get("adimlar") or []) if isinstance(a, dict)],
+        "durum": durum, "korundu": bool(degisen) and durum == "onaylandi", "mesaj": (mesaj + " " + onarim).strip(), "token_toplam": int((bitti or {}).get("token_toplam") or max([0, *[int(o.get("token_toplam") or 0) for o in olaylar if o.get("tur") == "adim-bitti"]])),
+        "butce_token": plan.get("butce", 0), "once": once, "sonra": sonra, "degisen": degisen, "adimlar": [adimlar[k] for k in sorted(adimlar)], "geri_alindi_sonradan": False, "onarildi": True,
+    }
+
+
+def eksik_kayitlari_onar(klasor: str | Path) -> list[str]:
+    """Olay gunlugu olup kayit dosyasi olmayan kosulari (kayit yazilamadiysa/silindiyse) olaylardan yeniden kurar; onarilan kimlikleri doner.
+    Konusma listesi kayit dosyalarindan okunur: kayit yoksa kosu listeden duser (gercek sikayet: konusma ve verilen ad kayboldu)."""
+    klasoru = _kayit_klasoru(Path(klasor))
+    olay_klasoru = klasoru / "olaylar"
+    if not olay_klasoru.is_dir():
+        return []
+    onarilan: list[str] = []
+    for yol in sorted(olay_klasoru.glob("*.json")):
+        hedef = klasoru / f"{yol.stem}.json"
+        if hedef.exists() or not re.fullmatch(r"[0-9a-zA-Z_-]{1,64}", yol.stem):
+            continue
+        try:
+            olaylar = json.loads(yol.read_text(encoding="utf-8"))
+            kayit = kayit_olaylardan(Path(klasor), yol.stem, olaylar) if isinstance(olaylar, list) else None
+            if kayit is None:
+                continue
+            hedef.write_text(json.dumps(kayit, ensure_ascii=False, indent=2), encoding="utf-8")
+        except (OSError, ValueError):
+            continue
+        onarilan.append(yol.stem)
+    return onarilan
 
 
 def son_kayit(klasor: str | Path) -> dict | None:

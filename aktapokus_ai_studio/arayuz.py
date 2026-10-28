@@ -36,7 +36,7 @@ from . import arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar,
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_model_gecersiz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
-from .pipeline import HatHatasi, _kayit_klasoru, calistir_hat, son_kayit
+from .pipeline import HatHatasi, _kayit_klasoru, calistir_hat, eksik_kayitlari_onar, son_kayit
 from .proje import GitGerekli, hazirla as proje_hazirla
 from .runners import Calistirici, CalistiriciHatasi, ClaudeCodeCalistirici, calistirici_olustur, claude_bul, codex_bul, hepsini_kapat, opencode_bul
 from .sunucu import SunucuCalistirici
@@ -389,6 +389,10 @@ class Uygulama:
         if not Path(str(yol)).expanduser().is_absolute():
             # Goreli yol, botun/arayuzun calistigi klasore gore cozulur: yanlis klasorde calisma riski (gercek denemede yasandi)
             raise UygulamaHatasi("Klasor yolu TAM olmali (ornek: C:\\Users\\adiniz\\Desktop\\proje); goreli yol belirsiz.", 400)
+        if git_baslat:  # kosu surerken depo turu degisirse anlik goruntu/geri alma noktasi okunamaz (gercek hata: kosunun kaydi kayboldu)
+            mevcut_kosu = self.oturumlar.get(projeler.proje_kimligi(str(yol)))
+            if mevcut_kosu and mevcut_kosu.kosu and mevcut_kosu.kosu.durum in AKTIF_KOSU:
+                raise UygulamaHatasi("Gorev surerken Git'e aktarilamaz; once gorevi bitirin", 409)
         with self.kilit:
             try:
                 sonuc = proje_hazirla(yol, git_baslat=git_baslat)
@@ -1375,6 +1379,10 @@ class Uygulama:
 
     @staticmethod
     def _gecmis_oku(klasor: Path, adet: int) -> list[dict]:
+        try:
+            eksik_kayitlari_onar(klasor)  # kayit dosyasi kaybolmus ama olay gunlugu duran kosular listeden dusmesin
+        except Exception:
+            pass
         klasoru = _kayit_klasoru(klasor)
         dosyalar = sorted(klasoru.glob("*.json"), reverse=True)[: max(1, min(int(adet), 100))] if klasoru.is_dir() else []
         cikti = []
