@@ -17,6 +17,7 @@ import base64
 import contextvars
 import json
 import mimetypes
+import html as html_modulu
 import os
 import queue
 import re
@@ -103,6 +104,26 @@ def guvenli_goreli(klasor: Path, goreli: str) -> Path:
     if klasor.resolve() not in hedef.parents:
         raise ValueError("Yol proje klasorunun disina cikiyor")
     return hedef
+
+
+ONIZLEME_INDEX_DERINLIK = 4
+ONIZLEME_INDEX_AZAMI = 50
+
+
+def index_adaylari(taban: Path, kok: Path) -> list[str]:
+    """Onizleme klasorunde index.html yoksa: altindaki index.html dosyalarinin (en sığdan baslayarak) `kok`e gore yollari (gizli klasorler ve sembolik baglantilar haric)."""
+    bulunan: list[str] = []
+    kok = kok.resolve()
+    for yol, klasorler, adlar in os.walk(taban, followlinks=False):
+        goreli = Path(yol).resolve().relative_to(kok).parts
+        if len(goreli) - len(taban.resolve().relative_to(kok).parts) >= ONIZLEME_INDEX_DERINLIK:
+            klasorler[:] = []
+        klasorler[:] = sorted(d for d in klasorler if not gizli_mi([*goreli, d]) and d != "node_modules" and not (Path(yol) / d).is_symlink())
+        if "index.html" in adlar and not (Path(yol) / "index.html").is_symlink() and not gizli_mi([*goreli, "index.html"]):
+            bulunan.append("/".join([*goreli, "index.html"]))
+            if len(bulunan) >= ONIZLEME_INDEX_AZAMI:
+                break
+    return sorted(bulunan, key=lambda x: (x.count("/"), x.lower()))
 
 
 def dosyalari_tara(klasor: Path) -> list[dict]:
@@ -2721,6 +2742,28 @@ def yapi_onizleme(app: Uygulama, sunucu: "ArayuzSunucusu", proje: str):
             except ValueError:
                 return self._hata(403, "Yasak yol")
             if hedef.is_dir():
+                if not (hedef / "index.html").is_file():  # klasorde index.html yok (ornek: sayfa alt klasorde): tek aday varsa oraya git, birden cok ise secenekleri listele
+                    adaylar = index_adaylari(hedef, klasor)
+                    if len(adaylar) == 1:
+                        self.send_response(302)
+                        self.send_header("Location", urllib.parse.quote("/" + adaylar[0].rsplit("/", 1)[0] + "/"))
+                        self.send_header("Content-Length", "0")
+                        self.send_header("Cache-Control", "no-store")
+                        self.end_headers()
+                        return
+                    if adaylar:
+                        satirlar = "".join(f'<li><a href="{html_modulu.escape(urllib.parse.quote("/" + a.rsplit("/", 1)[0] + "/"), quote=True)}">{html_modulu.escape(a)}</a></li>' for a in adaylar)
+                        govde = ('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>index.html</title>'
+                                 '<body style="font:15px/1.7 system-ui,sans-serif;max-width:560px;margin:24px auto;padding:0 16px"><p>Bu klasorde index.html yok. Acilacak sayfayi secin:</p>'
+                                 f"<ul>{satirlar}</ul></body>").encode("utf-8")
+                        self.send_response(200)
+                        self.send_header("Content-Type", "text/html; charset=utf-8")
+                        self.send_header("Content-Length", str(len(govde)))
+                        self.send_header("Cache-Control", "no-store")
+                        self.send_header("X-Content-Type-Options", "nosniff")
+                        self.end_headers()
+                        self.wfile.write(govde)
+                        return
                 hedef = hedef / "index.html"
             if not hedef.is_file():
                 return self._hata(404, "Dosya yok")

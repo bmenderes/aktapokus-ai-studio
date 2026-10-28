@@ -101,3 +101,43 @@ def test_arayuz_onizleme_menusu_baglidir():
     html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     for parca in ("onizMenusu", 'id="onizMenu"', "/api/onizleme-ekran", "/api/onizleme-ac", "/__temizle", "onizOtoAc", "onizOtoDogrula", 'onizTercih("otoac",true)', 'onizTercih("otodogrula",false)'):
         assert parca in html, parca
+
+
+def _onizleme_get(istek, yol):
+    st, d = istek("GET", "/api/onizleme")
+    port = int(re.search(r":(\d+)/", d["url"]).group(1))
+    c = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+    c.request("GET", yol)
+    r = c.getresponse()
+    return r.status, r.getheader("Location"), r.read().decode("utf-8", "replace")
+
+
+def test_onizleme_kokte_index_yoksa_alt_klasordeki_sayfayi_acar(api):
+    app, istek, proje = api
+    for f in list(proje.glob("index.html")):
+        f.unlink()
+    assert _onizleme_get(istek, "/")[0] == 404  # hic sayfa yok
+    (proje / "site" / "haberler").mkdir(parents=True)
+    (proje / "site" / "haberler" / "index.html").write_text("<h1>H</h1>", encoding="utf-8")
+    (proje / ".gizli").mkdir()
+    (proje / ".gizli" / "index.html").write_text("gizli", encoding="utf-8")
+    st, konum, _ = _onizleme_get(istek, "/")  # tek aday: oraya yonlendirir (goreli baglantilar calissin diye sonda /)
+    assert st == 302 and konum == "/site/haberler/"
+    st, _, govde = _onizleme_get(istek, "/site/haberler/")
+    assert st == 200 and govde == "<h1>H</h1>"
+
+
+def test_onizleme_birden_cok_sayfa_varsa_secenekleri_listeler(api):
+    app, istek, proje = api
+    for f in list(proje.glob("index.html")):
+        f.unlink()
+    for ad in ("a.github.io/haberler", "b.github.io/haberler"):
+        (proje / ad).mkdir(parents=True)
+        (proje / ad / "index.html").write_text("x", encoding="utf-8")
+    (proje / "a&b").mkdir()
+    (proje / "a&b" / "index.html").write_text("x", encoding="utf-8")
+    st, konum, govde = _onizleme_get(istek, "/")
+    assert st == 200 and konum is None and 'href="/a.github.io/haberler/"' in govde and 'href="/b.github.io/haberler/"' in govde
+    assert "a&b<" not in govde and "a&amp;b" in govde  # klasor adi kacislanir
+    (proje / "index.html").write_text("<h1>kok</h1>", encoding="utf-8")
+    assert _onizleme_get(istek, "/")[2] == "<h1>kok</h1>"  # kokte index.html varsa eskisi gibi
