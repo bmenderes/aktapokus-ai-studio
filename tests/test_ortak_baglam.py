@@ -58,7 +58,7 @@ def test_konusma_ozeti_tum_kayitlari_kronolojik_ozetler_ve_istemi_verir(tmp_path
     for i in range(15):
         _kayit(tmp_path, f"k{i:02d}", f"gorev {i}", f"yanit {i}", "claude" if i % 2 else "opencode-sunucu")
     r = baglam.konusma_ozeti_yaz(tmp_path)
-    assert r == {"yol": ".aktapokus/KONUSMA-OZETI.md", "kayit": 15, "istem": baglam.OZET_ISTEMI}
+    assert r == {"yol": ".aktapokus/KONUSMA-OZETI.md", "kayit": 15, "istem": baglam.OZET_ISTEMI, "sohbet": "ilk"}
     metin = (tmp_path / ".aktapokus" / "KONUSMA-OZETI.md").read_text(encoding="utf-8")
     assert "KONUSMA-OZETI.md" in baglam.OZET_ISTEMI and baglam.OZET_ISTEMI in metin
     assert "## Daha eski çalışmalar" in metin and "gorev 0" in metin and "yanit 0" not in metin  # ilk 3 calisma tek satir (yanit yok)

@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, oneriler
+from . import arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, oneriler, izinler
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_model_gecersiz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
@@ -828,6 +828,15 @@ class Uygulama:
         try:
             return otomasyon.kaydet(veri).sozluk()
         except otomasyon.OtomasyonHatasi as hata:
+            raise UygulamaHatasi(str(hata)) from None
+
+    def izinler_oku(self) -> dict:
+        return izinler.oku()
+
+    def izinler_yaz(self, veri: object) -> dict:
+        try:
+            return izinler.yaz(veri)
+        except izinler.IzinHatasi as hata:
             raise UygulamaHatasi(str(hata)) from None
 
     def otomasyon_izin(self, ad: object, onaysiz: object) -> dict:
@@ -1721,7 +1730,7 @@ class Uygulama:
             ayar = ayar_yukle(klasor)
             if kosu.model_gecersiz:
                 ayar = ayar_model_gecersiz(ayar, *kosu.model_gecersiz)
-            koru[0] = ayar.otomatik_koru or kosu.onaysiz
+            koru[0] = ayar.otomatik_koru or kosu.onaysiz or izinler.koru()  # Ayarlar > Izinler: tum projelerde 'Keep' sorulmaz
             kosu.dogrulama_rolleri = frozenset(ad for ad, r in ayar.roller.items() if r.dogrulama)
             kosu.sonuc = calistir_hat(klasor, kosu.gorev, ayar, uret, onay, bildir=lambda m: yayinla({"tur": "gunluk", "mesaj": m}), olay=olay, iptal=kosu.iptal, testsiz=kosu.testsiz, testi_atla=kosu.testi_atla)
             oturum.son_hat = {"once": kosu.sonuc.once, "sonra": kosu.sonuc.sonra, "degisen": kosu.sonuc.degisen, "durum": kosu.sonuc.durum}
@@ -1739,12 +1748,23 @@ class Uygulama:
             self._kuyruk_ilerlet(oturum, kosu)
             self._devam_yaz(oturum)  # bitti: dosya silinir (sonraki kuyruk gorevi basladiysa onunla yenilenir)
 
-    def konusma_ozeti(self) -> dict:
-        """Projenin tum calisma kayitlarindan konusma ozetini yeniler (`.aktapokus/KONUSMA-OZETI.md`); yeni bir modele verilecek istemi de doner."""
+    def konusma_ozeti(self, gorev: object = None) -> dict:
+        """Bir SOHBETIN hafizasini yeniler: `gorev` (bir gecmis gorevin kimligi) verilirse o gorevin sohbeti (`.aktapokus/hafiza/<sohbet>.md`), yoksa guncel sohbet
+        (`.aktapokus/KONUSMA-OZETI.md`). Yeni bir modele verilecek istemi de doner."""
         from . import baglam as baglam_modulu
 
+        klasor = self._klasor()
+        sohbet = None
+        if gorev is not None:
+            if not isinstance(gorev, str) or not re.fullmatch(r"[0-9A-Za-z_-]{1,64}", gorev):
+                raise UygulamaHatasi("Gorev kimligi gecersiz", 400)
+            try:
+                zaman = json.loads((klasor / ".aktapokus" / "kayit" / f"{gorev}.json").read_text(encoding="utf-8")).get("zaman")
+            except (OSError, ValueError):
+                raise UygulamaHatasi("Gorev kaydi bulunamadi", 404) from None
+            sohbet = baglam_modulu.sohbet_kimligi(klasor, zaman if isinstance(zaman, str) else None)
         try:
-            return baglam_modulu.konusma_ozeti_yaz(self._klasor())
+            return baglam_modulu.konusma_ozeti_yaz(klasor, sohbet)
         except OSError as hata:
             raise UygulamaHatasi(f"Ozet yazilamadi: {hata}", 500) from None
 
@@ -2166,6 +2186,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.github_issueler())
                 if yol == "/api/beceriler":
                     return self._gonder(200, app.beceri_listele())
+                if yol == "/api/izinler":
+                    return self._gonder(200, app.izinler_oku())
                 if yol == "/api/oneriler":
                     return self._gonder(200, {"kategoriler": oneriler.liste()})
                 if yol == "/api/beceri-kaynak":
@@ -2227,6 +2249,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.otomasyon_kaydet(g))
                 if yol == "/api/otomasyonlar/sil":
                     return self._gonder(200, app.otomasyon_sil(g.get("ad")))
+                if yol == "/api/izinler":
+                    return self._gonder(200, app.izinler_yaz(g))
                 if yol == "/api/otomasyonlar/izin":
                     return self._gonder(200, app.otomasyon_izin(g.get("ad"), g.get("onaysiz")))
                 if yol == "/api/otomasyon-calistir":
@@ -2329,7 +2353,7 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if yol == "/api/gorev":
                     return self._gonder(200, app.gorev_olustur(g.get("gorev"), g.get("testsiz") if isinstance(g.get("testsiz"), bool) else None, ekler=g.get("ekler"), kuyruga=g.get("kuyruga") is True))
                 if yol == "/api/konusma-ozeti":
-                    return self._gonder(200, app.konusma_ozeti())
+                    return self._gonder(200, app.konusma_ozeti(g.get("gorev")))
                 if yol == "/api/kuyruk/sil":
                     return self._gonder(200, app.kuyruktan_sil(g.get("sira")))
                 if yol == "/api/yarim":

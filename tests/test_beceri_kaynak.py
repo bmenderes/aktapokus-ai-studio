@@ -108,7 +108,7 @@ def test_arayuz_beceri_kaynagi_kendiliginden_listeler():
     from pathlib import Path
 
     html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
-    assert 'kaynak.value="anthropics/skills";listele()' in html and "Bunu mu demek istediniz" in html
+    assert 'const ilkKaynak=ilk||"anthropics/skills"' in html and 'kaynak.value=ilkKaynak;listele()' in html and "Bunu mu demek istediniz" in html
 
 
 def test_http_ucu_listeler_ve_onizler_gercek_hata_NameError_sorgu(monkeypatch, tmp_path):

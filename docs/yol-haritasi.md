@@ -57,7 +57,8 @@ Bu belge, kullanıcının listelediği fikirlerin **hiçbirini düşürmemek** i
 | Sohbet başlığı (proje · görev adı) | VAR (2026-10-28) | Sohbet alanının üstünde; telefonda kenar çubuğu kapalıyken de görünür |
 | Ayarlar › Önerilenler (32 depo, bağlantılı) | VAR (2026-10-28) | `oneriler.py`: beceri depoları için mevcut çevrimiçi kaynak akışı (önizle > onayla > indir); diğerleri bağlantı. Voicebox listede |
 | Voicebox entegrasyonu (sesle yaz / seslendirme) | YAPILACAK | Şimdilik yalnız Önerilenler'de bağlantı olarak |
-| Her sohbetin kendi hafızası (model değişince otomatik okunur) | YAPILACAK | Şu an proje bazlı ortak bağlam var (`baglam.py`, `KONUSMA-OZETI.md`) |
+| Her sohbetin kendi hafızası (model değişince otomatik okunur) | VAR (2026-10-28) | Sohbet = "Yeni" sınırları arası görevler. `.aktapokus/hafiza/<sohbet>.md` her sohbete ayrı; güncel sohbet ayrıca `KONUSMA-OZETI.md`'de. Model/araç değişince hafıza parçası isteme eklenir (değişmediyse eklenmez). ↺ düğmesi açık sohbetin hafızasını verir |
+| Ayarlar › İzinler: değişiklikleri her projede otomatik koru | VAR (2026-10-28) | `izinler.py`; varsayılan kapalı, yalnız yerel arayüz. Keep/Undo sorusu işi bekletmesin diye |
 | Windows açılışında otomatik başlatma | YAPILACAK | Onaylı ve geri alınabilir |
 | Temiz bilgisayarda kurulum denemesi | KULLANICI | Hafta başı kullanıcı yapacak |
 | OpenCode olmadan çalışma | VAR | Motor denetimi; temiz bilgisayarda gerçek deneme bekliyor |

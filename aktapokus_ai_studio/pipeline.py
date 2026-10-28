@@ -77,8 +77,8 @@ def _kisalt(metin: str, sinir: int = AZAMI_ONCEKI_CIKTI) -> str:
     return f"{metin[:yarim]}\n... [{len(metin) - sinir} karakter atlandi] ...\n{metin[-yarim:]}"
 
 
-def istem_olustur(rol: Rol, gorev: str, onceki: str | None, duzeltme_notu: str | None) -> str:
-    parcalar = [GENEL_KURAL, f"ROLUN: {rol.ad}. {rol.talimat}", f"GOREV:\n{gorev}"]
+def istem_olustur(rol: Rol, gorev: str, onceki: str | None, duzeltme_notu: str | None, hafiza: str = "") -> str:
+    parcalar = [GENEL_KURAL, f"ROLUN: {rol.ad}. {rol.talimat}"] + ([hafiza] if hafiza else []) + [f"GOREV:\n{gorev}"]
     if duzeltme_notu:
         parcalar.append(
             "ONCEKI DENEME DOGRULAMADAN GECMEDI. Test bulgulari asagida; sorunlari gider:\n" + _kisalt(duzeltme_notu)
@@ -169,7 +169,15 @@ def calistir_hat(
             bildir(f"-> {rol.ad} atlandi (kullanici testi atlatti).")
             idx += 1
             continue
-        istem = istem_olustur(rol, gorev, onceki, duzeltme_notu if idx == 0 else None)
+        hafiza = ""
+        if ayar.baglam and rol.calistirici != "mistral":  # Mistral Vibe zaten istem_baglami ile sohbet durumunu alir
+            try:  # model/arac degistiyse bu sohbetin hafizasi isteme eklenir; degismediyse CLI kendi oturumunu surdurur
+                hafiza = baglam_modulu.hafiza_istemi(klasor, rol.ad, rol.calistirici, rol.model)
+            except OSError:
+                hafiza = ""
+            if hafiza:
+                bildir(f"Sohbet hafizasi {rol.ad} istemine eklendi (model degisti: {rol.calistirici}/{rol.model or 'varsayilan model'}).")
+        istem = istem_olustur(rol, gorev, onceki, duzeltme_notu if idx == 0 else None, hafiza)
         bildir(f"-> {rol.ad} ({rol.calistirici}/{rol.model or 'varsayilan model'}) calisiyor...")
         olay({"tur": "adim-basladi", "sira": len(sonuc.adimlar) + 1, "rol": rol.ad, "calistirici": rol.calistirici, "model": rol.model})
         try:

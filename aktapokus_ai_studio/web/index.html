@@ -39,7 +39,7 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 #girdi>.row{flex-wrap:nowrap!important;align-items:center!important;gap:8px!important}#girdi>.row>span:first-child{flex:1 1 auto!important;min-width:0}
 #girdi span.row:has(>#rolCipleri){flex-wrap:nowrap!important;min-width:0;width:100%}#rolCipleri{flex-wrap:nowrap!important;overflow-x:auto;min-width:0;flex:1;scrollbar-width:none}
 #girdi .cip{flex:none;white-space:nowrap}#girdi .cip .yol{display:none}.cip>.mut{max-width:96px;overflow:hidden;text-overflow:ellipsis}#girdiBilgi{display:none!important}
-.test-nokta{display:inline-block;flex:none;width:9px;height:9px;border-radius:50%;background:var(--line2);margin-left:2px;cursor:pointer}.test-nokta.on{background:var(--tx2)}
+.test-nokta{display:inline-flex;align-items:center;justify-content:center;flex:none;width:20px;height:20px;border-radius:50%;border:1px solid var(--line2);background:var(--panel);color:var(--tx2);font-size:11px;line-height:1;margin-left:2px;cursor:pointer}.test-nokta:hover{border-color:var(--sarikoyu)}.test-nokta.on{background:var(--sari);border-color:var(--sarikoyu);color:var(--tx)}
 #onayBar:empty{display:none}#onayBar{margin-bottom:6px}
 #kuyrukBar:empty{display:none}#kuyrukBar{margin-bottom:6px;display:flex;flex-direction:column;gap:4px}
 #mikDugme.on{background:var(--saribg);border-color:var(--sarikoyu);animation:nabiz 1.4s ease-in-out infinite}
@@ -258,7 +258,7 @@ body.suruklenir iframe{pointer-events:none}
       <div id="onayBar"></div>
       <textarea id="gorev" rows="2" style="width:100%;resize:none" placeholder="Bir görev yazın…"></textarea>
       <div id="ekler"></div><input type="file" id="ekSec" multiple hidden>
-      <div class="row" style="justify-content:space-between;margin-top:6px;gap:10px;align-items:flex-start"><span style="min-width:0;flex:1"><span class="row" style="gap:6px;flex-wrap:wrap"><span id="ortamCipi"></span><span id="rolCipleri" class="row" style="gap:6px;flex-wrap:wrap"></span></span><span id="girdiBilgi" class="mut3" style="display:block;margin-top:2px"></span></span><span class="row"><button id="mikDugme" class="yuvarlak simge" title="Sesle yaz" aria-label="Sesle yaz" style="display:none">🎤</button><button id="ozetDugme" class="yuvarlak simge" title="Önceki konuşmayı oku: özeti yenile ve komutu yazma kutusuna koy" aria-label="Konuşma özeti">↺</button><button id="ekDugme" class="yuvarlak simge" title="Resim veya dosya ekle (yapıştırabilir ya da sürükleyebilirsiniz)" aria-label="Dosya ekle">📎</button><button id="testiAtla" style="display:none" title="Calisan test adimini iptal eder; degisiklikler ve karar adimi devam eder">Testi atla</button><button id="durdur" style="display:none">Durdur</button><button id="gonder" style="display:none" tabindex="-1" aria-hidden="true">Gönder</button></span></div>
+      <div class="row" style="justify-content:space-between;margin-top:6px;gap:10px;align-items:flex-start"><span style="min-width:0;flex:1"><span class="row" style="gap:6px;flex-wrap:wrap"><span id="ortamCipi"></span><span id="rolCipleri" class="row" style="gap:6px;flex-wrap:wrap"></span></span><span id="girdiBilgi" class="mut3" style="display:block;margin-top:2px"></span></span><span class="row"><button id="mikDugme" class="yuvarlak simge" title="Sesle yaz" aria-label="Sesle yaz" style="display:none">🎤</button><button id="ozetDugme" class="yuvarlak simge" title="Bu sohbetin hafızası: özeti yenile ve komutu yazma kutusuna koy" aria-label="Konuşma özeti">↺</button><button id="ekDugme" class="yuvarlak simge" title="Resim veya dosya ekle (yapıştırabilir ya da sürükleyebilirsiniz)" aria-label="Dosya ekle">📎</button><button id="testiAtla" style="display:none" title="Calisan test adimini iptal eder; degisiklikler ve karar adimi devam eder">Testi atla</button><button id="durdur" style="display:none">Durdur</button><button id="gonder" style="display:none" tabindex="-1" aria-hidden="true">Gönder</button></span></div>
     </div>
   </div>
   <div class="bolucu" id="bolucuSag" title="Sürükleyin: genişliği değiştirin · çift tıklayın: sıfırla"></div>
@@ -639,7 +639,7 @@ function rolleriCiz(){const r=$("#rolCipleri");r.textContent="";
   if(!S.ayar||S.ayar.hata){r.append(e("span",{class:"mut3",text:S.ayar&&S.ayar.hata?S.ayar.hata:"klasör seçilmedi"}));durumMetniGuncelle();return}
   for(const ad of S.ayar.akis){const x=S.ayar.roller[ad];const d=S.rolDurum[ad]||"";
     const pasif=!!(x.dogrulama&&S.ayar.testi_atla);
-    const anahtar=x.dogrulama?e("span",{class:"test-nokta"+(pasif?"":" on"),title:pasif?"Test pasif: tıklayınca aktif olur (bu projede testler çalışır)":"Test aktif: tıklayınca pasif olur (bu projede test adımı atlanır)",onclick:ev=>{ev.stopPropagation();testiAcKapat()}}):null;
+    const anahtar=x.dogrulama?e("span",{class:"test-nokta"+(pasif?"":" on"),role:"button","aria-label":"Test adımı",text:pasif?"":"✓",title:pasif?"Test pasif: tıklayınca aktif olur (bu projede testler çalışır)":"Test aktif: tıklayınca pasif olur (bu projede test adımı atlanır)",onclick:ev=>{ev.stopPropagation();testiAcKapat()}}):null;
     const cip=e("button",{class:"cip",style:pasif?"opacity:.6":"",title:ad+" rolünün modelini değiştir",onclick:ev=>{ev.stopPropagation();modelMenusu(ad)}},e("span",{class:"dot "+d}),e("b",{text:ad,style:pasif?"text-decoration:line-through":""}),e("span",{class:"mut",text:kisaModel(x.model)+(x.calistirici.startsWith("opencode")?"":" · "+x.calistirici)+(x.dusunme?" · "+DUSUNME_AD[x.dusunme]:"")}),e("span",{class:"mut3",text:"▾"}),anahtar);r.append(cip)}
   durumMetniGuncelle()}
 async function testiAcKapat(){try{const ay=await api("/api/ayar");ay.testi_atla=!ay.testi_atla;await api("/api/ayar",{method:"PUT",body:ay});await durumYukle()}catch(x){alert(x.message)}}
@@ -1011,7 +1011,7 @@ async function ekEkle(dosyalar){if(!S.klasor){ekUyari("Önce bir proje seçin");
     finally{x.yukleniyor=false;ekCiz()}}}
 $("#ekDugme").onclick=()=>$("#ekSec").click();
 /* Basa donen/yeni modele: konusma ozeti (.aktapokus/KONUSMA-OZETI.md) yenilenir, 'once bunu oku' istemi yazma kutusuna konur (gondermek kullanicinin elinde) */
-$("#ozetDugme").onclick=async()=>{if(!S.klasor){ekUyari("Önce bir proje seçin");return}try{const r=await api("/api/konusma-ozeti",{method:"POST",body:{}});const t=$("#gorev");t.value=r.istem+(t.value?"\n"+t.value:"");t.focus();gorevBoyutla()}catch(x){ekUyari(x.message)}};
+$("#ozetDugme").onclick=async()=>{if(!S.klasor){ekUyari("Önce bir proje seçin");return}try{const r=await api("/api/konusma-ozeti",{method:"POST",body:S.gecmisGorev&&!S.sohbetYeni?{gorev:S.gecmisGorev}:{}});const t=$("#gorev");t.value=r.istem+(t.value?"\n"+t.value:"");t.focus();gorevBoyutla()}catch(x){ekUyari(x.message)}};
 $("#ekSec").onchange=ev=>{ekEkle([...ev.target.files]);ev.target.value=""};
 $("#gorev").addEventListener("paste",ev=>{const d=ev.clipboardData,f=d?[...d.files]:[];if(f.length){ev.preventDefault();ekEkle(f)}});
 {const orta=$("#orta"),dosyaMi=ev=>ev.dataTransfer&&[...ev.dataTransfer.types].includes("Files");
@@ -1551,6 +1551,9 @@ function otoAdUret(metin,mevcut){const t={ç:"c",ğ:"g",ı:"i",ö:"o",ş:"s",ü:
 function zamanMetni(z){if(!z)return "";if(z.tur==="aralik")return "her "+z.dakika+" dakikada bir";const G=["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"];if(z.tur==="gunluk")return "her gün "+z.saat;return G.filter((g,i)=>(z.gunler||[]).includes(i)).join(", ")+" "+z.saat}
 async function izinlerBolumu(h){const kap=e("div");h.append(kap);const d=await api("/api/otomasyonlar");
   const mesaj=m=>{const x=kap.querySelector(".oto-mesaj");if(x)x.remove();kap.prepend(e("div",{class:"oto-mesaj badge b-err",style:"display:block;white-space:normal;margin:6px 0"},m))};
+  const gz=await api("/api/izinler"),kz=e("input",{type:"checkbox",title:"Görev bitince Keep/Undo sorulmaz; geri alma noktası yine alınır"});kz.checked=!!gz.degisiklikleri_koru;
+  kz.onchange=async()=>{const yeni=kz.checked;if(yeni&&!confirm("Değişiklikler her projede sorulmadan korunacak (geri alma noktası yine alınır). Emin misiniz?")){kz.checked=false;return}try{await api("/api/izinler",{method:"POST",body:{degisiklikleri_koru:yeni}})}catch(x){kz.checked=!yeni;mesaj(x.message)}};
+  kap.append(e("div",{class:"card"},e("div",{class:"row",style:"justify-content:space-between;gap:6px;flex-wrap:wrap"},e("b",{text:"Değişiklikleri her zaman koru"}),e("label",{class:"row",style:"gap:4px"},kz,"Tüm projeler"))));
   if(!d.otomasyonlar.length)kap.append(e("div",{class:"mut3",text:"Henüz otomasyon yok."}));
   for(const o of d.otomasyonlar){const c=e("input",{type:"checkbox",title:"Plan onayı ve değişikliklerin korunması sorulmaz"});c.checked=!!o.onaysiz;
     c.onchange=async()=>{const yeni=c.checked;if(yeni&&!confirm("'"+o.ad+"' sizin onayınız olmadan çalışacak ve değişiklikleri koruyacak. Emin misiniz?")){c.checked=false;return}
