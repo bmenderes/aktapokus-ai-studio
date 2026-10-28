@@ -233,6 +233,8 @@ def _olay_kaydi(olay: dict) -> dict | None:
     """Konusma olarak yeniden oynatilacak olayin saklanacak (kisaltilmis) kopyasi; akici metin parcalari ve arac sonuclari saklanmaz."""
     tur = olay.get("tur")
     if tur == "canli":
+        if olay.get("alt") == "beceri" and isinstance(olay.get("adlar"), list):
+            return {"tur": "canli", "alt": "beceri", "adlar": [str(x)[:64] for x in olay["adlar"][:12]]}
         if olay.get("alt") != "arac":
             return None
         girdi = olay.get("girdi")

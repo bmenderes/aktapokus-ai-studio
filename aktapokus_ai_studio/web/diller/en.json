@@ -806,6 +806,7 @@
   "çalışıyor · yeni görev sıraya girer": "running · new tasks are queued",
   "Sıradan çıkar": "Remove from queue",
   "Elle": "Manual",
+  "Kullanılan beceri: ": "Skill used: ",
   "Otomatik": "Automatic",
   "Zamanlayıcı": "Scheduler",
   "Görev": "Task",

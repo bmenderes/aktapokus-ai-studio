@@ -370,3 +370,13 @@ def test_model_kesfi_hata_verirse_gorev_yine_denenir(sahte, tmp_path):
     c = SunucuCalistirici(istemci=Bozuk(sahte.taban, "p", zaman_asimi=5), yoklama_sn=0.05)
     r = c.calistir("g", tmp_path, model="opencode/m1") if False else c.calistir("g", tmp_path, model="ollama/x")
     assert r is not None and "liste yok" not in str(r.hata or "")  # kesif hatasi gorev sonucuna yansimaz
+
+
+def test_mesajlardan_beceriler_cagrilan_becerileri_sirayla_ve_tekrarsiz_verir():
+    mesajlar = [
+        {"type": "user", "content": []},
+        {"type": "assistant", "time": {"created": 2}, "content": [{"type": "tool", "name": "skill", "state": {"input": {"id": "ikinci"}}}, {"type": "tool", "name": "read", "state": {"input": {"path": "x"}}}]},
+        {"type": "assistant", "time": {"created": 1}, "content": [{"type": "tool", "name": "skill", "state": {"input": {"id": "birinci"}}}, {"type": "tool", "name": "skill", "state": {"input": {"id": "ikinci"}}}, {"type": "tool", "name": "skill", "state": {}}]},
+    ]
+    assert sunucu_modulu.mesajlardan_beceriler(mesajlar) == ["birinci", "ikinci"]
+    assert sunucu_modulu.mesajlardan_beceriler([]) == []

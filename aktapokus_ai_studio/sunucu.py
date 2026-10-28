@@ -321,6 +321,18 @@ def mesajlardan_metin(mesajlar: list[dict]) -> str:
     return "\n".join(parcalar)
 
 
+def mesajlardan_beceriler(mesajlar: list[dict]) -> list[str]:
+    """Asistan mesajlarinda cagrilan `skill` aracinin beceri kimlikleri (sirayla, tekrarsiz)."""
+    bulunan: list[str] = []
+    for m in sorted((m for m in mesajlar if m.get("type") == "assistant"), key=lambda m: (m.get("time") or {}).get("created", 0)):
+        for c in m.get("content") or []:
+            if isinstance(c, dict) and c.get("type") == "tool" and c.get("name") == "skill":
+                kimlik = ((c.get("state") or {}).get("input") or {}).get("id")
+                if isinstance(kimlik, str) and kimlik and kimlik not in bulunan:
+                    bulunan.append(kimlik)
+    return bulunan
+
+
 KOTA_DESENI = re.compile(r"free (usage|messages)|usage limit|rate limit|quota|too many requests|\b429\b", re.IGNORECASE)
 
 
@@ -622,6 +634,9 @@ class SunucuCalistirici(Calistirici):
                 yeni = [m for m in mesajlar if m.get("id") not in once_mesajlar]
                 mesajlar = yeni or mesajlar
             metin = mesajlardan_metin(mesajlar)
+            kullanilan = mesajlardan_beceriler(mesajlar)
+            if kullanilan and self.ilerleme is not None:
+                self.ilerleme({"tur": "beceri", "adlar": kullanilan})
         except SunucuHatasi as hata:
             self._oturum_yaz(klasor, anahtar, None) if self.oturum_kipi == "tek" else None
             return CalistirmaSonucu(False, hata=str(hata), sure_sn=time.monotonic() - baslangic)
