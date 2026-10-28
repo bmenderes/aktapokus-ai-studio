@@ -1,7 +1,7 @@
 """Bilgisayar acilinca (Windows'ta oturum acilinca) Aktapokus kendiliginden baslasin.
 
 Kayit: `HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run` altinda `Aktapokus` degeri (yonetici izni gerekmez, yalniz bu kullanici).
-Komut masaustu kisayoluyla ayni modu acar (`ui --uygulama`: konsolsuz pythonw, kendi penceresi); paket kurulu olmadigi icin yol komutun icine gomulur
+Komut PENCERESIZ arka plan modunu acar (`ui --arka-plan`: konsolsuz pythonw; sunucu, Telegram ve zamanlayici calisir, pencere acilmaz; masaustu kisayolu pencereyi acar); paket kurulu olmadigi icin yol komutun icine gomulur
 (Run anahtari calisma klasorunu ayarlamaz). Ayar ayri bir dosyada TUTULMAZ: kaynak dogruluk kayit defteridir, anahtari kullanici ya da Windows silerse
 ayar da kendiliginden kapali gorunur. Yalniz yerel arayuzden yonetilir (`uzak.politika`). Windows disinda `desteklenir` False.
 
@@ -59,14 +59,14 @@ def desteklenir() -> bool:
 
 
 def komut_uret(python: str | None = None, kok: Path | None = None) -> str:
-    """Kayda yazilacak komut: konsolsuz pythonw, proje klasoru yola eklenip oraya gecilir, sonra masaustu uygulamasi modu."""
+    """Kayda yazilacak komut: konsolsuz pythonw, proje klasoru yola eklenip oraya gecilir, sonra penceresiz arka plan modu."""
     py = Path(python or sys.executable)
     if py.name.lower() == "python.exe" and (py.parent / "pythonw.exe").is_file():
         py = py.parent / "pythonw.exe"
     kok = Path(kok or PROJE_KOKU)
     if "'" in str(kok) or '"' in str(kok):
         raise OtomatikBaslatHatasi("Proje klasoru yolunda tirnak isareti var; otomatik baslatma kurulamaz")
-    kod = f"import os,sys;os.chdir(r'{kok}');sys.path.insert(0,r'{kok}');sys.argv=['aktapokus','ui','--uygulama'];from aktapokus_ai_studio.cli import main_giris;main_giris()"
+    kod = f"import os,sys;os.chdir(r'{kok}');sys.path.insert(0,r'{kok}');sys.argv=['aktapokus','ui','--arka-plan'];from aktapokus_ai_studio.cli import main_giris;main_giris()"
     return f'"{py}" -c "{kod}"'
 
 

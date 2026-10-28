@@ -18,7 +18,7 @@ def test_komut_konsolsuz_pythonw_proje_klasorunu_yola_ekler_ve_uygulama_modunu_a
     k = ob.komut_uret(python=str(tmp_path / "py" / "python.exe"), kok=tmp_path / "proje")
     assert k.startswith(f'"{tmp_path / "py" / "pythonw.exe"}" -c "') and "pythonw.exe" in k  # konsol penceresi acmaz
     assert f"os.chdir(r'{tmp_path / 'proje'}')" in k and f"sys.path.insert(0,r'{tmp_path / 'proje'}')" in k  # Run anahtari calisma klasoru vermez: yol gomulu
-    assert "'ui','--uygulama'" in k and "main_giris()" in k and "aktapokus_ai_studio" in k
+    assert "'ui','--arka-plan'" in k and "'--uygulama'" not in k and "main_giris()" in k and "aktapokus_ai_studio" in k
     with pytest.raises(ob.OtomatikBaslatHatasi, match="tirnak"):
         ob.komut_uret(python="x", kok=Path("C:/a'b"))  # komut satirini bozacak yol reddedilir
 

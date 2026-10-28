@@ -306,6 +306,145 @@ def pencere_bekle(baglanti_say: Callable[[], int], bekle_sn: float, acilis_sn: f
         time.sleep(bekle_sn)
 
 
+# ---- Penceresiz ARKA PLAN modu (`ui --arka-plan`): sunucu pencere olmadan calisir (telefon/Telegram/zamanlayici icin); pencere kapaninca KAPANMAZ ----
+def arkaplan_yolu() -> Path:
+    return ayar_dizini() / "uygulama.arkaplan"
+
+
+def pencere_iste_yolu() -> Path:
+    return ayar_dizini() / "uygulama.pencere-iste"
+
+
+def dur_yolu() -> Path:
+    return ayar_dizini() / "uygulama.dur"
+
+
+def _isaret(yol: Path, icerik: str = "1") -> None:
+    try:
+        yol.parent.mkdir(parents=True, exist_ok=True)
+        yol.write_text(icerik, encoding="utf-8")
+    except OSError:
+        pass
+
+
+def arka_plan_pid() -> int | None:
+    """Penceresiz arka plan kopyasi calisiyorsa surec kimligi (olu surecten kalan dosya yok sayilir)."""
+    try:
+        pid = int(arkaplan_yolu().read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+    return pid if pid > 0 and surec_canli_mi(pid) else None
+
+
+def arka_plan_pencere_iste(bekle_sn: float = 15.0, saat: Callable[[], float] = time.monotonic, uyku: Callable[[float], None] = time.sleep) -> bool:
+    """Arka plandaki kopyadan bir pencere acmasini ister. Baglanti anahtari diske YAZILMAZ: pencereyi sunucuyu calistiran surec acar. Istek tuketilince True."""
+    _isaret(pencere_iste_yolu())
+    bitis = saat() + bekle_sn
+    while saat() < bitis:
+        if not pencere_iste_yolu().exists():
+            return True
+        uyku(0.3)
+    return False
+
+
+def durdur(bekle_sn: float = 20.0, saat: Callable[[], float] = time.monotonic, uyku: Callable[[float], None] = time.sleep) -> bool:
+    """Arka plandaki kopyayi nazikce kapatir (dur isareti). Calisan kopya yoksa False; kapandiysa True."""
+    pid = arka_plan_pid()
+    if pid is None:
+        return False
+    _isaret(dur_yolu())
+    bitis = saat() + bekle_sn
+    while saat() < bitis:
+        if arka_plan_pid() is None:
+            return True
+        uyku(0.3)
+    return False
+
+
+def arka_plan_calistir(klasor: str | None = None, port: int = 0, pencere_ac: Callable[[list[str]], "subprocess.Popen"] | None = None, bekle_sn: float = 1.0) -> int:
+    if arka_plan_pid() is not None:
+        return 0  # zaten arka planda calisiyor: ikinci kopya baslatilmaz
+    if not kilit_al():
+        log_yaz("arka plan baslatilmadi: pencere kopyasi acik")
+        return 0
+    try:
+        return _arka_plan(klasor, port, pencere_ac, bekle_sn)
+    finally:
+        kilit_birak()
+
+
+def _arka_plan(klasor, port, pencere_ac, bekle_sn) -> int:
+    from .arayuz import ArayuzSunucusu, Uygulama, UygulamaHatasi
+    from .runners import hepsini_kapat
+
+    sessiz_alt_surecler()
+    app = Uygulama()
+    app._telegram().otomatik_baslat()
+    sunucu = ArayuzSunucusu(app, port)
+    try:
+        sunucu.baslat()
+        sunucu.zamanlayici_baslat()
+        try:
+            sunucu.uzak_uygula()
+        except Exception:
+            pass
+    except OSError as hata:
+        hata_goster(f"Arayuz sunucusu baslatilamadi: {hata}")
+        return 1
+    secilecek = klasor or son_klasoru_oku()
+    if secilecek:
+        try:
+            app.klasor_sec(secilecek, git_baslat=False)
+        except UygulamaHatasi as hata:
+            log_yaz(f"Klasor secilemedi ({hata}); arayuzden secilebilir.")
+    for eski in (dur_yolu(), pencere_iste_yolu()):
+        try:
+            eski.unlink(missing_ok=True)
+        except OSError:
+            pass
+    _isaret(arkaplan_yolu(), str(os.getpid()))
+    log_yaz("arka plan: baslatildi (pencere yok)")
+    profil = ayar_dizini() / "uygulama-profil"
+
+    def pencere_ac_simdi() -> None:
+        if mevcut_pencereyi_one_getir():
+            return
+        tarayici = tarayici_bul()
+        if not tarayici:
+            log_yaz("arka plan: Edge/Chrome bulunamadi, pencere acilamadi")
+            return
+        profil.mkdir(parents=True, exist_ok=True)
+        (pencere_ac or (lambda k: subprocess.Popen(k)))(pencere_komutu(tarayici, sunucu.url(), profil))
+        log_yaz("arka plan: pencere acildi (istek uzerine)")
+
+    try:
+        while not dur_yolu().exists():
+            if pencere_iste_yolu().exists():
+                try:
+                    pencere_iste_yolu().unlink(missing_ok=True)  # once tuket: ayni istek tekrar islenmesin
+                except OSError:
+                    pass
+                try:
+                    pencere_ac_simdi()
+                except OSError as hata:
+                    log_yaz(f"arka plan: pencere acilamadi: {hata}")
+            time.sleep(bekle_sn)
+        log_yaz("arka plan: durduruldu")
+    except KeyboardInterrupt:
+        pass
+    finally:
+        try:
+            if arkaplan_yolu().read_text(encoding="utf-8").strip() == str(os.getpid()):
+                arkaplan_yolu().unlink()
+            dur_yolu().unlink(missing_ok=True)
+        except OSError:
+            pass
+        son_klasoru_yaz(str(app.klasor) if app.klasor else None)
+        sunucu.kapat()
+        hepsini_kapat()
+    return 0
+
+
 def uygulama_calistir(
     klasor: str | None = None,
     port: int = 0,
@@ -319,6 +458,10 @@ def uygulama_calistir(
     if not tarayici:
         hata_goster("Edge ya da Chrome bulunamadi. Uygulama penceresi icin biri gerekir (AKTAPOKUS_TARAYICI ile yol verilebilir).")
         return 1
+    if arka_plan_pid() is not None:  # penceresiz arka plan kopyasi calisiyor (acilista baslatildi): pencereyi o acar/one getirir; ikinci sunucu baslatilmaz
+        if not mevcut_pencereyi_one_getir() and not arka_plan_pencere_iste():
+            bilgi_goster("Aktapokus arka planda calisiyor ama pencere acilamadi. Biraz sonra yeniden deneyin.")
+        return 0
     ikinci = ikinci_kopya_bekle()
     if ikinci == "one":
         return 0  # acik pencere one getirildi (kutu gosterilmez)

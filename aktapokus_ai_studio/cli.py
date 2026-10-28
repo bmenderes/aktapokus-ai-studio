@@ -225,6 +225,8 @@ def kur_parser() -> argparse.ArgumentParser:
     u.add_argument("--port", type=int, default=0)
     u.add_argument("--tarayici", action="store_true", help="Varsayilan tarayicida ac")
     u.add_argument("--uygulama", action="store_true", help="Masaustu uygulamasi modu: sessiz sunucu + adres cubugu olmayan kendi penceresi; pencere kapaninca kapanir")
+    u.add_argument("--arka-plan", action="store_true", help="Penceresiz arka plan modu: sunucu (telefon/Telegram/zamanlayici) calisir; pencere kapaninca KAPANMAZ; masaustu kisayolu pencereyi acar")
+    u.add_argument("--durdur", action="store_true", help="Arka planda calisan Aktapokus'u nazikce kapatir")
     return p
 
 
@@ -254,6 +256,14 @@ def main(argv: list[str] | None = None, girdi: Callable[[str], str] = input, cal
 
             return telegram_calistir(args.klasor, kokler=args.kok)
         if args.komut == "ui":
+            if args.durdur:
+                from .uygulama import durdur
+
+                return 0 if durdur() else 1
+            if args.arka_plan:
+                from .uygulama import arka_plan_calistir
+
+                return arka_plan_calistir(args.klasor, args.port)
             if args.uygulama:
                 from .uygulama import uygulama_calistir
 

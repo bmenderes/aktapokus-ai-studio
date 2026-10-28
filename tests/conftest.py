@@ -99,6 +99,10 @@ def mcp_ve_beceri_yalitimi(tmp_path_factory, monkeypatch):
 
     monkeypatch.setattr(otomatik_baslat, "_gercek", lambda: SahteKayit())  # Windows kayit defteri (acilista baslat) gercek makineye YAZILMASIN
     monkeypatch.setenv("AKTAPOKUS_YAYIN", str(tmp_path_factory.mktemp("yayin")))  # yayin icin klonlanan hedef depolar gercek ~/.aktapokus altina yazilmasin
+    monkeypatch.setenv("AKTAPOKUS_UYGULAMA_DIZINI", str(tmp_path_factory.mktemp("uygulama")))  # kilit/pencere/arka plan isaretleri gercek ~/.aktapokus altina yazilmasin
+    from aktapokus_ai_studio import uygulama as _uygulama
+
+    monkeypatch.setattr(_uygulama, "mevcut_pencereyi_one_getir", lambda: False)  # testler kullanicinin gercek Aktapokus penceresini one getirmesin
     monkeypatch.setenv("AKTAPOKUS_IZINLER", str(tmp_path_factory.mktemp("izinler") / "izinler.json"))  # genel izinler gercek ~/.aktapokus altina yazilmasin
     monkeypatch.setenv("AKTAPOKUS_OTOMASYON", str(tmp_path_factory.mktemp("otomasyon") / "otomasyonlar.json"))  # testler gercek otomasyon tanimlarina dokunmasin
     monkeypatch.setenv("AKTAPOKUS_GOREV_META", str(tmp_path_factory.mktemp("gorevmeta") / "gorev-meta.json"))  # sabitle/arsivle bilgileri gercek ~/.aktapokus altina yazilmasin
