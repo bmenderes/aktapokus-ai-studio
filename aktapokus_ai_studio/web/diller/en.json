@@ -3,6 +3,9 @@
  "ad": "English",
  "yerel": "en-US",
  "tam": {
+  "Hepsini seç": "Select all",
+  "aynı beceri başka yolda": "same skill at another path",
+  "Seçilen becerilerin içeriği önizlenmeden indirilecek; modele talimat olarak verilir. Devam edilsin mi?": "The selected skills will be downloaded without previewing their content; it is given to the model as instructions. Continue?",
   "Yardım": "Help",
   "Depodaki klasör (örn. haberler; boş: deponun kökü)": "Folder in the repository (e.g. haberler; empty: repository root)",
   "Kaynak klasör ve hedef depo gerekli": "Source folder and target repository are required",
@@ -917,6 +920,22 @@
   "Yarım kalan görevin dosya değişiklikleri geri alınsın mı?": "Undo the file changes of the interrupted task?"
  },
  "desen": [
+  [
+   "^Seçilenleri indir \\((\\d+)\\)$",
+   "Download selected ($1)"
+  ],
+  [
+   "^indiriliyor (\\d+)/(\\d+): (.+)$",
+   "downloading $1/$2: $3"
+  ],
+  [
+   "^(\\d+) beceri indirildi$",
+   "$1 skills downloaded"
+  ],
+  [
+   "^(\\d+) beceri indirildi; (\\d+) hata: (.*)$",
+   "$1 skills downloaded; $2 errors: $3"
+  ],
   [
    "^Yarım kaldı · (.*)$",
    "Interrupted · $1"

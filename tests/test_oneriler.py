@@ -50,3 +50,10 @@ def test_arayuz_onerilenler_sekmesi_baglidir_ve_mevcut_kaynak_akisini_kullanir()
     assert '["onerilenler","Önerilenler"]' in html and "async function onerilenlerBolumu(h)" in html and '"/api/oneriler"' in html
     assert "beceriKaynakFormu(form,()=>{},x.depo)" in html and "function beceriKaynakFormu(kap,bitti,ilk)" in html  # kurulum: listele > onizle > onayla > indir
     assert "ghUrlGuvenli(x.url)" in html and 'noopener,noreferrer' in html
+
+
+def test_beceri_kaynak_formu_coklu_secim_ve_hepsini_sec_baglidir():
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
+    for parca in ('"Hepsini seç"', "Seçilenleri indir (", 'uzerine_yaz:false', "const tercih={}", 'type:"checkbox","data-sec":"1"', "önizlenmeden indirilecek"):
+        assert parca in html, parca
+    assert "uzerine_yaz:!!b.kurulu" in html  # tekli indirme akisi (onizle > indir) aynen duruyor
