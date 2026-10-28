@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 import shutil
 import subprocess
 import sys
@@ -384,10 +385,7 @@ def _arka_plan(klasor, port, pencere_ac, bekle_sn) -> int:
     try:
         sunucu.baslat()
         sunucu.zamanlayici_baslat()
-        try:
-            sunucu.uzak_uygula()
-        except Exception:
-            pass
+        _uzak_arka_planda(sunucu)
     except OSError as hata:
         hata_goster(f"Arayuz sunucusu baslatilamadi: {hata}")
         return 1
@@ -474,6 +472,18 @@ def uygulama_calistir(
         kilit_birak()
 
 
+def _uzak_arka_planda(sunucu) -> None:
+    """Uzak erisim kurulumu ayri iplikte: Tailscale komutlari (ozellikle `serve`: HTTPS acik degilse 15 sn'ye kadar bekler) pencere acilisini GECIKTIRMESIN.
+    GERCEK HATA: ayarda uzak erisim + https aciksa her acilis ~17 sn surup pencere gec geliyordu (kullanici kisayola iki kez tikliyordu)."""
+    def is_() -> None:
+        try:
+            sunucu.uzak_uygula()
+        except Exception as hata:
+            log_yaz(f"Uzak erisim kurulamadi: {type(hata).__name__}")
+
+    threading.Thread(target=is_, daemon=True, name="uzak-kurulum").start()
+
+
 def _calistir(klasor, port, pencere_ac, bekle_sn, tarayici, baglanti_say, acilis_sn, kopma_sn) -> int:
     from .arayuz import ArayuzSunucusu, Uygulama, UygulamaHatasi
     from .runners import hepsini_kapat
@@ -485,10 +495,7 @@ def _calistir(klasor, port, pencere_ac, bekle_sn, tarayici, baglanti_say, acilis
     try:
         sunucu.baslat()
         sunucu.zamanlayici_baslat()
-        try:
-            sunucu.uzak_uygula()  # Ayarlar > Uzak erisim aciksa Tailscale dinleyicisi (varsayilan kapali); hata pencere acilisini engellemez
-        except Exception:
-            pass
+        _uzak_arka_planda(sunucu)  # Ayarlar > Uzak erisim aciksa Tailscale dinleyicisi (varsayilan kapali); yavaslik/hata pencere acilisini engellemez
     except OSError as hata:
         hata_goster(f"Arayuz sunucusu baslatilamadi: {hata}")
         return 1

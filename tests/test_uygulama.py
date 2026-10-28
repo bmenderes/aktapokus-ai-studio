@@ -533,3 +533,31 @@ def test_tolerans_SON_baglantidan_itibaren_sayilir_ilk_baglantidan_degil():
 def test_sayfa_cevirme_ve_simge_isaretlerini_icerir():
     html = (Path(__file__).parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     assert '<html lang="tr" translate="no">' in html and '<meta name="google" content="notranslate">' in html
+
+
+def test_uzak_erisim_kurulumu_yavas_olsa_da_pencere_hemen_acilir(proje, tmp_path, monkeypatch):
+    """GERCEK HATA: uzak erisim + https aciksa `tailscale serve` 15 sn'ye kadar bekliyor ve pencere o kadar gec aciliyordu (kullanici kisayola iki kez tikliyordu)."""
+    from aktapokus_ai_studio import arayuz
+
+    cagrildi = threading.Event()
+
+    def yavas(self):
+        cagrildi.set()
+        time.sleep(3)
+        return {}
+
+    monkeypatch.setattr(arayuz.ArayuzSunucusu, "uzak_uygula", yavas)
+    t0 = time.monotonic()
+    acilis = {}
+    sahte = tmp_path / "tarayici.exe"
+    sahte.write_text("")
+    monkeypatch.setenv("AKTAPOKUS_TARAYICI", str(sahte))
+    monkeypatch.setattr(uygulama, "sessiz_alt_surecler", lambda: None)
+
+    def ac(komut):
+        acilis["sn"] = time.monotonic() - t0
+
+    kod = uygulama.uygulama_calistir(str(proje), 0, ac, bekle_sn=0.05, baglanti_say=lambda: 0, acilis_sn=0.3, kopma_sn=0.2)
+    assert kod == 1  # hic baglanti olmadi: acilis zaman asimi (bu testin konusu degil)
+    assert cagrildi.wait(5), "uzak kurulum yine de calistirilmali"
+    assert acilis["sn"] < 2.0, f"pencere uzak kurulumu beklememeli ({acilis['sn']:.1f} sn)"
