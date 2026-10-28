@@ -69,6 +69,7 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 .yuvarlak:not(.simge):not(.pri){padding:3px 14px}.yuvarlak.pri{padding:3px 16px}
 #orta{display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--line);background:var(--panel)}
 #akis{flex:1;overflow:auto;padding:10px}
+#sohbetBaslik.duzenlenir{cursor:pointer}
 #sohbetBaslik{flex:none;padding:6px 12px;border-bottom:1px solid var(--line);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #akis:empty{background:var(--maskot) center 34% no-repeat;background-size:132px auto;position:relative}#akis:empty::after{content:var(--bos-metin,"Bir görev yazın: ahtapot önce plan çıkarır, siz onaylayınca çalışır.");position:absolute;left:0;right:0;top:calc(34% + 120px);text-align:center;color:var(--tx3);padding:0 24px}
 /* yazma kutusu: tek yuvarlak kart (ince acik cizgi); icindeki alanin kendi koyu cercevesi yok, metin uzadikca kendiliginden buyur */
@@ -689,7 +690,10 @@ async function yeniKonusma(){if(S.kosuAktif||(S.kosu&&S.kosu.durum==="plan")){$(
 function sohbetBasligiCiz(){const b=$("#sohbetBaslik");if(!b)return;const g=S.gruplar&&S.gruplar.projeler.find(x=>x.id===S.projeId),proje=g?g.ad:($("#klasorAd").textContent||"");b.textContent="";if(!proje){b.style.display="none";return}b.style.display="";
   let ad="";if(!S.sohbetYeni){const sat=document.querySelector("#gecmis .rol.on .n");ad=sat?sat.textContent.replace(/^📌 /,""):"";if(!ad&&g&&S.gecmisGorev){const t=g.gorevler.find(x=>x.id===S.gecmisGorev);if(t)ad=(t.ozel_ad||t.gorev||"").slice(0,60)}}
   if(!ad&&S.kosu&&S.kosu.gorev&&S.kosuAktif)ad=S.kosu.gorev.slice(0,60);
-  b.title=proje+(ad?" · "+ad:"");b.append(e("b",{text:proje}),e("span",{class:"mut",text:" · "+(ad||"Yeni görev")}))}
+  const grup=g&&S.gecmisGorev&&!S.sohbetYeni?konusmaGruplari(g).find(x=>x.some(y=>y.id===S.gecmisGorev)):null,t=grup?konusmaOzeti(grup):null;
+  b.title=proje+(ad?" · "+ad:"");b.append(e("b",{text:proje}),e("span",{class:"mut",text:" · "+(ad||"Yeni görev")}));
+  b.classList.toggle("duzenlenir",!!t);b.onclick=t?()=>sohbetAdiDegistir(g,t):null;if(t){b.title="✎ Yeniden adlandır";b.append(e("span",{class:"mut3",text:" ✎"}))}}
+async function sohbetAdiDegistir(g,t){const yeni=prompt("Görev adı (boş bırakırsanız görev metni kullanılır):",t.ozel_ad||t.gorev||"");if(yeni===null)return;try{await api("/api/p/"+g.id+"/gorev-meta",{method:"POST",body:{id:t.id,ad:yeni}});await kenarCubugu()}catch(x){alert(x.message)}}
 function yeniGorev(){if(mobilDar())mobilGoster("orta");if(S.kosuAktif||(S.kosu&&S.kosu.durum==="plan")){$("#gorev").focus();return}
   S.sohbetYeni=true;sohbetBasligiCiz();$("#akis").textContent="";S.fark=null;S.kararBekliyor=false;S.canliDiv=null;degisiklikCiz(null);document.querySelectorAll("#gecmis .rol.on").forEach(x=>x.classList.remove("on"));$("#gorev").value="";$("#gorev").focus()}
 /* ---- Kenar çubuğu: proje grupları, canlı durum noktaları, arama ---- */
