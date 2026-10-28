@@ -474,7 +474,7 @@ def test_eklenen_cli_ile_gercek_hat_calisir(kur, tmp_path):
     st, plan = api("POST", "/api/gorev", {"gorev": "selam de"})
     assert st == 200 and plan["adimlar"][0]["calistirici"] == "sahtecli"
     api("POST", f"/api/gorev/{plan['kosu']}/onayla", {})
-    assert bekle(lambda: app.kosu.durum == "bitti", sn=30)
+    assert bekle(lambda: any(o.get("tur") == "bitti" for o in app.bus.gecmis), sn=30)  # durum olaydan once "bitti" olur: olayi bekle (zamanlama yarisi)
     adim = [o for o in app.bus.gecmis if o.get("tur") == "adim-bitti"]
     assert len(adim) == 1 and adim[0]["ok"] and adim[0]["metin"].startswith("yanit: KURALLAR")  # hat, rol talimati+kurallarla sarilmis istemi gonderir
     assert (adim[0]["token_girdi"], adim[0]["token_cikti"]) == (11, 5)

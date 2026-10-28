@@ -467,7 +467,7 @@ async function konusmaYukle(hedef){if(!S.gruplar)await kenarCubugu();const g=S.g
   document.querySelectorAll("#gecmis .rol").forEach(x=>x.classList.toggle("on",x.dataset.gorev===S.gecmisGorev));
   alttaGoster();if(hedef){const a=$("#akis").querySelector('[data-gorev="'+hedef+'"]');if(a){S.altaYapisik=false;a.scrollIntoView({block:"start"})}
     const t=g.gorevler.find(x=>x.id===hedef);if(t&&t.okunmadi)api("/api/gorev-meta",{method:"POST",body:{id:hedef,okunmadi:false}}).then(kenarCubugu).catch(()=>{})}
-  if(!(S.kosu&&S.kosu.durum==="plan"))$("#onayBar").textContent="";
+  if(!(S.kosu&&S.kosu.durum==="plan")){$("#onayBar").textContent="";yarimCiz(S.yarim)}  /* gecmis yuklenince onay cubugu temizlenir: yarim kalan gorev satiri silinmesin */
   return true}
 function konusmaYoksaYukle(){if(S.kosuAktif||$("#akis").children.length)return;konusmaYukle().catch(()=>{})}
 async function gecmisAc(id){if(!(S.kosuAktif||(S.kosu&&S.kosu.durum==="plan"))&&await konusmaYukle(id))return;S.claudeGorunen=null;clearInterval(S.claudeIv);if(mobilDar())mobilGoster("orta");try{const r=await api("/api/gecmis?id="+encodeURIComponent(id));
@@ -991,7 +991,7 @@ async function durumYukle(){if(S.tekrar)return;try{const d=await api("/api/durum
   $("#gitRozet").className="badge "+(d.git?"b-ok":"b-err");$("#gitRozet").textContent=d.klasor?(d.git?(d.golge?"geri alma hazır (gölge yedek)":"git hazır"):"geri alma hazır değil"):"";$("#gitRozet").title=d.golge?"Bu klasör git deposu değil: geri alma, klasörün dışındaki gölge yedekten çalışır (klasöre .git eklenmez).":"";
   const ke=d.koruyucu_eksik||[];$("#korRozet").className="badge "+(d.klasor?(ke.length?"b-err":"b-ok"):"");$("#korRozet").textContent=d.klasor?(ke.length?"koruyucu eksik":"koruyucu etkin"):"";$("#korRozet").title=ke.join("; ");
   $("#klon").textContent=d.klon_bekleyen==null?"kurulu değil":d.klon_bekleyen+" öneri bekliyor";if(d.klon_bekleyen)$("#klon").title="aktapokus-klon bekleyen komutuyla inceleyin";
-  rolleriCiz();akisCipiGuncelle();gecmisYukle();kosuGorunumu();yarimCiz(d.yarim);motorUyarisi();$("#klasorSec")&&d.klasor&&$("#klasorSec").remove();if(onceki!==S.projeId){if(S.projeId)delete S.okunmadi[S.projeId];projeGorunumuKur()}}catch(x){gunluge("durum alınamadı: "+x.message)}}
+  rolleriCiz();akisCipiGuncelle();gecmisYukle();kosuGorunumu();S.yarim=d.yarim;yarimCiz(d.yarim);motorUyarisi();$("#klasorSec")&&d.klasor&&$("#klasorSec").remove();if(onceki!==S.projeId){if(S.projeId)delete S.okunmadi[S.projeId];projeGorunumuKur()}}catch(x){gunluge("durum alınamadı: "+x.message)}}
 const EK_AZAMI=25000000,EK_SAYI=20,EK_RESIM=/\.(png|jpe?g|gif|webp|bmp|svg)$/i,ekBlob=new Map();
 function ekAyir(g){g=String(g||"");const i=g.indexOf("\n\nEkli dosyalar (");if(i<0)return{metin:g,ekler:[]};return{metin:g.slice(0,i),ekler:g.slice(i).split("\n").filter(s=>s.startsWith("- .aktapokus/ekler/")).map(s=>s.slice(2).trim())}}
 async function ekUrl(yol){if(ekBlob.has(yol))return ekBlob.get(yol);const r=await fetch("/api/ek?yol="+encodeURIComponent(yol),{headers:{"X-Aktapokus-Token":T}});if(!r.ok)throw new Error("HTTP "+r.status);const u=URL.createObjectURL(await r.blob());ekBlob.set(yol,u);return u}
