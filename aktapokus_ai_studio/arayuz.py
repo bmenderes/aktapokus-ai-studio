@@ -740,10 +740,14 @@ class Uygulama:
         if hedef is None:
             ust = yayin.yayin_klasoru()
             ust.mkdir(parents=True, exist_ok=True)
-            try:
-                hedef = github.klonla(depo, str(ust), depo.replace("/", "__"))
-            except github.GithubHatasi as hata:
-                raise UygulamaHatasi(f"Hedef depo klonlanamadi: {hata}", 400) from None
+            onceki = ust / depo.replace("/", "__")
+            if (onceki / ".git").is_dir() and (github._uzak_bilgi(onceki).get("depo") or "").lower() == depo.lower():
+                hedef = onceki  # onceki yayindan kalan klon (projeler listesinde kayitli olmayabilir): yeniden klonlamak yerine kullanilir
+            else:
+                try:
+                    hedef = github.klonla(depo, str(ust), depo.replace("/", "__"))
+                except github.GithubHatasi as hata:
+                    raise UygulamaHatasi(f"Hedef depo klonlanamadi: {hata}", 400) from None
         if hedef.resolve() == Path(kaynak_proje).resolve():
             raise UygulamaHatasi("Kaynak ve hedef ayni proje; baska bir depo secin", 400)
         self.proje_ac(str(hedef), sec=False)

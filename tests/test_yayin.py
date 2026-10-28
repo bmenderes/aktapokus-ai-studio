@@ -284,3 +284,32 @@ def test_kok_yayini_engellenirse_calisma_agaci_eski_haline_doner(tmp_path):
     yayin.aynala(kaynak, depo, "", kok_izinli=True)
     yayin.calisma_geri_al(depo, "")
     assert (depo / "index.html").read_text(encoding="utf-8") == "eski" and not (depo / "yeni.html").exists()
+
+
+def test_onceki_yayindan_kalan_klon_projeler_listesinde_olmasa_da_yeniden_kullanilir(tmp_path, ortam, monkeypatch):
+    from aktapokus_ai_studio import github
+
+    hedef0, uzak = hedef_kur(ortam)
+    app, sv, istek = kur_sunucu(uret=lambda ad: SahteCalistirici({}))
+    kaynak = tmp_path / "kaynak-proje"
+    (kaynak / "site").mkdir(parents=True)
+    (kaynak / "site" / "index.html").write_text("<h1>x</h1>", encoding="utf-8")
+    app.klasor_sec(str(kaynak))
+    ust = yayin.yayin_klasoru()
+    ust.mkdir(parents=True, exist_ok=True)
+    kalan = ust / "sahte__eski-klon"  # diskte duruyor ama projeler listesinde YOK (ornek: baska bir oturumda klonlandi)
+    subprocess.run(["git", "clone", "-q", str(uzak), str(kalan)], check=True)
+    git(kalan, "remote", "set-url", "origin", "https://github.com/sahte/eski-klon.git")
+    monkeypatch.setattr(github, "klonla", lambda *a, **k: (_ for _ in ()).throw(AssertionError("yeniden klonlanmamali")))
+    try:
+        st, h = istek("POST", "/api/github/yayin-hazirla", {"kaynak": "site", "depo": "sahte/eski-klon", "hedef_yol": "s"})
+        assert st == 200 and Path(h["klasor"]).resolve() == kalan.resolve() and (kalan / "s" / "index.html").exists()
+        # baska depoya ait ayni adli klasor yeniden kullanilmaz (origin farkli): klonlama denenir
+        kalan2 = ust / "sahte__baska"
+        subprocess.run(["git", "clone", "-q", str(uzak), str(kalan2)], check=True)
+        git(kalan2, "remote", "set-url", "origin", "https://github.com/sahte/yanlis.git")
+        st, h = istek("POST", "/api/github/yayin-hazirla", {"kaynak": "site", "depo": "sahte/baska", "hedef_yol": "s"})
+        assert st == 500 or st == 400  # sahte klonla AssertionError firlatti ya da hata verdi: eslesmeyen klon kullanilmadi
+        assert not (kalan2 / "s").exists()
+    finally:
+        sv.kapat()
