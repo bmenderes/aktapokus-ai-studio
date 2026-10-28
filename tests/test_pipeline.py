@@ -233,3 +233,19 @@ def test_varsayilan_butce_2_milyon_ve_sifir_gecerli_eksi_gecersiz():
     v["butce_token"] = -1
     with pytest.raises(AyarHatasi):
         ayar_coz(v)
+
+
+def test_model_degisince_sohbet_hafizasi_istemde_mistral_dahil_ayni_modelde_eklenmez(proje):
+    """Gercek ihtiyac: sw-box-design'da OpenCode'dan Mistral'e gecince model kaldigi yerden devam edebilsin."""
+    sahte1 = SahteCalistirici({"kodcu": kodcu_yazar(), "test": lambda k, i, n: sonuc("iyi\nSONUC: BASARILI")})
+    calistir_hat(proje, "birinci is: c.txt ekle", ayar(), lambda ad: sahte1, lambda q: True)
+    veri = copy.deepcopy(VARSAYILAN_AYAR)
+    veri["akis"] = ["kodcu"]
+    veri["roller"]["kodcu"]["calistirici"], veri["roller"]["kodcu"]["model"] = "mistral", None
+    sahte2 = SahteCalistirici({"kodcu": lambda k, i, n: sonuc("tamam")})
+    calistir_hat(proje, "ikinci is", ayar_coz(veri), lambda ad: sahte2, lambda q: True)
+    istem = sahte2.cagrilar[0][2]
+    assert "Bu sohbetin onceki modellerle" in istem and "birinci is" in istem and istem.index("Bu sohbetin onceki") < istem.index("GOREV:\nikinci is")
+    sahte3 = SahteCalistirici({"kodcu": lambda k, i, n: sonuc("tamam")})
+    calistir_hat(proje, "ucuncu is", ayar_coz(veri), lambda ad: sahte3, lambda q: True)
+    assert "Bu sohbetin onceki modellerle" not in sahte3.cagrilar[0][2]  # ayni arac/model: CLI kendi oturumunu surdurur, token harcanmaz

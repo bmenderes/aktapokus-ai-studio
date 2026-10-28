@@ -170,7 +170,7 @@ def calistir_hat(
             idx += 1
             continue
         hafiza = ""
-        if ayar.baglam and rol.calistirici != "mistral":  # Mistral Vibe zaten istem_baglami ile sohbet durumunu alir
+        if ayar.baglam:  # Mistral Vibe ayrica istem_baglami (DURUM.md ozeti) alir; sohbet hafizasi tum araclara ayni gider
             try:  # model/arac degistiyse bu sohbetin hafizasi isteme eklenir; degismediyse CLI kendi oturumunu surdurur
                 hafiza = baglam_modulu.hafiza_istemi(klasor, rol.ad, rol.calistirici, rol.model)
             except OSError:
