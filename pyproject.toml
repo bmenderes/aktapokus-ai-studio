@@ -15,6 +15,7 @@ dependencies = []
 [project.optional-dependencies]
 test = ["pytest>=8"]
 qr = ["segno>=1.6"]  # Telegram eslestirme QR kodu (istege bagli)
+opcua = ["asyncua>=1.1"]  # OPC UA istemcisi/test sunucusu (istege bagli)
 
 [project.urls]
 Homepage = "https://github.com/bmenderes/aktapokus-ai-studio"
