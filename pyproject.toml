@@ -27,7 +27,7 @@ aktapokus = "aktapokus_ai_studio.cli:main_giris"
 packages = ["aktapokus_ai_studio"]
 
 [tool.setuptools.package-data]
-aktapokus_ai_studio = ["web/*.html", "web/*.ico", "web/*.png", "web/*.js", "web/*.webmanifest", "web/diller/*.json", "web/vendor/*"]
+aktapokus_ai_studio = ["web/*.html", "web/*.ico", "web/*.png", "web/*.js", "web/*.webmanifest", "web/diller/*.json", "web/yardim/*.html", "web/vendor/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

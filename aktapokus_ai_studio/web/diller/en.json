@@ -3,6 +3,7 @@
  "ad": "English",
  "yerel": "en-US",
  "tam": {
+  "Yardım": "Help",
   "Depodaki klasör (örn. haberler; boş: deponun kökü)": "Folder in the repository (e.g. haberler; empty: repository root)",
   "Kaynak klasör ve hedef depo gerekli": "Source folder and target repository are required",
   "Depodaki klasör boş: dosyalar deponun KÖKÜNE eklenir.\n\nHiçbir dosya silinmez; aynı adlı dosyalar (örn. index.html) değişir. Devam edilsin mi?": "Folder in the repository is empty: files are added to the repository ROOT.\n\nNo file is deleted; files with the same name (e.g. index.html) are replaced. Continue?",

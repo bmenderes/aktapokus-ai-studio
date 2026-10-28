@@ -2309,7 +2309,12 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 dosya = WEB / "index.html"
                 if not dosya.is_file():
                     return self._gonder(500, {"hata": "web/index.html yok"})
-                return self._gonder(200, dosya.read_bytes(), "text/html; charset=utf-8", {"Content-Security-Policy": f"default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-src http://127.0.0.1:* http://localhost:*; img-src 'self' data: blob:"})
+                return self._gonder(200, dosya.read_bytes(), "text/html; charset=utf-8", {"Content-Security-Policy": f"default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-src 'self' http://127.0.0.1:* http://localhost:*; img-src 'self' data: blob:"})
+            if yontem in ("GET", "HEAD") and (ym := re.fullmatch(r"/yardim/(otomasyon|otomasyon-en)\.html", yol)):  # yardim sayfalari (statik, belirteçsiz; yalniz izin listesi); arayuzde yan cercevede acilir
+                yardim = WEB / "yardim" / f"{ym.group(1)}.html"
+                if yardim.is_file():
+                    return self._gonder(200, yardim.read_bytes(), "text/html; charset=utf-8", {"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'"})
+                return self._gonder(404, {"hata": "yok"})
             if yontem in ("GET", "HEAD") and (dm := re.fullmatch(r"/diller/(dizin|[a-z]{2,3}(?:-[A-Za-z]{2,4})?)\.json", yol)):  # arayuz dil dosyalari (statik, belirteçsiz)
                 dil_dosyasi = WEB / "diller" / f"{dm.group(1)}.json"
                 if dil_dosyasi.is_file():

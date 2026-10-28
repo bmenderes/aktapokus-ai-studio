@@ -1,5 +1,7 @@
 # Otomasyon rehberi (kendi otomasyonunu kurmak için)
 
+> Güncel, resimli rehber uygulamanın içinde: Ayarlar > Otomasyonlar > **?** (yan çerçevede açılır). Kaynağı `docs/yardim-uret.py`; bu dosya eski özet.
+
 ## Tek cümle
 Otomasyon = **bir tetikleyici** bir **görev** başlatır, görev bitince **bildirim** gider. Aktapokus hepsini senin onayınla yürütür.
 
