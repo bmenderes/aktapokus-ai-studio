@@ -662,9 +662,9 @@ class Uygulama:
     def github_durum(self) -> dict:
         return github.durum()
 
-    def github_giris_baslat(self) -> dict:
+    def github_giris_baslat(self, ek: object = False) -> dict:
         try:
-            return github.giris_baslat()
+            return github.giris_baslat(ek=ek is True)
         except github.GithubHatasi as h:
             raise UygulamaHatasi(str(h), 400) from None
 
@@ -674,9 +674,9 @@ class Uygulama:
     def github_giris_iptal(self) -> dict:
         return github.giris_iptal()
 
-    def github_cikis(self) -> dict:
+    def github_cikis(self, hesap: object = None) -> dict:
         try:
-            return github.cikis()
+            return github.cikis(hesap)
         except github.GithubHatasi as h:
             raise UygulamaHatasi(str(h), 400) from None
 
@@ -2503,11 +2503,11 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if yol == "/api/uzak/anahtar-yenile":
                     return self._gonder(200, app.uzak_anahtar_yenile())
                 if yol == "/api/github/giris/baslat":
-                    return self._gonder(200, app.github_giris_baslat())
+                    return self._gonder(200, app.github_giris_baslat(g.get("ek")))
                 if yol == "/api/github/giris/iptal":
                     return self._gonder(200, app.github_giris_iptal())
                 if yol == "/api/github/cikis":
-                    return self._gonder(200, app.github_cikis())
+                    return self._gonder(200, app.github_cikis(g.get("hesap")))
                 if yol == "/api/github/klonla":
                     return self._gonder(200, app.github_klonla(g.get("depo"), g.get("klasor"), g.get("ad")))
                 if yol == "/api/github/commit":

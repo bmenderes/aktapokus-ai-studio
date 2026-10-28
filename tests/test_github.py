@@ -47,7 +47,7 @@ def depo(tmp_path):
 
 # ---------- gh / hesap ----------
 def test_durum_giris_yapilmis(gh):
-    assert g.durum() == {"kurulu": True, "giris": True, "hesap": "sahte-kullanici", "ad": "Sahte Kisi", "hata": None}
+    assert g.durum() == {"kurulu": True, "giris": True, "hesap": "sahte-kullanici", "ad": "Sahte Kisi", "hata": None, "ekler": []}
 
 
 def test_durum_giris_yok_anlasilir_mesaj(gh, monkeypatch):

@@ -3,6 +3,10 @@
  "ad": "English",
  "yerel": "en-US",
  "tam": {
+  "Hesap ekle": "Add account",
+  "Bu hesabı kaldır": "Remove this account",
+  "Bu ek hesap Aktapokus'tan kaldırılsın mı?": "Remove this extra account from Aktapokus?",
+  "1) Adresi açın  2) Aşağıdaki kodu girin  3) Eklenecek hesapla giriş yapıp “Authorize” deyin. Bu pencere kendiliğinden güncellenir.": "1) Open the address  2) Enter the code below  3) Sign in with the account to add and click “Authorize”. This window updates by itself.",
   "\n\nDalın önce push edilmiş olması gerekir.": "\n\nThe branch must be pushed first.",
   "\n\nEkli dosyalar (": "\n\nAttached files (",
   "\n\nYalnızca kurulu olmayan CLI'a bağlı roller değişir.": "\n\nOnly roles tied to the CLI that is not installed will change.",

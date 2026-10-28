@@ -11,7 +11,7 @@ a = sys.argv[1:]
 log = os.environ.get("SAHTE_GH_LOG")
 if log:
     with open(log, "a", encoding="utf-8") as f:
-        f.write(json.dumps({"argv": a, "cwd": os.getcwd()}) + "\n")
+        f.write(json.dumps({"argv": a, "cwd": os.getcwd(), "dizin": os.environ.get("GH_CONFIG_DIR")}) + "\n")
 
 TOKEN = "ghp_" + "A" * 36
 
@@ -28,6 +28,11 @@ if a[:2] == ["auth", "login"]:  # cihaz kodu akisi: SAHTE_GH_ONAY dosyasi olusun
     onay = os.environ.get("SAHTE_GH_ONAY", "")
     for _ in range(100):
         if onay and os.path.exists(onay):
+            cfg = os.environ.get("GH_CONFIG_DIR")
+            if cfg:
+                os.makedirs(cfg, exist_ok=True)
+                with open(os.path.join(cfg, "hosts.yml"), "w", encoding="utf-8") as f:
+                    f.write("github.com:" + chr(10) + "    user: sahte" + chr(10))
             bitir()
         import time
         time.sleep(0.1)
@@ -39,7 +44,11 @@ if os.environ.get("SAHTE_GH_HATA") == "1":
 if a[:2] == ["api", "user"]:
     if os.environ.get("SAHTE_GH_GIRIS") == "0":
         bitir(kod=4, hata="To get started with GitHub CLI, please run:  gh auth login")
-    bitir(json.dumps({"login": "sahte-kullanici", "name": "Sahte Kisi"}))
+    cfg = os.environ.get("GH_CONFIG_DIR", "")
+    if os.path.basename(os.path.dirname(cfg)).endswith("-hesaplar"):  # ek hesap oturumu: kullanici adi klasor adidir (_yeni: yeni giris yapilan hesap)
+        ad = os.path.basename(cfg)
+        bitir(json.dumps({"login": os.environ.get("SAHTE_GH_YENI", "ikinci-kullanici") if ad == "_yeni" else ad, "name": "Ek Kisi"}))
+    bitir(json.dumps({"login": os.environ.get("SAHTE_GH_VARSAYILAN", "sahte-kullanici"), "name": "Sahte Kisi"}))
 if a[:2] == ["api", "user/orgs?per_page=100"]:
     if os.environ.get("SAHTE_GH_ORG_HATA") == "1":
         bitir(kod=1, hata="orgs hatasi")

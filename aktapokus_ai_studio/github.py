@@ -13,6 +13,8 @@ Guvenlik:
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import json
 import os
 import re
@@ -62,14 +64,77 @@ def gh_dizini() -> Path:
     return Path(ortam) if ortam else Path.home() / ".aktapokus" / "gh"
 
 
-def _ortam() -> dict:
+# ---- birden cok hesap: ek hesaplar `<gh klasoru>-hesaplar/<kullanici>` altinda kendi oturumlariyla durur; depo sahibi ek hesapla eslesirse o hesap kullanilir ----
+_HESAP: contextvars.ContextVar[str | None] = contextvars.ContextVar("aktapokus_gh_hesap", default=None)  # None: depo sahibine gore otomatik, "": varsayilan hesap, ad: o ek hesap
+YENI_HESAP = "_yeni"
+_sahip_onbellek: dict[str, tuple[float, str | None]] = {}
+
+
+def hesaplar_dizini() -> Path:
+    d = gh_dizini()
+    return d.with_name(d.name + "-hesaplar")
+
+
+def ek_hesaplar() -> list[str]:
+    """Aktapokus'a giris yapilmis ek hesaplarin (kucuk harfli) kullanici adlari."""
+    try:
+        return sorted(d.name for d in hesaplar_dizini().iterdir() if d.is_dir() and d.name != YENI_HESAP and (d / "hosts.yml").is_file())
+    except OSError:
+        return []
+
+
+@contextlib.contextmanager
+def hesapla(ad: str | None):
+    """Blok icindeki gh/git cagrilarini `ad` ek hesabiyla ('' = varsayilan hesap) yapar."""
+    j = _HESAP.set(ad)
+    try:
+        yield
+    finally:
+        _HESAP.reset(j)
+
+
+def _sahibin_hesabi(depo_ya_da_sahip: str) -> str | None:
+    sahip = depo_ya_da_sahip.split("/", 1)[0].lower()
+    return sahip if sahip in ek_hesaplar() else None
+
+
+def _klasor_sahibi(klasor: str) -> str | None:
+    """Klasorun origin adresindeki sahip adi (hesap yonlendirmesi icin; ham git, gh oturumu gerekmez)."""
+    simdi = time.monotonic()
+    eski = _sahip_onbellek.get(klasor)
+    if eski and simdi - eski[0] < 10:
+        return eski[1]
+    sahip = None
+    try:
+        s = subprocess.run(["git", "-C", klasor, "remote", "get-url", "origin"], capture_output=True, text=True, encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL, timeout=10,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        m = re.search(r"github\.com[:/]+([^/\s]+)/", s.stdout.strip()) if s.returncode == 0 else None
+        sahip = m.group(1) if m else None
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    _sahip_onbellek[klasor] = (simdi, sahip)
+    return sahip
+
+
+def _dizin_sec(argv: list[str], klasor: Path | None) -> Path:
+    """Bu cagrinin gh oturum klasoru: acik secim > klasorun origin sahibi (ek hesapla eslesirse) > varsayilan."""
+    secim = _HESAP.get()
+    if secim is None:
+        ek = ek_hesaplar()
+        yol = str(klasor) if klasor else (argv[argv.index("-C") + 1] if "-C" in argv[:-1] else None)
+        sahip = _klasor_sahibi(yol) if ek and yol else None
+        secim = sahip.lower() if sahip and sahip.lower() in ek else ""
+    return hesaplar_dizini() / secim if secim else gh_dizini()
+
+
+def _ortam(dizin: Path | None = None) -> dict:
     """gh/git ortami: Aktapokus'un KENDI GitHub oturumu (gh_dizini); sistemdeki gh hesabi ve GH_TOKEN/GITHUB_TOKEN kullanilmaz.
     git'in github.com kimlik yardimcisi bu oturuma bagli gh olur (push/klon ayni hesapla)."""
     ortam = os.environ.copy()
     for k in ("GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN"):
         ortam.pop(k, None)
     ortam.update({"GIT_OPTIONAL_LOCKS": "0", "GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "never", "GH_PROMPT_DISABLED": "1", "GH_NO_UPDATE_NOTIFIER": "1", "NO_COLOR": "1", "GH_SPINNER_DISABLED": "1",
-                  "GH_CONFIG_DIR": str(gh_dizini())})
+                  "GH_CONFIG_DIR": str(dizin or gh_dizini())})
     gh = gh_bul()
     if gh and not gh.lower().endswith(".py"):
         ortam.update({"GIT_CONFIG_COUNT": "2", "GIT_CONFIG_KEY_0": "credential.https://github.com.helper", "GIT_CONFIG_VALUE_0": "",
@@ -78,7 +143,7 @@ def _ortam() -> dict:
 
 
 def _calistir(argv: list[str], klasor: Path | None = None, zaman_asimi: int = 60, girdi: str | None = None) -> tuple[int, str, str]:
-    ortam = _ortam()
+    ortam = _ortam(_dizin_sec(argv, klasor))
     bayrak = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
         s = subprocess.run(
@@ -145,19 +210,23 @@ def _giris_oku(surec: subprocess.Popen, g: dict) -> None:
         pass
 
 
-def giris_baslat() -> dict:
-    """Cihaz kodu akisini baslatir: {kod, adres}. Kullanici adresi acip kodu girer; sonucu giris_durumu() verir."""
+def giris_baslat(ek: bool = False) -> dict:
+    """Cihaz kodu akisini baslatir: {kod, adres}. Kullanici adresi acip kodu girer; sonucu giris_durumu() verir.
+    ek=True: varsayilan hesaba DOKUNMADAN ikinci bir hesap eklenir (giris bitince kullanici adiyla ek hesaplar arasina alinir)."""
     gh = gh_bul()
     if not gh:
         raise GithubHatasi("GitHub CLI (gh) bulunamadi. https://cli.github.com adresinden kurun.")
     giris_iptal()
-    gh_dizini().mkdir(parents=True, exist_ok=True)
+    dizin = hesaplar_dizini() / YENI_HESAP if ek else gh_dizini()
+    if ek:
+        shutil.rmtree(dizin, ignore_errors=True)  # yarim kalmis onceki ek giris denemesi
+    dizin.mkdir(parents=True, exist_ok=True)
     onek = [sys.executable, gh] if gh.lower().endswith(".py") else [gh]
     surec = subprocess.Popen([*onek, "auth", "login", "--hostname", "github.com", "--git-protocol", "https", "--web", "--skip-ssh-key"], stdin=subprocess.DEVNULL,
-                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", env=_ortam(), creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", env=_ortam(dizin), creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     with _giris_kilit:
         _giris.clear()
-        _giris.update({"surec": surec, "kod": None, "cikti": "", "baslangic": time.time(), "iptal": False})
+        _giris.update({"surec": surec, "kod": None, "cikti": "", "baslangic": time.time(), "iptal": False, "ek": ek})
     g = _giris  # okuyucu iplik ve durum sorgusu AYNI sozlugu kullanir
     threading.Thread(target=_giris_oku, args=(surec, g), daemon=True).start()
     bitis = time.time() + 20
@@ -185,6 +254,8 @@ def giris_durumu() -> dict:
     if g.get("iptal"):
         return {"durum": "iptal"}
     if kod == 0:
+        if g.get("ek"):
+            return _ek_tamamla()
         return {"durum": "tamam", **{k: v for k, v in durum().items() if k in ("giris", "hesap", "ad")}}
     return {"durum": "hata", "hata": (g.get("cikti", "").strip() or "Giris basarisiz")[:300]}
 
@@ -202,11 +273,41 @@ def giris_iptal() -> dict:
     return {"tamam": True}
 
 
-def cikis() -> dict:
-    """Aktapokus'un GitHub oturumunu kapatir (yalniz kendi gh klasoru; sistemdeki gh hesabina dokunmaz)."""
+def _ek_tamamla() -> dict:
+    """Ek hesap girisi bitti: kullanici adini oku, `_yeni` klasorunu o ada tasi. Varsayilanla ayni hesapsa eklenmez."""
+    yeni = hesaplar_dizini() / YENI_HESAP
+    try:
+        with hesapla(YENI_HESAP):
+            login = _json(_gh("api", "user")).get("login")
+        if not isinstance(login, str) or not SAHIP_DESENI.fullmatch(login):
+            raise GithubHatasi("Hesap adi okunamadi")
+        with hesapla(""):
+            varsayilan = durum().get("hesap")
+        if varsayilan and varsayilan.lower() == login.lower():
+            raise GithubHatasi(f"@{login} zaten varsayilan hesap olarak bagli")
+        hedef = hesaplar_dizini() / login.lower()
+        shutil.rmtree(hedef, ignore_errors=True)
+        yeni.rename(hedef)
+    except GithubHatasi as h:
+        shutil.rmtree(yeni, ignore_errors=True)
+        return {"durum": "hata", "hata": str(h)[:300]}
+    return {"durum": "tamam", "giris": True, "hesap": login, "ek": True}
+
+
+def cikis(hesap: object = None) -> dict:
+    """Aktapokus'un GitHub oturumunu kapatir (yalniz kendi gh klasoru; sistemdeki gh hesabina dokunmaz). hesap verilirse yalniz o ek hesap kapatilir."""
     giris_iptal()
-    if gh_bul():
-        _gh_calistir(("auth", "logout", "--hostname", "github.com"), None, 30)
+    if hesap not in (None, ""):
+        if not isinstance(hesap, str) or hesap.lower() not in ek_hesaplar():
+            raise GithubHatasi("Bu ek hesap bulunamadi")
+        with hesapla(hesap.lower()):
+            if gh_bul():
+                _gh_calistir(("auth", "logout", "--hostname", "github.com"), None, 30)
+        shutil.rmtree(hesaplar_dizini() / hesap.lower(), ignore_errors=True)
+        return {"tamam": True}
+    with hesapla(""):
+        if gh_bul():
+            _gh_calistir(("auth", "logout", "--hostname", "github.com"), None, 30)
     hosts = gh_dizini() / "hosts.yml"
     try:
         hosts.unlink()
@@ -224,7 +325,7 @@ def durum() -> dict:
         k = _json(_gh("api", "user"))
     except GithubHatasi as hata:
         return {"kurulu": True, "giris": False, "hesap": None, "hata": str(hata)}
-    return {"kurulu": True, "giris": True, "hesap": k.get("login"), "ad": k.get("name"), "hata": None}
+    return {"kurulu": True, "giris": True, "hesap": k.get("login"), "ad": k.get("name"), "hata": None, "ekler": ek_hesaplar()}
 
 
 SAHIP_DESENI = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$")
@@ -232,6 +333,22 @@ AZAMI_SAHIP = 20
 
 
 def depolar(adet: int = 100) -> list[dict]:
+    """Varsayilan VE ek hesaplarin depolari (bir hesap hata verirse kalanlar gosterilir; hepsi hata verirse ilk hata iletilir)."""
+    sonuc: dict[str, dict] = {}
+    ilk_hata: GithubHatasi | None = None
+    for ad in ("", *ek_hesaplar()):
+        try:
+            with hesapla(ad):
+                for d in _hesap_depolari(adet):
+                    sonuc.setdefault(d["depo"], d)
+        except GithubHatasi as h:
+            ilk_hata = ilk_hata or h
+    if not sonuc and ilk_hata:
+        raise ilk_hata
+    return sorted(sonuc.values(), key=lambda x: x.get("guncelleme") or "", reverse=True)
+
+
+def _hesap_depolari(adet: int = 100) -> list[dict]:
     """Kendi hesabinin VE uye oldugu organizasyonlarin depolari (GERCEK EKSIK: yalniz kendi hesabi listeleniyordu; asil depolar organizasyondaydi).
     Organizasyon listesi okunamazsa ya da bir organizasyon hata verirse kalanlar yine gosterilir; kendi hesabinin hatasi iletilir."""
     adet = max(1, min(int(adet), 100))
@@ -270,7 +387,8 @@ def klonla(depo: object, ust_klasor: object, ad: object = None) -> Path:
     hedef = ust / ad
     if hedef.exists():
         raise GithubHatasi(f"Bu klasor zaten var: {hedef}")
-    _gh("repo", "clone", depo, str(hedef), zaman_asimi=900)
+    with hesapla(_sahibin_hesabi(depo) or ""):
+        _gh("repo", "clone", depo, str(hedef), zaman_asimi=900)
     if not hedef.is_dir():
         raise GithubHatasi("Klonlama tamamlandi gorunuyor ama klasor olusmadi")
     return hedef
