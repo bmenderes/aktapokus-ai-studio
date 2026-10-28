@@ -50,6 +50,14 @@ def test_pencere_komutu_kabuksuz_ve_ayri_profil(tmp_path):
     assert f"--user-data-dir={tmp_path / 'profil'}" in k  # kullanicinin normal tarayici profilinden ayri
     assert "--disable-sync" in k  # yoksa Edge uygulama penceresinin yaninda ikinci bir "sync-confirmation" penceresi acar
     assert any(x.startswith("--disable-features=") and "Translate" in x for x in k)
+    assert "--no-proxy-server" in k  # yoksa Edge proxy otomatik algilamasinda 24-27 sn takilir (olculdu); pencere yalniz 127.0.0.1'e baglanir
+
+
+def test_pencere_komutu_proxy_ortami_ile_sistem_proxysine_donulebilir(tmp_path, monkeypatch):
+    monkeypatch.setenv("AKTAPOKUS_PROXY", "1")
+    assert "--no-proxy-server" not in uygulama.pencere_komutu("C:/t/msedge.exe", "http://127.0.0.1:5000/", tmp_path / "profil")
+    monkeypatch.setenv("AKTAPOKUS_PROXY", "0")
+    assert "--no-proxy-server" in uygulama.pencere_komutu("C:/t/msedge.exe", "http://127.0.0.1:5000/", tmp_path / "profil")
 
 
 def test_son_klasor_hatirlanir_ve_silinmisse_yok_sayilir(tmp_path):

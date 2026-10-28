@@ -61,9 +61,18 @@ def tarayici_bul() -> str | None:
     return None
 
 
+PROXY_ORTAMI = "AKTAPOKUS_PROXY"  # 1: pencere sistemin proxy ayarini kullansin (varsayilan: kullanmaz; asagidaki nota bakin)
+
+
 def pencere_komutu(tarayici: str, url: str, profil: Path) -> list[str]:
+    ek = [] if os.environ.get(PROXY_ORTAMI) == "1" else [
+        # GERCEK HATA (olculdu): Edge, Windows'un 'ayarlari otomatik algila' (WPAD) proxy aramasinda takiliyor; sunucu 0,2 sn'de hazirken pencere ilk istegi
+        # 24-27 sn sonra atiyordu (temiz profilde bile). --no-proxy-server ile 0,7 sn. Pencere YALNIZ 127.0.0.1'e baglanir, proxy gerekmez.
+        # Kurumsal proxy ile interneti acmak gerekiyorsa AKTAPOKUS_PROXY=1 verin.
+        "--no-proxy-server",
+    ]
     return [
-        tarayici, f"--app={url}", f"--user-data-dir={profil}", "--no-first-run", "--no-default-browser-check",
+        tarayici, f"--app={url}", f"--user-data-dir={profil}", "--no-first-run", "--no-default-browser-check", *ek,
         # GERCEK HATA: yeni profilde Edge, uygulama penceresinin yaninda ikinci bir pencere aciyordu (edge://sync-confirmation-dialog:
         # "We are now syncing your browsing data..."); --disable-sync bunu kaldirir (gercek Edge'de olculdu: 2 pencere -> 1).
         "--disable-sync", "--disable-features=Translate,TranslateUI,msImplicitSignin", "--window-size=1320,880",
