@@ -242,3 +242,30 @@ def test_arayuz_yayinla_dugumu_baglidir():
     html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     for parca in ('yayinla:"⇪"', 'n.tur==="yayinla"', "const yayinEkle=()=>", 'b.tur==="yayinla"', "yayinBtn", "otoYayinDepolar", "her çalışmada"):
         assert parca in html, parca
+
+
+def test_yayinla_kaynagi_projede_yoksa_kayit_uyarir_ama_engellemez_dogruysa_uyari_yok(tmp_path, ortam):
+    """GERCEK HATA: kaynak 'haberler' yazilmisti, sayfa projede 'bmenderes.github.io/haberler' altindaydi; yayin ilk calismada 'Kaynak klasor bulunamadi' ile dururdu."""
+    app, sv, istek = kur_sunucu(uret=lambda ad: SahteCalistirici({"kodcu": lambda k, i, n: sonuc("x")}))
+    proje = tmp_path / "haber-projesi"
+    (proje / "bmenderes.github.io" / "haberler").mkdir(parents=True)
+    (proje / "bmenderes.github.io" / "haberler" / "index.html").write_text("<h1>x</h1>", encoding="utf-8")
+    (proje / "aktapokus.github.io" / "haberler").mkdir(parents=True)
+    (proje / "aktapokus.github.io" / "haberler" / "index.html").write_text("<h1>y</h1>", encoding="utf-8")
+    app.klasor_sec(str(proje))
+    pid = projeler.proje_kimligi(proje)
+    try:
+        yanlis = {**YAYIN, "kaynak": "haberler"}
+        st, d = istek("POST", "/api/otomasyonlar", {"ad": "haber", "proje": pid, "akis": akis(yayinla=yanlis)})
+        assert st == 200 and d["ad"] == "haber"  # kayit engellenmedi
+        assert len(d["uyarilar"]) == 1 and "haberler" in d["uyarilar"][0] and "bmenderes.github.io/haberler" in d["uyarilar"][0] and "aktapokus.github.io/haberler" in d["uyarilar"][0]
+        dogru = {**YAYIN, "kaynak": "bmenderes.github.io/haberler"}
+        st, d = istek("POST", "/api/otomasyonlar", {"ad": "haber", "proje": pid, "akis": akis(yayinla=dogru)})
+        assert st == 200 and "uyarilar" not in d
+        st, d = istek("POST", "/api/otomasyonlar", {"ad": "haber", "proje": pid, "akis": akis(yayinla=False)})
+        assert st == 200 and "uyarilar" not in d  # yayinla dugumu yoksa uyari yok
+        olusacak = {**YAYIN, "kaynak": "henuz-yok"}
+        st, d = istek("POST", "/api/otomasyonlar", {"ad": "haber", "proje": pid, "akis": akis(yayinla=olusacak)})
+        assert st == 200 and "projede bulunamadi" in d["uyarilar"][0]  # uyari, hata degil: gorev klasoru olusturabilir
+    finally:
+        sv.kapat()

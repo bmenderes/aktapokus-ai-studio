@@ -3,6 +3,7 @@
  "ad": "English",
  "yerel": "en-US",
  "tam": {
+  "Düğümü sil": "Delete node",
   "Hepsini seç": "Select all",
   "aynı beceri başka yolda": "same skill at another path",
   "Seçilen becerilerin içeriği önizlenmeden indirilecek; modele talimat olarak verilir. Devam edilsin mi?": "The selected skills will be downloaded without previewing their content; it is given to the model as instructions. Continue?",

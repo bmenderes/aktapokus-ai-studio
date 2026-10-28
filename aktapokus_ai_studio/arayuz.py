@@ -1018,9 +1018,33 @@ class Uygulama:
         if isinstance(veri, dict) and veri.get("proje") not in {p["id"] for p in projeler.listele()}:
             raise UygulamaHatasi("Proje kayitli degil; once projeyi acin (kenar cubugu > + Proje)", 404)
         try:
-            return otomasyon.kaydet(veri).sozluk()
+            sonuc = otomasyon.kaydet(veri).sozluk()
         except otomasyon.OtomasyonHatasi as hata:
             raise UygulamaHatasi(str(hata)) from None
+        uyarilar = self._yayin_kaynagi_uyarilari(veri)
+        return {**sonuc, "uyarilar": uyarilar} if uyarilar else sonuc
+
+    @staticmethod
+    def _yayin_kaynagi_uyarilari(veri: object) -> list[str]:
+        """Kayit ENGELLENMEZ (kaynak klasoru gorev calisirken olusabilir) ama yazim hatasi hemen gorunsun: Yayinla kaynagi projede yoksa projedeki sayfa klasorlerini onerir.
+        GERCEK HATA: kaynak 'haberler' yazilmisti, sayfa 'bmenderes.github.io/haberler' altindaydi; yayin ilk calismada 'Kaynak klasor bulunamadi' ile dururdu."""
+        if not isinstance(veri, dict) or not isinstance(veri.get("akis"), dict):
+            return []
+        proje = next((p for p in projeler.listele() if p["id"] == veri.get("proje") and p["var"]), None)
+        if proje is None:
+            return []
+        uyarilar = []
+        for d in veri["akis"].get("dugumler", []):
+            if not (isinstance(d, dict) and d.get("tur") == "yayinla" and isinstance(d.get("ayar"), dict)):
+                continue
+            kaynak = d["ayar"].get("kaynak")
+            try:
+                yayin.kaynak_coz(Path(proje["yol"]), kaynak)
+            except yayin.YayinHatasi:
+                kok = Path(proje["yol"])
+                adaylar = sorted({a.rsplit("/", 1)[0] for a in index_adaylari(kok, kok) if "/" in a})[:6]
+                uyarilar.append(f"Yayinla kaynak klasoru projede bulunamadi: {kaynak}." + (f" Projede sayfa (index.html) klasorleri: {', '.join(adaylar)}." if adaylar else " Gorev bu klasoru olusturacaksa sorun yok."))
+        return uyarilar
 
     def otomatik_baslat_oku(self) -> dict:
         return otomatik_baslat.durum()
