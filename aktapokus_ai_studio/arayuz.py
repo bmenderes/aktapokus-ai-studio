@@ -793,23 +793,33 @@ class Uygulama:
             return {**bos, "durum": "atlandi", "neden": "Projede rol tanimli degil"}
         if not rol.calistirici.startswith("opencode") and rol.calistirici != "claude" and not rol.okuma_riski_kabul and guard.hassas_dosyalar(klasor):
             return {**bos, "durum": "atlandi", "neden": f"{rol.calistirici} rolu gizli dosyalari okuyabilir (klasorde gizli dosya var); inceleme icin OpenCode/Claude rolu kullanin"}
-        metin, kesildi = gonderme_kontrol.ai_metni(toplanan)
+        parcalar, kesildi = gonderme_kontrol.ai_parcalari(toplanan)
         etiket = f"{rol.calistirici}/{rol.model or 'varsayilan model'}"
-        if not metin.strip():
+        if not parcalar:
             return {**bos, "durum": "tamam", "neden": None, "model": etiket}
+        sorunlar: dict[str, dict] = {}
+        mesaj = None
         try:
             once = gonderme_kontrol.agac_parmak_izi(klasor)
             ru = self.calistirici_uret(rol.calistirici)
             ru.dusunme = rol.dusunme or None
-            r = ru.calistir(gonderme_kontrol.ai_istemi(metin, bulgular, kesildi, mesaj_iste), klasor, model=rol.model, agent=rol.agent, zaman_asimi_sn=min(ayar.zaman_asimi_sn, 240), onayli=True)
-            sonra = gonderme_kontrol.agac_parmak_izi(klasor)
+            for sira, metin in enumerate(parcalar):  # uzun icerik birden cok incelemeye bolunur (calistiricinin istem siniri); ilk parca commit mesajini da ister
+                r = ru.calistir(gonderme_kontrol.ai_istemi(metin, bulgular, kesildi and sira == len(parcalar) - 1, mesaj_iste and sira == 0), klasor, model=rol.model, agent=rol.agent,
+                                zaman_asimi_sn=min(ayar.zaman_asimi_sn, 240), onayli=True)
+                if gonderme_kontrol.agac_parmak_izi(klasor) != once:
+                    return {**bos, "durum": "hata", "neden": "Yapay zeka calisma agacindaki dosyalari DEGISTIRDI; kontrol gecersiz. Git sekmesinden degisiklikleri inceleyin ya da geri alin.", "model": etiket}
+                if not r.ok:
+                    return {**bos, "durum": "hata", "neden": str(r.hata or "Yapay zeka calismadi")[:200] + (f" (parca {sira + 1}/{len(parcalar)})" if len(parcalar) > 1 else ""), "model": etiket}
+                sonuc = gonderme_kontrol.ai_sonucu(r.metin, toplanan, mesaj_iste and sira == 0)
+                if sonuc["durum"] != "tamam":
+                    return {**bos, **sonuc, "model": etiket}
+                for sorun in sonuc["sorunlar"]:
+                    sorunlar.setdefault(sorun["id"], sorun)
+                if sira == 0:
+                    mesaj = sonuc["commit_mesaji"]
         except Exception as hata:  # calistirici bulunamadi, zaman asimi vb.: kontrol 'hata' sayilir, uygulama dusmez
             return {**bos, "durum": "hata", "neden": f"{type(hata).__name__}: {hata}"[:200], "model": etiket}
-        if once != sonra:
-            return {**bos, "durum": "hata", "neden": "Yapay zeka calisma agacindaki dosyalari DEGISTIRDI; kontrol gecersiz. Git sekmesinden degisiklikleri inceleyin ya da geri alin.", "model": etiket}
-        if not r.ok:
-            return {**bos, "durum": "hata", "neden": str(r.hata or "Yapay zeka calismadi")[:200], "model": etiket}
-        return {**gonderme_kontrol.ai_sonucu(r.metin, toplanan, mesaj_iste), "model": etiket, "kesildi": kesildi}
+        return {"durum": "tamam", "neden": None, "sorunlar": list(sorunlar.values())[:50], "commit_mesaji": mesaj, "model": etiket, "kesildi": kesildi}
 
     def github_gonderme_kontrol(self) -> dict:
         """Push'tan ONCE: makineden cikacak tum icerik (upstream sonrasi commit'ler; yeni dalda tum gecmis) kural tabanli + yapay zeka ile taranir. Sonuc bir kontrol

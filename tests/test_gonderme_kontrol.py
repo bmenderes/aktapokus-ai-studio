@@ -254,3 +254,42 @@ def test_arayuz_gonderme_kontrol_diyalogu_ve_yapay_zeka_oneri_dugmesi_bagli():
     html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     for parca in ("/api/github/gonderme-kontrol", "/api/github/commit-kontrol", "function gondermeDiyalogu(o)", "ai_atla", '"/api/git/commit-oneri"+(yz?"?yz=1":"")'):
         assert parca in html, parca
+
+
+def test_ai_parcalari_uzun_icerigi_calistirici_siniri_altinda_bolen_dosya_basligi_tasir():
+    satirlar = [("a.html", i, "x" * 300) for i in range(1, 121)] + [("b.html", 1, "kisa")]
+    parcalar, kesildi = gk.ai_parcalari({"eklenen": satirlar})
+    assert not kesildi and len(parcalar) >= 2 and all(len(p) <= gk.AI_PARCA_AZAMI for p in parcalar)
+    assert all(p.startswith("### ") for p in parcalar)  # her parca hangi dosyanin satirlari oldugunu bilir
+    toplam = sum(len(p.split(chr(10))) for p in parcalar)
+    assert toplam >= 121  # hicbir satir kaybolmadi (basliklar dahil fazlasi olabilir)
+    assert any("kisa" in p for p in parcalar)
+    assert len(gk.ai_istemi(parcalar[0], [], False)) < 24_000  # runners.AZAMI_ISTEM_UZUNLUGU altinda
+    cok = {"eklenen": [("c.html", i, "y" * 400) for i in range(1, 2000)]}
+    parcalar, kesildi = gk.ai_parcalari(cok)
+    assert kesildi and len(parcalar) == gk.AI_PARCA_ADET
+    assert gk.ai_parcalari({"eklenen": []}) == ([], False)
+    kisa, k = gk.ai_parcalari({"eklenen": [("k.txt", 1, "merhaba")]})
+    assert kisa == ["### k.txt" + chr(10) + "1: merhaba"] and not k
+
+
+def test_uzun_icerik_parcalara_bolunerek_incelenir_istem_siniri_asilmaz_bulgular_birlesir(ortam):
+    proje, uzak = ortam
+    istemler = []
+
+    def f(k, istem, n):
+        assert len(istem) < 24_000  # gercek calistirici bundan uzun istemi reddeder
+        istemler.append(istem)
+        sorun = '{"dosya":"uzun.html","aciklama":"ornek bulgu %d","siddet":"dusuk"}' % len(istemler)
+        return sonuc('Inceledim.' + chr(10) + '{"sorunlar":[' + sorun + '],"commit_mesaji":"Uzun sayfa ekle"}')
+
+    app, sv, istek = kur_ai(ortam, istemler, islev=f)
+    try:
+        yaz_ve_commit(proje, "uzun.html", chr(10).join("satir %d " % i + "x" * 200 for i in range(240)) + chr(10))  # ~52 KB: calistiricinin 24.000 sinirini asar, parca sinirina sigar
+        k = istek("POST", "/api/github/gonderme-kontrol", {})[1]
+        assert k["ai"]["durum"] == "tamam" and len(istemler) >= 3  # parcalara bolundu
+        assert len(k["ai"]["sorunlar"]) == len(istemler)  # her parcanin bulgusu birlesti
+        assert "satir 0 " in istemler[0] and "satir 239 " in istemler[-1]  # bastan sona her satir bir incelemeye girdi
+        assert istek("GET", "/api/git/commit-oneri?yz=1")[0] in (200, 409)
+    finally:
+        sv.kapat()

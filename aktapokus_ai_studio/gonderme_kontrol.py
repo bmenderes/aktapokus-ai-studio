@@ -28,6 +28,8 @@ AZAMI_BAYT = 8_000_000  # git ciktisi (kesilirse belirtilir)
 AZAMI_SATIR_DOSYA = 5000
 AZAMI_BULGU = 300
 AI_METIN_AZAMI = 60_000
+AI_PARCA_AZAMI = 16_000  # tek incelemenin metni: istem sarmali ve kural ozetiyle birlikte runners.AZAMI_ISTEM_UZUNLUGU (24.000) altinda kalmali
+AI_PARCA_ADET = 4  # bundan uzun icerik kesilir (kesildi=True): tek denetim en cok ~64.000 karakteri gorur
 YER_TUTUCU = re.compile(r"(?i)(x{4,}|\*{3,}|example|ornek|orne[gğ]in|your[_-]|<[^>]+>|\{[^}]*\}|\$\{|changeme|dummy|placeholder|sample|test|demo|\.\.\.|olmali|buraya|degisken|env\.|process\.env|getenv)")
 
 
@@ -274,6 +276,30 @@ def ai_metni(toplanan: dict, azami: int = AI_METIN_AZAMI) -> tuple[str, bool]:
         parcalar.append(satir)
         uzunluk += len(satir) + 1
     return "\n".join(parcalar), kesildi
+
+
+def ai_parcalari(toplanan: dict, azami: int = AI_PARCA_AZAMI, en_cok: int = AI_PARCA_ADET) -> tuple[list[str], bool]:
+    """ai_metni gibi (maskelenmis satirlar) ama uzun icerigi birden cok incelemeye boler: her parca `azami` karakteri asmaz ve dosya basligiyla baslar. (parcalar, kesildi)"""
+    parcalar: list[list[str]] = [[]]
+    uzunluk, dosya, kesildi = 0, None, False
+    for d, no, s in toplanan.get("eklenen", []):
+        satir = f"{no}: {redakte(s)[:400]}"
+        baslik = f"### {d}" if d != dosya else None
+        ek = len(satir) + 1 + (len(baslik) + 1 if baslik else 0)
+        if uzunluk + ek > azami and parcalar[-1]:
+            if len(parcalar) >= en_cok:
+                kesildi = True
+                break
+            parcalar.append([])
+            uzunluk = 0
+            baslik = f"### {d}"
+            ek = len(satir) + 1 + len(baslik) + 1
+        if baslik:
+            parcalar[-1].append(baslik)
+            dosya = d
+        parcalar[-1].append(satir)
+        uzunluk += ek
+    return [chr(10).join(p) for p in parcalar if p], kesildi
 
 
 def json_cikar(metin: str) -> dict | None:
