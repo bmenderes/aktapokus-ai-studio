@@ -21,7 +21,7 @@ def test_otomatik_koru_karar_sormadan_korur(kur):
     assert api("GET", "/api/durum")[1]["ayar"]["otomatik_koru"] is True
     plan = api("POST", "/api/gorev", {"gorev": "yeni.txt ekle"})[1]
     api("POST", f"/api/gorev/{plan['kosu']}/onayla", {})
-    assert bekle(lambda: app.kosu.durum == "bitti")
+    assert bekle(lambda: any(o["tur"] == "bitti" for o in app.bus.gecmis))  # durum 'bitti' olay yayinlanmadan hemen once atanir: olayi bekle
     bitti = [o for o in app.bus.gecmis if o["tur"] == "bitti"][-1]
     assert bitti["durum"] == "onaylandi" and bitti["korundu"] is True
     assert "karar-bekleniyor" not in [o["tur"] for o in app.bus.gecmis]

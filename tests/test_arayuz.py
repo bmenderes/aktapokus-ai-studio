@@ -229,7 +229,7 @@ def test_durdur_calisan_gorevi_iptal_eder(kur):
     assert e.basladi.wait(5)
     st, d = api("POST", f"/api/gorev/{plan['kosu']}/durdur", {})
     assert st == 200 and d["durduruldu"] is True
-    assert bekle(lambda: app.kosu.durum == "bitti")
+    assert bekle(lambda: any(o["tur"] == "bitti" for o in app.bus.gecmis))  # durum 'bitti' olay yayinlanmadan hemen once atanir: olayi bekle
     assert [o for o in app.bus.gecmis if o["tur"] == "bitti"][-1]["durum"] == "iptal"
     assert api("POST", f"/api/gorev/{plan['kosu']}/durdur", {})[0] == 409  # zaten bitti
 
@@ -242,7 +242,7 @@ def test_hata_sunucuyu_dusurmez(kur):
     klasor_sec(api, kur.proje)
     st, plan = api("POST", "/api/gorev", {"gorev": "g"})
     api("POST", f"/api/gorev/{plan['kosu']}/onayla", {})
-    assert bekle(lambda: app.kosu.durum == "bitti")
+    assert bekle(lambda: any(o["tur"] == "bitti" for o in app.bus.gecmis))  # durum 'bitti' olay yayinlanmadan hemen once atanir: olayi bekle
     bitti = [o for o in app.bus.gecmis if o["tur"] == "bitti"][-1]
     assert bitti["durum"] == "basarisiz" and "cli yok" in bitti["mesaj"]
     assert api("GET", "/api/durum")[0] == 200
