@@ -21,7 +21,7 @@ ONERILEN = (
 KAYNAK_DESENI = re.compile(r"^([A-Za-z0-9](?:[A-Za-z0-9-]{0,38}))/([A-Za-z0-9._-]{1,100})((?:/(?!\.)[A-Za-z0-9._-]{1,100}){0,6})$")
 URL_DESENI = re.compile(r"^(?:https?://)?(?:www\.)?github\.com/(.+)$", re.IGNORECASE)
 YOL_DESENI = re.compile(r"^(?:(?!\.)[A-Za-z0-9._-]{1,100}/){0,7}([a-z0-9]+(?:-[a-z0-9]+)*)/SKILL\.md$")
-AZAMI_YANIT = 2_000_000  # tree yaniti
+AZAMI_YANIT = 12_000_000  # tree yaniti (cok dosyali depolar 2 MB'i asar; GitHub kendisi ~7 MB'ta keser)
 AZAMI_LISTE = 500
 ZAMAN_ASIMI = 15
 
