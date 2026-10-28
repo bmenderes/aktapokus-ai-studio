@@ -38,6 +38,7 @@ class Ayar:
     port: int = VARSAYILAN_PORT
     terminal: bool = False  # uzaktan terminal (TAM komut calistirma): ayri ve bilincli acilir
     yonetim: bool = False  # uzaktan CLI/MCP/saglayici/Telegram/beceri tanimlama, klasor gezme, klonlama
+    uyanik: bool = False  # uzak erisim ACIKKEN bilgisayar uyumasin (uyanik.py; Windows). Varsayilan kapali
     https: bool = False  # Tailscale `serve` ile https://<ad>.ts.net (ana ekrana uygulama olarak eklemek icin); dinleyici yine yalniz Tailscale adresinde
     anahtar: str = field(default_factory=lambda: secrets.token_urlsafe(32))
 
@@ -66,7 +67,7 @@ def oku() -> Ayar:
         anahtar = h.get("anahtar")
         return Ayar(
             acik=h.get("acik") is True, port=h["port"] if port_gecerli(h.get("port")) else VARSAYILAN_PORT,
-            terminal=h.get("terminal") is True, yonetim=h.get("yonetim") is True, https=h.get("https") is True,
+            terminal=h.get("terminal") is True, yonetim=h.get("yonetim") is True, https=h.get("https") is True, uyanik=h.get("uyanik") is True,
             anahtar=anahtar if isinstance(anahtar, str) and len(anahtar) >= 32 else secrets.token_urlsafe(32),
         )
     except (OSError, ValueError, json.JSONDecodeError):
@@ -88,7 +89,7 @@ def yaz(ayar: Ayar) -> None:
 def guncelle(degisiklik: dict) -> Ayar:
     """Yerel arayuzden gelen degisiklik. Yalniz bilinen alanlar, tipleri dogrulanir."""
     ayar = oku()
-    for alan in ("acik", "terminal", "yonetim", "https"):
+    for alan in ("acik", "terminal", "yonetim", "https", "uyanik"):
         if alan in degisiklik:
             if not isinstance(degisiklik[alan], bool):
                 raise UzakHatasi(f"'{alan}' true/false olmali")
@@ -245,6 +246,7 @@ YONETIM_KAPALIYKEN_YASAK = (
     ({"POST"}, "/api/github/cikis"),
     ({"GET"}, "/api/github/giris/durum"),
     ({"POST"}, "/api/github/klonla"),
+    ({"POST"}, "/api/github/yayin-hazirla"),  # baska depoya klasor kopyalar (GitHub islemleri uzaktan yonetim izni ister)
     ({"GET"}, "/api/klasorler"),
     ({"GET"}, "/api/beceri-kaynak"),  # bilgisayardan internete cikis tetikler
 )
@@ -254,6 +256,8 @@ def politika(yontem: str, yol: str, ayar: Ayar) -> str | None:
     """Uzak istek icin ret sebebi (Turkce) ya da izinliyse None. Cagri oncesi /api/p/<id>/ oneki ve sorgu ayiklanmis olmali."""
     if yol == "/api/uzak" or yol.startswith("/api/uzak/"):
         return "Uzak erisim ayarlari yalnizca bu bilgisayardan degistirilebilir"
+    if yol == "/api/otomatik-baslat":
+        return "Otomatik baslatma yalnizca bu bilgisayardan degistirilebilir (Windows acilisina program ekler)"
     if yol == "/api/izinler":
         return "Genel izinler yalnizca bu bilgisayardan degistirilebilir (onay sorularini kaldirir)"
     if yol == "/api/otomasyonlar/izin":

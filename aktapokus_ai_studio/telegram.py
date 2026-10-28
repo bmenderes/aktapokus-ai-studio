@@ -51,7 +51,7 @@ YARDIM = (
     "/projeler  proje klasorlerini dugme olarak goster; dokunduğunuz bu sohbetin aktif projesi olur (bilgisayar ekranini degistirmez)\n"
     "/yeni <ad>  yeni proje klasoru olustur (git ve koruyucu kurulur)\n"
     "/kokler  izinli proje klasorleri (degistirmek icin bilgisayardan)\n"
-    "/klasor <tam yol>  elle sec (yalniz izinli proje klasorlerinin altinda)\n"
+    "/klasor <ad ya da tam yol>  elle sec (kisa ad: kayitli proje adi ya da izinli klasorun altindaki klasor)\n"
     "/gorev <metin>  yeni gorev (duz metin de gorev sayilir); once plan gelir, siz onaylarsiniz\n"
     "/durdur  calisan gorevi durdur\n"
     "/sablon [ad]  kayitli gorev sablonlarini listele / calistir (plan onayi yine istenir; sablonlari yalniz bilgisayardan tanimlarsiniz)\n"
@@ -267,6 +267,10 @@ class Bot:
             k = self.ayar["kokler"]
             return self._gonder(chat, ("Izinli proje klasorleri:\n" + "\n".join(f"  {x}" for x in k) + f"\nGizli: {', '.join(self.ayar['gizli']) or '-'}\n(Degistirmek yalniz bilgisayardan: telegram-baslat.bat --kok <yol>)") if k else "Proje klasoru tanimli degil. Bilgisayarda: telegram-baslat.bat --kok <klasor yolu>")
         if ad == "/klasor":
+            yol, hata_mesaji = self._klasor_coz(arg)
+            if yol is None:
+                return self._gonder(chat, hata_mesaji)
+            arg = str(yol)
             if self.ayar["kokler"] and not self._kokte(Path(arg)):
                 return self._gonder(chat, "Bu klasor izinli proje klasorlerinin altinda degil (ya da gizli). /projeler ile secin.")
             try:
@@ -297,6 +301,50 @@ class Bot:
         self._gonder(chat, "Bilinmeyen komut.\n\n" + YARDIM)
 
     # ---- proje kokleri: dugmeyle secim, /yeni ----
+    def _klasor_adaylari(self) -> list[tuple[str, Path]]:
+        """Kisa ad icin adaylar: kayitli projeler (proje adi + klasor adi) ve izinli klasorlerin ALTINDAKI klasorler. [(ad, yol)]."""
+        adaylar: list[tuple[str, Path]] = []
+        for kay in proje_kayit.listele():
+            if kay.get("var"):
+                yol = Path(kay["yol"])
+                adaylar += [(kay["ad"], yol), (yol.name, yol)]
+        for kok in self._kokler():
+            try:
+                cocuklar = sorted(kok.iterdir(), key=lambda p: p.name.lower()) if kok.is_dir() else []
+            except OSError:
+                continue
+            adaylar += [(c.name, c) for c in cocuklar if c.is_dir() and not c.name.startswith("$") and self._kokte(c)]
+        return adaylar
+
+    def _klasor_coz(self, arg: str) -> tuple[Path | None, str]:
+        """`/klasor` argumani: tam yol aynen kullanilir; yoksa KISA AD (kayitli proje adi ya da izinli klasorun altindaki klasor; once tam eslesme, sonra on ek,
+        sonra icerir) ya da izinli klasorun altinda goreli yol. Botun calistigi klasore gore ASLA cozulmez. Bulunamazsa/belirsizse anlasilir mesaj doner."""
+        arg = arg.strip().strip('"').strip()
+        adaylar = self._klasor_adaylari()
+        isimler = sorted({a for a, _ in adaylar}, key=str.lower)
+        ornek = "Mevcut: " + ", ".join(isimler[:8]) + (" ..." if len(isimler) > 8 else "") + ". " if isimler else ""
+        if not arg:
+            return None, "Klasor adi ya da tam yolu yazin: /klasor <ad ya da tam yol>. " + ornek
+        yol = Path(arg)
+        if yol.is_absolute() or arg.startswith("~") or (len(arg) > 1 and arg[1] == ":"):
+            return yol, ""
+        if ".." not in yol.parts:
+            for kok in self._kokler():
+                if (kok / arg).is_dir() and self._kokte(kok / arg):
+                    return kok / arg, ""  # izinli klasorun altinda goreli yol
+        if not any(c in arg for c in "/\\"):
+            ad = arg.lower()
+            for taraf in (lambda a: a == ad, lambda a: a.startswith(ad), lambda a: ad in a):
+                bulunan: dict[str, tuple[str, Path]] = {}
+                for gorunen, p in adaylar:
+                    if taraf(gorunen.lower()):
+                        bulunan.setdefault(str(p.resolve()), (gorunen, p))
+                if len(bulunan) == 1:
+                    return next(iter(bulunan.values()))[1], ""
+                if len(bulunan) > 1:
+                    return None, f"'{arg}' birden fazla klasorle eslesiyor: " + ", ".join(sorted({g for g, _ in bulunan.values()}, key=str.lower)[:8]) + ". Tam adini yazin."
+        return None, f"Klasor bulunamadi: '{arg}'. " + ornek + "Kisa ad bulunamazsa klasor yolu TAM olmali (ornek: C:\\Users\\adiniz\\Desktop\\proje)."
+
     def _kokler(self) -> list[Path]:
         return [Path(k) for k in self.ayar["kokler"]]
 

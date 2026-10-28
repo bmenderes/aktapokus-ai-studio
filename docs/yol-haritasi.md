@@ -59,6 +59,14 @@ Bu belge, kullanıcının listelediği fikirlerin **hiçbirini düşürmemek** i
 | Voicebox entegrasyonu (sesle yaz / seslendirme) | YAPILACAK | Şimdilik yalnız Önerilenler'de bağlantı olarak |
 | Her sohbetin kendi hafızası (model değişince otomatik okunur) | VAR (2026-10-28) | Sohbet = "Yeni" sınırları arası görevler. `.aktapokus/hafiza/<sohbet>.md` her sohbete ayrı; güncel sohbet ayrıca `KONUSMA-OZETI.md`'de. Model/araç değişince hafıza parçası isteme eklenir (değişmediyse eklenmez). ↺ düğmesi açık sohbetin hafızasını verir |
 | Ayarlar › İzinler: değişiklikleri her projede otomatik koru | VAR (2026-10-28) | `izinler.py`; varsayılan kapalı, yalnız yerel arayüz. Keep/Undo sorusu işi bekletmesin diye |
+| Sohbet başlığından yeniden adlandırma | VAR (2026-10-28) | Başlığa tıklayınca kenar çubuğundaki menüyle aynı ad kutusu |
+| Bilgisayar uyku engeli (uzak erişim açıkken) | VAR (2026-10-28) | `uyanik.py`, Windows `SetThreadExecutionState`; Ayarlar › Uzak erişim › "Bilgisayar uyumasın", varsayılan kapalı |
+| Telegram `/klasor` kısa ad | VAR (2026-10-28) | Kayıtlı proje adı ya da izinli klasörün altındaki klasör adı; bulunamazsa mevcut adlar listelenir |
+| OpenCode: yerel model için önce model listesi | VAR (2026-10-28) | `sunucu.py`; sunucu başına bir kez, hata görevi bozmaz |
+| Bilgisayar açılınca Aktapokus başlasın | VAR (2026-10-28) | `otomatik_baslat.py`; Windows oturum açılışı (HKCU Run), masaüstü kısayolu moduyla aynı (`ui --uygulama`: pencere kapanınca sunucu da kapanır). Penceresiz arka plan modu YAPILACAK |
+| Sohbet ekranı en alta yapışık, sayfa açılınca en son yere iner | VAR (2026-10-28) | ResizeObserver + resim yüklenmesi + `pageshow`/`visibilitychange` |
+| GitHub gönderme kontrolü (kişisel veri/sır taraması + yapay zekâ incelemesi) | VAR (2026-10-28) | `gonderme_kontrol.py`: commit'te kural tabanlı tarama; push'ta kural tabanlı + yapay zekâ (sırlar maskelenerek gider); yüksek bulgu tek tek kabul edilmeden push/commit yok; kontrolsüz push sunucuda reddedilir; commit mesajını yapay zekâ içeriğe göre yazar |
+| Yayınla (projedeki klasör → başka GitHub deposu) | VAR (2026-10-28) | `yayin.py`; Git sekmesi "Yayınla…": hedef depoyu klonlar/çeker, klasörü kopyalar (gizli dosyalar atlanır), commit + push gönderme kontrolünden geçer. Otomasyon düğümü olarak YAPILACAK |
 | Windows açılışında otomatik başlatma | YAPILACAK | Onaylı ve geri alınabilir |
 | Temiz bilgisayarda kurulum denemesi | KULLANICI | Hafta başı kullanıcı yapacak |
 | OpenCode olmadan çalışma | VAR | Motor denetimi; temiz bilgisayarda gerçek deneme bekliyor |

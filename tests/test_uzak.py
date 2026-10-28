@@ -143,7 +143,7 @@ YASAK_VARSAYILAN = [
     ("POST", "/api/saglayicilar/baglan"), ("POST", "/api/saglayicilar/kaldir"),
     ("POST", "/api/telegram/baslat"), ("POST", "/api/telegram/kok"), ("POST", "/api/telegram/eslestir"),
     ("POST", "/api/beceriler"), ("POST", "/api/beceriler/sil"),
-    ("POST", "/api/github/klonla"), ("GET", "/api/klasorler"),
+    ("POST", "/api/github/klonla"), ("POST", "/api/github/yayin-hazirla"), ("GET", "/api/klasorler"),
     ("GET", "/api/uzak"), ("POST", "/api/uzak"), ("POST", "/api/uzak/anahtar-yenile"),
 ]
 IZINLI = [("GET", "/api/durum"), ("GET", "/api/ayar"), ("GET", "/api/proje-gruplari"), ("GET", "/api/oturumlar"), ("GET", "/api/dosyalar"), ("GET", "/api/ciktilar"),

@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, oneriler, izinler
+from . import arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, oneriler, izinler, uyanik, otomatik_baslat, gonderme_kontrol, yayin
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_model_gecersiz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
@@ -278,6 +278,7 @@ class Uygulama:
         self.telegram = None  # TelegramYoneticisi: ilk kullanimda olusur (Ayarlar > Telegram)
         self.terminaller: dict[str, terminal.Terminal] = {}
         self._terminal_kilit = threading.Lock()
+        self._gonderme_kontrolleri: dict[str, dict] = {}  # proje -> son gonderme kontrolu (push yalniz buna dayanarak)
         self._github_kilitleri: dict[str, threading.Lock] = {}  # proje basina: ayni anda tek GitHub/git islemi
         self.sunucu: "ArayuzSunucusu | None" = None  # ArayuzSunucusu kendini buraya baglar (uzak erisim ayarlari dinleyiciyi yonetir)
         self.token = token or secrets.token_urlsafe(24)
@@ -691,6 +692,53 @@ class Uygulama:
             raise UygulamaHatasi(f"Depo klonlandi ({hedef}) ama proje olarak acilamadi: {hata}") from None
         return {"klasor": str(hedef), "durum": d}
 
+    def yayin_hazirla(self, kaynak: object, depo: object, hedef_yol: object) -> dict:
+        """Yayinla (1/2): bu projedeki `kaynak` klasorunu `depo` (sahip/ad) deposuna KOPYALAR. Hedef depo kayitli projelerde varsa o, yoksa uygulama klasorune klonlanir
+        ve proje olarak acilir; hedefte commit edilmemis degisiklik varsa durulur, upstream varsa ff-only cekilir. Commit ve push BURADA yapilmaz: arayuz bunlari
+        hedef projenin /api/p/<id>/ uclarindan, gonderme kontroluyle (tarama + yapay zeka + onay) yapar."""
+        if not isinstance(depo, str) or not github.DEPO_DESENI.fullmatch(depo):
+            raise UygulamaHatasi("Hedef depo 'sahip/ad' biciminde olmali (ornek: aktapokus/aktapokus.github.io)", 400)
+        kaynak_proje = self._klasor()
+        try:
+            hedef_yol = yayin.hedef_yol_dogrula(hedef_yol)
+            kaynak_yol = yayin.kaynak_coz(kaynak_proje, kaynak)
+        except yayin.YayinHatasi as hata:
+            raise UygulamaHatasi(str(hata), 400) from None
+        hedef = None
+        for p in projeler.listele():
+            if p["var"]:
+                bilgi = github._uzak_bilgi(Path(p["yol"])).get("depo")
+                if bilgi and bilgi.lower() == depo.lower():
+                    hedef = Path(p["yol"])
+                    break
+        if hedef is None:
+            ust = yayin.yayin_klasoru()
+            ust.mkdir(parents=True, exist_ok=True)
+            try:
+                hedef = github.klonla(depo, str(ust), depo.replace("/", "__"))
+            except github.GithubHatasi as hata:
+                raise UygulamaHatasi(f"Hedef depo klonlanamadi: {hata}", 400) from None
+        if hedef.resolve() == Path(kaynak_proje).resolve():
+            raise UygulamaHatasi("Kaynak ve hedef ayni proje; baska bir depo secin", 400)
+        self.proje_ac(str(hedef), sec=False)
+        kimlik = projeler.proje_kimligi(str(hedef))
+
+        def hazirla(k: Path) -> dict:
+            d = github.proje_durumu(k)
+            if d["degisen_sayisi"]:
+                raise github.GithubHatasi(f"Hedef depoda ({k.name}) commit edilmemis {d['degisen_sayisi']} degisiklik var; once onlari commit edin ya da atin")
+            if d["upstream"]:
+                gityonet.pull(k)
+            try:
+                s = yayin.aynala(kaynak_yol, k, hedef_yol)
+            except yayin.YayinHatasi as hata:
+                raise github.GithubHatasi(str(hata)) from None
+            return {**s, "dal": d["dal"]}
+
+        with self.proje_baglami(kimlik):
+            sonuc = self._github(hazirla, serbest_olmali=True)
+        return {"proje": kimlik, "klasor": str(hedef), "depo": depo, "hedef_yol": hedef_yol, "adres": yayin.yayin_adresi(depo, hedef_yol), **sonuc}
+
     def github_proje(self) -> dict:
         def oku(klasor: Path) -> dict:
             d = github.proje_durumu(klasor)
@@ -703,8 +751,108 @@ class Uygulama:
 
         return self._github(oku)
 
-    def github_commit(self, mesaj: object, yalniz_hazir: object = False) -> dict:
-        return self._github(lambda k: github.commit(k, mesaj, bool(yalniz_hazir)), serbest_olmali=True)
+    # --- Gonderme kontrolu (gonderme_kontrol.py): commit ve push kontrolsuz YAPILAMAZ ---
+    GONDERME_GECERLILIK_SN = 1800
+
+    def _ai_incele(self, klasor: Path, toplanan: dict, bulgular: list[dict], mesaj_iste: bool) -> dict:
+        """Yapay zeka incelemesi (sirlar maskelenmis metinle). Her durumda sozluk doner: durum tamam | atlandi | hata."""
+        bos = {"sorunlar": [], "commit_mesaji": None, "model": None, "kesildi": False}
+        try:
+            ayar = ayar_yukle(klasor)
+        except AyarHatasi as hata:
+            return {**bos, "durum": "atlandi", "neden": f"Proje ayari okunamadi: {hata}"}
+        roller = ayar.rol_sirasi()
+        rol = next((r for r in roller if r.dogrulama), roller[0] if roller else None)
+        if rol is None:
+            return {**bos, "durum": "atlandi", "neden": "Projede rol tanimli degil"}
+        if not rol.calistirici.startswith("opencode") and rol.calistirici != "claude" and not rol.okuma_riski_kabul and guard.hassas_dosyalar(klasor):
+            return {**bos, "durum": "atlandi", "neden": f"{rol.calistirici} rolu gizli dosyalari okuyabilir (klasorde gizli dosya var); inceleme icin OpenCode/Claude rolu kullanin"}
+        metin, kesildi = gonderme_kontrol.ai_metni(toplanan)
+        etiket = f"{rol.calistirici}/{rol.model or 'varsayilan model'}"
+        if not metin.strip():
+            return {**bos, "durum": "tamam", "neden": None, "model": etiket}
+        try:
+            once = gonderme_kontrol.agac_parmak_izi(klasor)
+            ru = self.calistirici_uret(rol.calistirici)
+            ru.dusunme = rol.dusunme or None
+            r = ru.calistir(gonderme_kontrol.ai_istemi(metin, bulgular, kesildi, mesaj_iste), klasor, model=rol.model, agent=rol.agent, zaman_asimi_sn=min(ayar.zaman_asimi_sn, 240), onayli=True)
+            sonra = gonderme_kontrol.agac_parmak_izi(klasor)
+        except Exception as hata:  # calistirici bulunamadi, zaman asimi vb.: kontrol 'hata' sayilir, uygulama dusmez
+            return {**bos, "durum": "hata", "neden": f"{type(hata).__name__}: {hata}"[:200], "model": etiket}
+        if once != sonra:
+            return {**bos, "durum": "hata", "neden": "Yapay zeka calisma agacindaki dosyalari DEGISTIRDI; kontrol gecersiz. Git sekmesinden degisiklikleri inceleyin ya da geri alin.", "model": etiket}
+        if not r.ok:
+            return {**bos, "durum": "hata", "neden": str(r.hata or "Yapay zeka calismadi")[:200], "model": etiket}
+        return {**gonderme_kontrol.ai_sonucu(r.metin, toplanan, mesaj_iste), "model": etiket, "kesildi": kesildi}
+
+    def github_gonderme_kontrol(self) -> dict:
+        """Push'tan ONCE: makineden cikacak tum icerik (upstream sonrasi commit'ler; yeni dalda tum gecmis) kural tabanli + yapay zeka ile taranir. Sonuc bir kontrol
+        kimligiyle saklanir; push yalniz bu kimlik, ayni HEAD ve kabul edilmis yuksek bulgularla yapilir."""
+        o = self._oturum()
+
+        def kontrol(k: Path) -> dict:
+            toplanan = gonderme_kontrol.toplam_gonderilecek(k)
+            bulgular = gonderme_kontrol.tara(toplanan)
+            ai = self._ai_incele(k, toplanan, bulgular, mesaj_iste=False)
+            kimlik = secrets.token_urlsafe(12)
+            with self.kilit:
+                self._gonderme_kontrolleri[o.kimlik] = {"kimlik": kimlik, "head": toplanan["head"], "upstream": toplanan["upstream"], "zaman": time.time(), "bulgular": bulgular, "ai": ai}
+            return {"kontrol": kimlik, "bulgular": bulgular, "ai": ai, "commit_sayisi": toplanan["commit_sayisi"], "dosya_sayisi": len(toplanan["dosyalar"]), "ilk_gonderim": toplanan["ilk_gonderim"],
+                    "kesildi": toplanan["kesildi"]}
+
+        return self._github(kontrol)
+
+    def _push_izni(self, proje: str, klasor: Path, kontrol: object, kabul: object, ai_atla: object) -> None:
+        kayit = self._gonderme_kontrolleri.get(proje)
+        if not kayit or not isinstance(kontrol, str) or not secrets.compare_digest(kayit["kimlik"], kontrol):
+            raise UygulamaHatasi("Gonderme kontrolu yapilmadi: once 'Kontrol et' ile gonderilecek icerik taranmali (kisisel veri/sir)", 409)
+        if time.time() - kayit["zaman"] > self.GONDERME_GECERLILIK_SN:
+            raise UygulamaHatasi("Gonderme kontrolunun suresi doldu (30 dk); kontrolu yenileyin", 409)
+        head = github._git(klasor, "rev-parse", "HEAD", kontrol=False).strip()
+        kod, upstream, _ = github._calistir(["git", "-C", str(klasor), "rev-parse", "@{upstream}"])
+        if head != kayit["head"] or (upstream.strip() if kod == 0 else "") != kayit["upstream"]:
+            raise UygulamaHatasi("Kontrolden sonra commit/dal degisti; gonderme kontrolunu yenileyin", 409)
+        kabul_kumesi = set(kabul) if isinstance(kabul, list) and all(isinstance(x, str) for x in kabul) else set()
+        yuksek = [b for b in [*kayit["bulgular"], *kayit["ai"].get("sorunlar", [])] if b["siddet"] == "yuksek" and b["id"] not in kabul_kumesi]
+        if yuksek:
+            ilk = "; ".join(f"{b['dosya']}{':' + str(b['satir']) if b['satir'] else ''} {b['tur']}" for b in yuksek[:3])
+            raise UygulamaHatasi(f"Gonderilmedi: {len(yuksek)} yuksek riskli bulgu kabul edilmedi ({ilk}). Duzeltin ya da yanlis alarm ise tek tek kabul edin", 409)
+        if kayit["ai"].get("durum") != "tamam" and ai_atla is not True:
+            raise UygulamaHatasi(f"Yapay zeka kontrolu yapilamadi ({kayit['ai'].get('neden') or kayit['ai'].get('durum')}). Yapay zeka kontrolu OLMADAN gondermek icin ayrica onaylayin", 409)
+
+    def github_push(self, kontrol: object = None, kabul: object = None, ai_atla: object = False) -> dict:
+        o = self._oturum()
+
+        def gonder(k: Path) -> dict:
+            self._push_izni(o.kimlik, k, kontrol, kabul, ai_atla)
+            sonuc = github.push(k)
+            self._gonderme_kontrolleri.pop(o.kimlik, None)  # kontrol tek kullanimlik
+            return sonuc
+
+        return self._github(gonder, serbest_olmali=True)
+
+    def github_commit_kontrol(self, yalniz_hazir: object = False) -> dict:
+        """Commit'ten ONCE (yalniz kural tabanli, hizli): commit'e girecek icerikteki kisisel veri/sir bulgulari."""
+        def tara(k: Path) -> dict:
+            toplanan = gonderme_kontrol.toplam_commit(k, bool(yalniz_hazir))
+            return {"bulgular": gonderme_kontrol.tara(toplanan), "dosya_sayisi": len(toplanan["dosyalar"]), "kesildi": toplanan["kesildi"]}
+
+        return self._github(tara)
+
+    def github_commit(self, mesaj: object, yalniz_hazir: object = False, kabul: object = None) -> dict:
+        def yap(k: Path) -> dict:
+            kabul_kumesi = set(kabul) if isinstance(kabul, list) and all(isinstance(x, str) for x in kabul) else set()
+            bulgular = gonderme_kontrol.tara(gonderme_kontrol.toplam_commit(k, bool(yalniz_hazir)))
+            if isinstance(mesaj, str):
+                bulgular += [b for i, s in enumerate(mesaj.split("\n"), 1) for b in (x.sozluk() for x in gonderme_kontrol.satir_tara(s, "commit mesaji", i))]
+            yuksek = [b for b in bulgular if b["siddet"] == "yuksek" and b["id"] not in kabul_kumesi]
+            if yuksek:
+                ilk = "; ".join(f"{b['dosya']}{':' + str(b['satir']) if b['satir'] else ''} {b['tur']}" for b in yuksek[:3])
+                raise UygulamaHatasi(f"Commit yapilmadi: {len(yuksek)} yuksek riskli bulgu kabul edilmedi ({ilk}). Duzeltin ya da yanlis alarm ise tek tek kabul edin", 409)
+            return github.commit(k, mesaj, bool(yalniz_hazir))
+
+        return self._github(yap, serbest_olmali=True)
+
 
     # --- Git istemcisi (GitHub Desktop benzeri; yalniz yerel git): gecmis, fark, hazirlama, dal, stash. Serbest komut satiri YOK. ---
     def git_gecmis(self, adet: object = 50) -> dict:
@@ -768,7 +916,7 @@ class Uygulama:
     def git_stash_sil(self, indeks: object) -> dict:
         return self._github(lambda k: gityonet.stash_sil(k, indeks), serbest_olmali=True)
 
-    def git_commit_oneri(self) -> dict:
+    def git_commit_oneri(self, yz: bool = False) -> dict:
         """Commit mesaji onerisi: son commit'ten beri KORUNAN Aktapokus gorevlerinden (yoksa degisen dosyalardan)."""
         def oner(k: Path) -> dict:
             zaman = gityonet.son_commit_zamani(k)
@@ -782,15 +930,19 @@ class Uygulama:
                     gorevler.append(g.get("gorev") or "")
             d = github.proje_durumu(k)
             hazir = [x for x in d["degisen"] if len(x["durum"]) and x.get("hazir")]
-            return gityonet.oneri_mesaji(gorevler, hazir or d["degisen"])
+            oneri = gityonet.oneri_mesaji(gorevler, hazir or d["degisen"])
+            if yz:  # yapay zeka: commit'e girecek icerigi (sirlari maskeli) okuyup mesaji yazar; olmazsa buluşsal oneri kalir
+                toplanan = gonderme_kontrol.toplam_commit(k, bool(hazir))
+                ai = self._ai_incele(k, toplanan, gonderme_kontrol.tara(toplanan), mesaj_iste=True)
+                if ai.get("commit_mesaji"):
+                    return {**oneri, "mesaj": ai["commit_mesaji"], "kaynak": "yapay zeka", "yapay_zeka": ai.get("model")}
+                return {**oneri, "yapay_zeka_hata": ai.get("neden") or "Yapay zeka mesaj uretemedi"}
+            return oneri
 
         return self._github(oner)
 
     def github_dal(self, ad: object) -> dict:
         return self._github(lambda k: github.dal_olustur(k, ad), serbest_olmali=True)
-
-    def github_push(self) -> dict:
-        return self._github(lambda k: github.push(k), serbest_olmali=True)
 
     def github_pr(self, baslik: object, govde: object, taslak: object = False) -> dict:
         return self._github(lambda k: github.pr_ac(k, baslik, govde, bool(taslak)))
@@ -828,6 +980,15 @@ class Uygulama:
         try:
             return otomasyon.kaydet(veri).sozluk()
         except otomasyon.OtomasyonHatasi as hata:
+            raise UygulamaHatasi(str(hata)) from None
+
+    def otomatik_baslat_oku(self) -> dict:
+        return otomatik_baslat.durum()
+
+    def otomatik_baslat_yaz(self, veri: object) -> dict:
+        try:
+            return otomatik_baslat.ayarla(veri.get("acik") if isinstance(veri, dict) else None)
+        except otomatik_baslat.OtomatikBaslatHatasi as hata:
             raise UygulamaHatasi(str(hata)) from None
 
     def izinler_oku(self) -> dict:
@@ -2173,7 +2334,7 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if yol == "/api/git/stashler":
                     return self._gonder(200, app.git_stashler())
                 if yol == "/api/git/commit-oneri":
-                    return self._gonder(200, app.git_commit_oneri())
+                    return self._gonder(200, app.git_commit_oneri(q.get("yz") == "1"))
                 if yol == "/api/github/durum":
                     return self._gonder(200, app.github_durum())
                 if yol == "/api/github/giris/durum":
@@ -2188,6 +2349,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.beceri_listele())
                 if yol == "/api/izinler":
                     return self._gonder(200, app.izinler_oku())
+                if yol == "/api/otomatik-baslat":
+                    return self._gonder(200, app.otomatik_baslat_oku())
                 if yol == "/api/oneriler":
                     return self._gonder(200, {"kategoriler": oneriler.liste()})
                 if yol == "/api/beceri-kaynak":
@@ -2251,6 +2414,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.otomasyon_sil(g.get("ad")))
                 if yol == "/api/izinler":
                     return self._gonder(200, app.izinler_yaz(g))
+                if yol == "/api/otomatik-baslat":
+                    return self._gonder(200, app.otomatik_baslat_yaz(g))
                 if yol == "/api/otomasyonlar/izin":
                     return self._gonder(200, app.otomasyon_izin(g.get("ad"), g.get("onaysiz")))
                 if yol == "/api/otomasyon-calistir":
@@ -2282,7 +2447,13 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if yol == "/api/github/klonla":
                     return self._gonder(200, app.github_klonla(g.get("depo"), g.get("klasor"), g.get("ad")))
                 if yol == "/api/github/commit":
-                    return self._gonder(200, app.github_commit(g.get("mesaj"), g.get("yalniz_hazir")))
+                    return self._gonder(200, app.github_commit(g.get("mesaj"), g.get("yalniz_hazir"), g.get("kabul")))
+                if yol == "/api/github/yayin-hazirla":
+                    return self._gonder(200, app.yayin_hazirla(g.get("kaynak"), g.get("depo"), g.get("hedef_yol")))
+                if yol == "/api/github/commit-kontrol":
+                    return self._gonder(200, app.github_commit_kontrol(g.get("yalniz_hazir")))
+                if yol == "/api/github/gonderme-kontrol":
+                    return self._gonder(200, app.github_gonderme_kontrol())
                 if yol == "/api/motorlar/rolleri-gecir":
                     return self._gonder(200, app.motor_rolleri_gecir(g.get("calistirici")))
                 if yol == "/api/git/hazirla":
@@ -2310,7 +2481,7 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if yol == "/api/github/dal":
                     return self._gonder(200, app.github_dal(g.get("ad")))
                 if yol == "/api/github/push":
-                    return self._gonder(200, app.github_push())
+                    return self._gonder(200, app.github_push(g.get("kontrol"), g.get("kabul"), g.get("ai_atla")))
                 if yol == "/api/github/pr":
                     return self._gonder(200, app.github_pr(g.get("baslik"), g.get("govde"), g.get("taslak")))
                 if yol == "/api/github/issue-gorev":
@@ -2514,6 +2685,7 @@ class ArayuzSunucusu:
         self.onizlemeler: dict[str, ThreadingHTTPServer] = {}  # proje kimligi -> o projeyi sunan onizleme sunucusu (ilk istekte, ayri portta)
         self._onizleme_kilit = threading.Lock()
         self.uzak_ayar = uzak.oku()
+        self.uyku_engeli = uyanik.UykuEngeli()  # uzak erisim acikken ve ayar istiyorsa bilgisayar uyumaz
         self.uzak_http: UzakSunucu | None = None
         self.uzak_dinleyici: Dinleyici | None = None
         self.uzak_hata: str | None = None
@@ -2543,7 +2715,22 @@ class ArayuzSunucusu:
                 pass
 
     def uzak_uygula(self) -> dict:
-        """Ayar dosyasina gore uzak dinleyiciyi (yeniden) kurar: kapaliysa durdurur. Tailscale adresi yoksa ya da baglanilamazsa HATA bilgisini saklar."""
+        """Ayar dosyasina gore uzak dinleyiciyi (yeniden) kurar: kapaliysa durdurur. Tailscale adresi yoksa ya da baglanilamazsa HATA bilgisini saklar.
+        Ardindan uyku engeli ayara gore acilir/kapanir (yalniz dinleyici gercekten calisirken)."""
+        try:
+            self._uzak_uygula_ic()
+        finally:
+            self._uyku_guncelle()
+        return self.uzak_bilgi()
+
+    def _uyku_guncelle(self) -> None:
+        istenen = self.uzak_dinleyici is not None and self.uzak_ayar.uyanik and not self.kapaniyor.is_set()
+        if istenen:
+            self.uyku_engeli.ac()
+        else:
+            self.uyku_engeli.kapat()
+
+    def _uzak_uygula_ic(self) -> dict:
         onceki = self.uzak_dinleyici
         self.uzak_durdur()
         self.uzak_ayar = uzak.oku()
@@ -2595,7 +2782,7 @@ class ArayuzSunucusu:
             adresler = [f"http://{h}:{d.port}/#t={self.uzak_ayar.anahtar}" for h in sorted(d.hostlar, key=lambda x: (x == d.adres, x))]  # MagicDNS adi once, IP sonra
             if self.uzak_https.get("calisiyor"):
                 adresler.insert(0, f"{self.uzak_https['url']}/#t={self.uzak_ayar.anahtar}")
-        return {"calisiyor": d is not None, "adres": d.adres if d else None, "port": d.port if d else None, "hata": self.uzak_hata, "baglantilar": adresler, "son_erisim": self.uzak_son, "https": dict(self.uzak_https)}
+        return {"uyanik": {"aktif": self.uyku_engeli.aktif, "desteklenir": self.uyku_engeli.desteklenir, "hata": self.uyku_engeli.hata}, "calisiyor": d is not None, "adres": d.adres if d else None, "port": d.port if d else None, "hata": self.uzak_hata, "baglantilar": adresler, "son_erisim": self.uzak_son, "https": dict(self.uzak_https)}
 
     def url(self) -> str:
         return f"http://127.0.0.1:{self.port}/#t={self.app.token}"
@@ -2624,6 +2811,7 @@ class ArayuzSunucusu:
         if self.zamanlayici is not None:
             self.zamanlayici.durdur()
         self.uzak_durdur()
+        self.uyku_engeli.kapat()
         self.app.terminalleri_kapat()  # terminal surecleri arayuzle birlikte kapanir
         with self._onizleme_kilit:
             onizlemeler = list(self.onizlemeler.values())

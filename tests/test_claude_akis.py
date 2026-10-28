@@ -203,7 +203,7 @@ def test_arayuz_akisi_kullanici_en_alttaysa_otomatik_asagi_kayar():
     from pathlib import Path
 
     html = (Path(__file__).parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
-    assert "new MutationObserver(()=>{if(S.altaYapisik)a.scrollTop=a.scrollHeight}).observe(a,{childList:true,subtree:true,characterData:true})" in html
+    assert "new MutationObserver(sabitle).observe(a,{childList:true,subtree:true,characterData:true})" in html and "sabitle=()=>{if(S.altaYapisik)a.scrollTop=a.scrollHeight}" in html  # yeni icerik gelince (yalniz alta yapisiksa) iner
     assert 'case "karar-bekleniyor":{alttaGoster();' in html and 'alttaGoster();try{const p=await api("/api/gorev"' in html
     assert 'class:"fark-sade"' in html and 'sekme("p-degisiklik")' in html  # degisen dosyalar akista tek satir; liste Degisiklikler sekmesinde
 

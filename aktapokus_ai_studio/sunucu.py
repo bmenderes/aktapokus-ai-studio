@@ -541,6 +541,18 @@ class SunucuCalistirici(Calistirici):
             "cache": {"read": f((simdi.get("cache") or {}).get("read"), (once.get("cache") or {}).get("read"))},
         }
 
+    @staticmethod
+    def _modelleri_kesfet(istemci, model: str | None) -> None:
+        """OpenCode sunucusu yerel/ucuncu taraf modelleri (ornek: ollama/qwen3:8b) ilk model listesi istegiyle KESFEDER; liste hic istenmediyse oturum
+        'Model unavailable' ile basarisiz olur (gercek deneme). Opencode'un kendi modelleri icin gerekmez. Sunucu basina bir kez; hata gorevi bozmaz."""
+        if not model or model.split("/", 1)[0] == "opencode" or getattr(istemci, "_modeller_kesfedildi", False):
+            return
+        try:
+            istemci.modeller()
+            istemci._modeller_kesfedildi = True
+        except Exception:
+            pass
+
     def calistir(self, istem, klasor, model=None, agent=None, zaman_asimi_sn=900, onayli=True):
         baslangic = time.monotonic()
         anahtar = f"{model or ''}|{agent or ''}"
@@ -550,6 +562,7 @@ class SunucuCalistirici(Calistirici):
         try:
             _istemi_denetle(istem)
             istemci = self._al()
+            self._modelleri_kesfet(istemci, model)
             for sorun in self._mcp_uygula(istemci, Path(klasor)):
                 if self.ilerleme:
                     self.ilerleme({"tur": "mcp-sorun", "ad": sorun["ad"], "hata": sorun["hata"]})

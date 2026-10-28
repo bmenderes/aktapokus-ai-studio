@@ -68,7 +68,7 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 #orta.surukle{outline:2px dashed var(--sari);outline-offset:-4px}
 .yuvarlak:not(.simge):not(.pri){padding:3px 14px}.yuvarlak.pri{padding:3px 16px}
 #orta{display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--line);background:var(--panel)}
-#akis{flex:1;overflow:auto;padding:10px}
+#akis{flex:1;overflow:auto;padding:10px;overflow-anchor:none}
 #sohbetBaslik.duzenlenir{cursor:pointer}
 #sohbetBaslik{flex:none;padding:6px 12px;border-bottom:1px solid var(--line);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #akis:empty{background:var(--maskot) center 34% no-repeat;background-size:132px auto;position:relative}#akis:empty::after{content:var(--bos-metin,"Bir görev yazın: ahtapot önce plan çıkarır, siz onaylayınca çalışır.");position:absolute;left:0;right:0;top:calc(34% + 120px);text-align:center;color:var(--tx3);padding:0 24px}
@@ -358,8 +358,13 @@ function sekmeMenusuKapat(){const m=$("#sekmeMenu");if(m)m.remove()}
 sekmeleriCiz();
 function akisaEkle(n){const a=$("#akis");const alta=a.scrollTop+a.clientHeight>=a.scrollHeight-40;a.append(n);if(alta)a.scrollTop=a.scrollHeight;return n}
 /* Otomatik asagi kaydirma: kullanici en alttaysa (ya da kendisi yeni gorev yolladiysa) akis her degisiklikte (arac karti, canli metin, yanit, karar dugmeleri) alta iner; yukari kaydirinca durur */
-S.altaYapisik=true;(()=>{const a=$("#akis");a.addEventListener("scroll",()=>{S.altaYapisik=a.scrollTop+a.clientHeight>=a.scrollHeight-70});new MutationObserver(()=>{if(S.altaYapisik)a.scrollTop=a.scrollHeight}).observe(a,{childList:true,subtree:true,characterData:true})})();
-function alttaGoster(){S.altaYapisik=true;const a=$("#akis");a.scrollTop=a.scrollHeight}
+/* Sohbet en alta yapışık kalır: kullanıcı yukarı kaydırmadıkça yeni içerik, resim yüklenmesi, kutu boyutunun değişmesi (klavye, yazı kutusu) ve sayfanın yeniden açılması sonrası en son yere iner. */
+S.altaYapisik=true;(()=>{const a=$("#akis"),sabitle=()=>{if(S.altaYapisik)a.scrollTop=a.scrollHeight};
+  a.addEventListener("scroll",()=>{S.altaYapisik=a.scrollTop+a.clientHeight>=a.scrollHeight-70});
+  new MutationObserver(sabitle).observe(a,{childList:true,subtree:true,characterData:true});
+  a.addEventListener("load",sabitle,true);
+  if(window.ResizeObserver){const ro=new ResizeObserver(sabitle);ro.observe(a);for(const c of a.children)ro.observe(c);new MutationObserver(m=>{for(const x of m)for(const n of x.addedNodes)if(n.nodeType===1)ro.observe(n)}).observe(a,{childList:true})}})();
+function alttaGoster(){S.altaYapisik=true;const a=$("#akis"),git=()=>{if(S.altaYapisik)a.scrollTop=a.scrollHeight};git();requestAnimationFrame(git);setTimeout(git,250);setTimeout(git,1000)}  /* düzen/resim/yazı tipi sonradan oturunca da en altta kalsın; kullanıcı yukarı kaydırırsa (altaYapisik=false) dokunmaz */
 function gunluge(m){const g=$("#gunluk");g.append(e("div",{class:"mut",text:new Date().toLocaleTimeString(DIL.yerel)+"  "+m}))}
 function tokenGuncelle(t){const sinirsiz=!S.butce;$("#tokenYazi").textContent="token "+t.toLocaleString(DIL.yerel)+(sinirsiz?" (sınırsız)":" / "+S.butce.toLocaleString(DIL.yerel));$("#tokenCubuk").style.width=sinirsiz?"0%":Math.min(100,Math.round(100*t/S.butce))+"%"}
 function rolDuzenle(ad){ayarAc("roller")}
@@ -521,7 +526,7 @@ async function ayarGit(id){if(S.telegramZ){clearInterval(S.telegramZ);S.telegram
   const baslik=(ad,alt)=>{h.append(e("h2",{class:"ayar-baslik",text:ad}));if(alt)h.append(e("div",{class:"mut3 ayar-alt",text:alt}))};
   try{
     if(id==="hesaplar"){baslik("Hesaplar","Hangi hizmette kim olarak giriş yapıldı. Aktapokus'un kendi kullanıcı hesabı yoktur; kimlikler aşağıdaki araçların kendi oturumlarıdır.");await hesaplarBolumu(h)}
-    else if(id==="genel"){baslik("Genel","Bu projenin çalışma ayarları (.aktapokus/roller.json).");await dilSecici(h);await genelBolumu(h)}
+    else if(id==="genel"){baslik("Genel","Bu projenin çalışma ayarları (.aktapokus/roller.json).");await dilSecici(h);await otomatikBaslatSatiri(h);await genelBolumu(h)}
     else if(id==="saglayicilar"){baslik("Sağlayıcılar","Model sağlayıcılarına API anahtarınızla bağlanın. Anahtar yalnızca bu bilgisayardaki OpenCode'a iletilir.");h.append(modelBolumu())}
     else if(id==="modeller"){baslik("Modeller","Bağlı sağlayıcıların ve kurulu CLI'ların modelleri. Bir modeli role atayın ya da deneyin.");await modellerBolumu(h)}
     else if(id==="clilar"){baslik("CLI'lar","Modelleri çalıştıran programlar. Yeni bir CLI'ı kod yazmadan tanımlayarak ekleyebilirsiniz.");await clilarYukle();h.append(cliBolumu())}
@@ -1181,7 +1186,7 @@ async function klasorSecimiAc(){if($("#klasorSec"))return;
 async function onizlemeKur(){if(S.baglanti&&S.baglanti.uzak){$("#onizUrl").textContent="Önizleme yalnızca bu bilgisayarda açılır (uzak bağlantıda kapalı)";$("#cerceve").removeAttribute("src");return}try{const r=await api("/api/onizleme");onizTaban=r.url;onizGoster()}catch(x){}}
 let akisDenetim=null,akisSon=0;
 function akisiYenidenKur(){if(akisDenetim)try{akisDenetim.abort()}catch(x){}}
-document.addEventListener("visibilitychange",()=>{if(!document.hidden)akisiYenidenKur()});addEventListener("online",akisiYenidenKur);addEventListener("pageshow",akisiYenidenKur);
+document.addEventListener("visibilitychange",()=>{if(!document.hidden){akisiYenidenKur();alttaGoster()}});addEventListener("online",akisiYenidenKur);addEventListener("pageshow",()=>{akisiYenidenKur();alttaGoster()});  /* sayfa kapatılıp açılınca ya da sekmeye dönünce en son yere inilir */
 setInterval(()=>{if(akisSon&&Date.now()-akisSon>15000)akisiYenidenKur()},5000);  /* sunucu her saniye ping yollar: 15 sn sessizlik = kopuk baglanti */
 async function olayAkisi(){let bekle=500;for(;;){try{akisDenetim=new AbortController();akisSon=Date.now();const r=await fetch("/api/olaylar?son="+S.son,{headers:{"X-Aktapokus-Token":T},signal:akisDenetim.signal});if(!r.ok)throw new Error("HTTP "+r.status);$("#baglanti").textContent="canlı";$("#baglanti").className="badge b-ok";bekle=500;const rd=r.body.getReader();const dec=new TextDecoder();let tam="";for(;;){const {done,value}=await rd.read();if(done)break;akisSon=Date.now();tam+=dec.decode(value,{stream:true});let i;while((i=tam.indexOf("\n\n"))>=0){const blok=tam.slice(0,i);tam=tam.slice(i+2);const d=blok.split("\n").filter(x=>x.startsWith("data:")).map(x=>x.slice(5).trim()).join("");if(d){try{olayIsle(JSON.parse(d))}catch(x){console.error(x)}}}}}catch(x){}
     akisSon=0;if(document.hidden){await new Promise(r=>{const f=()=>{if(!document.hidden){document.removeEventListener("visibilitychange",f);r()}};document.addEventListener("visibilitychange",f)});bekle=500;continue}  /* gizliyken bosuna yeniden deneme */
@@ -1396,6 +1401,61 @@ S.gitAcik=S.gitAcik||{degisiklik:true};
 function gitBolum(p,anahtar,baslik,ek){const d=e("details",{style:"margin:8px 0;border:1px solid var(--line);border-radius:8px;padding:6px 8px;background:var(--panel)"});d.open=!!S.gitAcik[anahtar];
   d.append(e("summary",{style:"cursor:pointer;font-weight:500"},baslik,ek||null));d.addEventListener("toggle",()=>{S.gitAcik[anahtar]=d.open});p.append(d);return d}
 async function gitFarkGoster(hedef,yol,sha,hazir){hedef.textContent="yükleniyor…";try{const r=await api("/api/git/fark?yol="+encodeURIComponent(yol)+(sha?"&sha="+sha:"")+(hazir?"&hazir=1":""));hedef.textContent="";hedef.append(e("div",{class:"mono mut3",text:yol}),yamaCiz(r.yama||"(fark yok)"))}catch(x){hedef.textContent="";hedef.append(e("div",{class:"badge b-err",style:"white-space:normal",text:x.message}))}}
+/* Gönderme kontrolü: commit/push öncesi kişisel veri ve sır bulguları (kural tabanlı + yapay zekâ). Yüksek riskli bulgu tek tek kabul edilmeden devam edilemez; sunucu da zorlar. */
+function gondermeDiyalogu(o){return new Promise(coz=>{
+  const arka=e("div",{class:"modal-arka"}),k=e("div",{class:"modal"});arka.append(k);const kabul=new Set();let aiAtla=false;
+  const ai=o.ai||null,hepsi=[...o.bulgular,...((ai&&ai.sorunlar)||[])],yuksek=hepsi.filter(b=>b.siddet==="yuksek");
+  const devam=e("button",{class:"pri",text:o.onay}),kapat=s=>{document.removeEventListener("keydown",tus,true);arka.remove();coz(s)};
+  const tus=ev=>{if(ev.key==="Escape"){ev.stopPropagation();kapat(null)}};document.addEventListener("keydown",tus,true);
+  const guncelle=()=>{devam.disabled=yuksek.some(b=>!kabul.has(b.id))||(!!ai&&ai.durum!=="tamam"&&!aiAtla)};
+  k.append(e("b",{text:o.baslik}));if(o.ozet)k.append(e("div",{class:"mut3",style:"margin-top:2px",text:o.ozet}));
+  if(ai){if(ai.durum==="tamam")k.append(e("div",{class:"badge b-ok",style:"margin-top:6px",text:"Yapay zekâ incelemesi tamam ("+ai.model+")"+(ai.kesildi?" · uzun içerik kısaltıldı":"")}));
+    else{const c=e("input",{type:"checkbox"});c.onchange=()=>{aiAtla=c.checked;guncelle()};
+      k.append(e("div",{class:"badge b-err",style:"display:block;white-space:normal;margin-top:6px",text:"Yapay zekâ kontrolü yapılamadı: "+(ai.neden||ai.durum)}),e("label",{class:"row",style:"gap:6px;margin-top:6px;align-items:flex-start"},c,e("span",{text:"Yapay zekâ kontrolü olmadan devam et"})))}}
+  const liste=e("div",{style:"margin-top:8px;max-height:46vh;overflow:auto"});
+  if(!hepsi.length)liste.append(e("div",{class:"badge b-ok",text:"Kişisel veri ya da sır bulunmadı."}));
+  for(const b of hepsi){const kutu=b.siddet==="yuksek"?e("input",{type:"checkbox",title:"Yanlış alarm; riski kabul ediyorum"}):null;if(kutu)kutu.onchange=()=>{kutu.checked?kabul.add(b.id):kabul.delete(b.id);guncelle()};
+    liste.append(e("div",{class:"card",style:"margin:4px 0;padding:6px 8px"},e("div",{class:"row",style:"gap:6px;flex-wrap:wrap"},kutu,e("span",{class:"badge "+(b.siddet==="yuksek"?"b-err":b.siddet==="orta"?"b-warn":""),text:b.siddet==="yuksek"?"yüksek":b.siddet}),e("b",{text:b.tur}),b.kaynak==="yapay zeka"?e("span",{class:"badge b-acc",text:"yapay zekâ"}):null),
+      e("div",{class:"mono mut3",style:"white-space:normal;overflow-wrap:anywhere",text:(b.dosya||"")+(b.satir?":"+b.satir:"")+(b.ornek?"  "+b.ornek:"")})))}
+  k.append(liste);if(yuksek.length)k.append(e("div",{class:"mut3",style:"margin-top:4px",text:yuksek.length+" yüksek riskli bulgu: yanlış alarm olanları işaretleyin; gerçekse gönderimi iptal edip düzeltin."}));
+  k.append(e("div",{class:"row",style:"margin-top:8px;gap:6px"},devam,e("button",{text:"Vazgeç",onclick:()=>kapat(null)})));
+  devam.onclick=()=>kapat({kabul:[...kabul],aiAtla});guncelle();document.body.append(arka)})}
+/* Yayınla: projedeki bir klasörü (ör. oluşturulan web sayfası) başka bir GitHub deposuna kopyalar; commit mesajını yapay zekâ yazar; commit ve push gönderme kontrolünden geçer.
+   Ajan GitHub'a erişmez: kopyalama/commit/push Aktapokus'un işidir ve her adımda kullanıcı onayı vardır. */
+const yayinHatirla=(a,d)=>{try{if(d!==undefined)localStorage.setItem("aktapokus.yayin."+a,d);return localStorage.getItem("aktapokus.yayin."+a)||""}catch(x){return""}};
+const yayinAdresiGuvenli=u=>typeof u==="string"&&/^https:[/][/][a-z0-9.-]+[.]github[.]io[/]/.test(u);
+async function yayinAkisi(g,ust){const dur=m=>ghMesaj(ust,m);
+  dur("Klasör hedef depoya kopyalanıyor…");const h=await api("/api/github/yayin-hazirla",{method:"POST",body:{kaynak:g.kaynak,depo:g.depo,hedef_yol:g.hedefYol}});const on="/api/p/"+h.proje;
+  dur(h.kopyalanan+" dosya kopyalandı"+(h.silinen?" ("+h.silinen+" eski dosya değiştirildi)":"")+(h.atlanan.length?" · "+h.atlanan.length+" gizli dosya atlandı":"")+". Commit mesajı içeriğe göre yazılıyor…");
+  const o=await api(on+"/git/commit-oneri?yz=1");
+  const kk=await api(on+"/github/commit-kontrol",{method:"POST",body:{yalniz_hazir:false}});let kabul=[];
+  if(kk.bulgular.length){const sec=await gondermeDiyalogu({baslik:"Commit'ten önce kontrol",bulgular:kk.bulgular,ai:null,ozet:kk.dosya_sayisi+" dosya commit'e girecek",onay:"Yine de commit et"});if(!sec)return {iptal:"Commit yapılmadı; kopyalanan dosyalar "+h.depo+" klasöründe duruyor (Git sekmesinden atabilirsiniz).",h};kabul=sec.kabul}
+  const m=prompt("Commit mesajı ("+(o.kaynak==="yapay zeka"?"yapay zekâ yazdı":"öneri")+", düzenleyebilirsiniz):",o.mesaj);if(m===null||!m.trim())return {iptal:"Commit yapılmadı; kopyalanan dosyalar "+h.depo+" klasöründe duruyor.",h};
+  await api(on+"/github/commit",{method:"POST",body:{mesaj:m.trim(),kabul}});
+  dur("Gönderilecek içerik taranıyor ve yapay zekâ ile inceleniyor… (birkaç dakika sürebilir)");
+  const k=await api(on+"/github/gonderme-kontrol",{method:"POST",body:{}});
+  const sec2=await gondermeDiyalogu({baslik:"GitHub'a göndermeden önce kontrol",bulgular:k.bulgular,ai:k.ai,ozet:h.depo+" · "+k.commit_sayisi+" commit, "+k.dosya_sayisi+" dosya"+(k.ilk_gonderim?" · ilk gönderim: tüm geçmiş tarandı":""),onay:"Gönder"});
+  if(!sec2)return {iptal:"Commit yapıldı ama GÖNDERİLMEDİ. "+h.depo+" projesinin Git sekmesinden Push ile gönderebilirsiniz.",h};
+  const r=await api(on+"/github/push",{method:"POST",body:{kontrol:k.kontrol,kabul:sec2.kabul,ai_atla:sec2.aiAtla}});return {tamam:r,h}}
+function yayinPenceresi(d,p){if($("#yayinPenceresi"))return;
+  const arka=e("div",{id:"yayinPenceresi",class:"modal-arka"}),k=e("div",{class:"modal"});arka.append(k);
+  const kapat=()=>{document.removeEventListener("keydown",tus,true);arka.remove()},tus=ev=>{if(ev.key==="Escape"){ev.stopPropagation();kapat()}};document.addEventListener("keydown",tus,true);
+  const klasorler=[...new Set((d.degisen||[]).flatMap(x=>{const p2=x.yol.split("/");return p2.slice(0,-1).map((_,i)=>p2.slice(0,i+1).join("/"))}))].slice(0,100);
+  const kaynak=e("input",{style:"width:100%",list:"yayinKlasorler",placeholder:"Projedeki klasör (örn. aktapokus.github.io/haberler)",autocomplete:"off",spellcheck:"false"}),kl=e("datalist",{id:"yayinKlasorler"},...klasorler.map(x=>e("option",{value:x})));
+  const depo=e("input",{style:"width:100%",list:"yayinDepolar",placeholder:"Hedef depo (örn. aktapokus/aktapokus.github.io)",autocomplete:"off",spellcheck:"false"}),dl=e("datalist",{id:"yayinDepolar"});
+  const hedef=e("input",{style:"width:100%",placeholder:"Depodaki klasör (örn. haberler)",autocomplete:"off",spellcheck:"false"});
+  kaynak.value=yayinHatirla("kaynak");depo.value=yayinHatirla("depo");hedef.value=yayinHatirla("hedef");
+  kaynak.oninput=()=>{if(!hedef.dataset.elle)hedef.value=kaynak.value.replace(/[/]+$/,"").split("/").pop()};hedef.oninput=()=>{hedef.dataset.elle="1"};
+  api("/api/github/depolar").then(r=>dl.append(...r.depolar.map(x=>e("option",{value:x.depo})))).catch(()=>{});
+  const hata=e("div",{class:"badge b-err",style:"display:none;white-space:normal;margin-top:6px"});
+  const basla=e("button",{class:"pri",text:"Kopyala, kontrol et ve gönder"});
+  basla.onclick=async()=>{hata.style.display="none";if(!kaynak.value.trim()||!depo.value.trim()||!hedef.value.trim()){hata.textContent="Üç alanı da doldurun";hata.style.display="block";return}
+    basla.disabled=true;const g={kaynak:kaynak.value.trim(),depo:depo.value.trim(),hedefYol:hedef.value.trim()};
+    try{kapat();const s=await yayinAkisi(g,$("#p-git")||p);yayinHatirla("kaynak",g.kaynak);yayinHatirla("depo",g.depo);yayinHatirla("hedef",g.hedefYol);await kenarCubugu();await gitPaneliYukle();
+      if(s.tamam){const bilgi=e("div",{class:"badge b-ok",style:"display:block;white-space:normal;margin-top:6px"},"Gönderildi: "+s.h.depo+" · "+s.h.hedef_yol+" ");if(yayinAdresiGuvenli(s.h.adres))bilgi.append("Olası yayın adresi: ",e("a",{href:s.h.adres,target:"_blank",rel:"noopener noreferrer",text:s.h.adres}),e("span",{class:"mut3",text:" (GitHub Pages açıksa bir iki dakika sonra görünür)"}));$("#p-git").prepend(bilgi)}
+      else ghMesaj($("#p-git"),s.iptal)}catch(x){await gitPaneliYukle().catch(()=>{});ghMesaj($("#p-git")||p,x.message,"b-err")}};
+  k.append(e("b",{text:"Başka bir depoya yayınla"}),e("label",{class:"mut",style:"display:block;margin-top:8px"},"Kaynak klasör",kaynak,kl),e("label",{class:"mut",style:"display:block;margin-top:6px"},"Hedef depo",depo,dl),e("label",{class:"mut",style:"display:block;margin-top:6px"},"Depodaki klasör",hedef),hata,
+    e("div",{class:"row",style:"margin-top:8px;gap:6px"},basla,e("button",{text:"Vazgeç",onclick:kapat})));document.body.append(arka);kaynak.focus()}
 async function gitPaneliYukle(){const p=$("#p-git");p.textContent="";
   if(!S.klasor){p.append(e("div",{class:"mut3",text:"Önce bir proje seçin."}));return}
   p.append(e("div",{class:"mut3",text:"yükleniyor…"}));let d;
@@ -1407,8 +1467,13 @@ async function gitPaneliYukle(){const p=$("#p-git");p.textContent="";
   const cekB=e("button",{text:"Çek",title:"Uzak değişiklikleri indirir (çalışma ağacına dokunmaz)"});cekB.onclick=islem(cekB,"/api/git/cek",{},"Uzak değişiklikler indirildi.");
   const pullB=e("button",{text:"Pull",title:"Yalnızca hızlı ileri sarma; birleştirme commit'i oluşturmaz"});pullB.onclick=islem(pullB,"/api/git/pull",{},r=>"Pull tamam. "+(r.cikti||"").split("\n").pop());
   const pushB=e("button",{text:"Push",title:d.upstream?"Dalı origin'e gönderir":"Dalı origin'e gönderir ve upstream kurar"});pushB.disabled=!d.dal||!uzakAd;
-  pushB.onclick=islem(pushB,"/api/github/push",{},r=>"'"+r.dal+"' dalı gönderildi"+(r.yeni_upstream?" (yeni upstream kuruldu).":"."),"'"+dal+"' dalı '"+uzakAd+"' deposuna gönderilsin mi?"+(d.upstream?"\n("+d.onde+" yeni commit)":"\n(Bu dal origin'de yok; oluşturulacak.)")+"\n\nZorla push yapılmaz.");
-  p.append(e("div",{class:"row",style:"justify-content:space-between;flex-wrap:wrap;gap:6px"},e("span",{class:"row",style:"gap:6px"},e("b",{text:"Git"}),e("span",{class:"badge b-acc",text:"dal: "+dal}),d.upstream?e("span",{class:"badge",title:"↑ gönderilmemiş, ↓ uzakta olup sizde olmayan commit",text:"↑"+d.onde+" ↓"+d.geride}):null),e("span",{class:"row",style:"gap:4px"},cekB,pullB,pushB,e("button",{text:"Yenile",onclick:()=>yenile()}))));
+  pushB.onclick=async()=>{pushB.disabled=true;ghMesaj($("#p-git")||p,"Gönderilecek içerik taranıyor ve yapay zekâ ile inceleniyor… (birkaç dakika sürebilir)");
+    try{const kk=await api("/api/github/gonderme-kontrol",{method:"POST",body:{}});
+      const sec=await gondermeDiyalogu({baslik:"GitHub'a göndermeden önce kontrol",bulgular:kk.bulgular,ai:kk.ai,ozet:"'"+dal+"' dalı '"+uzakAd+"' deposuna gidecek · "+kk.commit_sayisi+" commit, "+kk.dosya_sayisi+" dosya"+(kk.ilk_gonderim?" · ilk gönderim: tüm geçmiş tarandı":"")+(kk.kesildi?" · uzun, kısaltıldı":""),onay:"Gönder"});
+      if(!sec){pushB.disabled=false;await yenile();return}
+      const r=await api("/api/github/push",{method:"POST",body:{kontrol:kk.kontrol,kabul:sec.kabul,ai_atla:sec.aiAtla}});
+      await yenile("'"+r.dal+"' dalı gönderildi"+(r.yeni_upstream?" (yeni upstream kuruldu).":"."))}catch(x){pushB.disabled=false;ghMesaj($("#p-git")||p,x.message,"b-err")}};
+  p.append(e("div",{class:"row",style:"justify-content:space-between;flex-wrap:wrap;gap:6px"},e("span",{class:"row",style:"gap:6px"},e("b",{text:"Git"}),e("span",{class:"badge b-acc",text:"dal: "+dal}),d.upstream?e("span",{class:"badge",title:"↑ gönderilmemiş, ↓ uzakta olup sizde olmayan commit",text:"↑"+d.onde+" ↓"+d.geride}):null),e("span",{class:"row",style:"gap:4px"},cekB,pullB,pushB,e("button",{text:"Yayınla…",title:"Projedeki bir klasörü başka bir GitHub deposuna kopyalar; commit mesajını yapay zekâ yazar; commit ve push kontrolden geçer",onclick:()=>yayinPenceresi(d,p)}),e("button",{text:"Yenile",onclick:()=>yenile()}))));
   if(!uzakAd)p.append(e("div",{class:"mut3",style:"margin-top:4px",text:"origin (uzak depo) tanımlı değil: Çek/Pull/Push için önce bir uzak depo ekleyin."}));
   /* ---- Değişiklikler ---- */
   const hazirN=()=>d.degisen.filter(x=>x.hazir).length;
@@ -1422,7 +1487,7 @@ async function gitPaneliYukle(){const p=$("#p-git");p.textContent="";
   const mesaj=e("textarea",{rows:"3",style:"width:100%;margin-top:6px",placeholder:"Commit mesajı (otomatik önerilir; istediğiniz gibi değiştirin)"});let elle=false;mesaj.oninput=()=>{elle=true};
   const commitB=e("button",{class:"pri",text:"Commit"});
   const durumYaz=()=>{const n=hazirN();ozet.textContent=n+" / "+d.degisen.filter(x=>!x.gizli).length+" dosya seçili";commitB.disabled=n===0;commitB.textContent=n?("Commit ("+n+" dosya)"):"Commit"};
-  const oneriGetir=async(zorla)=>{if(elle&&!zorla)return;try{const r=await api("/api/git/commit-oneri");if(zorla||!elle){mesaj.value=r.mesaj;elle=false;oneriEt.textContent=r.kaynak==="gorev"?"Öneri: Aktapokus görevlerinden ("+r.gorev_sayisi+")":"Öneri: değişen dosyalardan"}}catch(x){}};
+  const oneriGetir=async(zorla,yz)=>{if(elle&&!zorla)return;try{const r=await api("/api/git/commit-oneri"+(yz?"?yz=1":""));if(zorla||!elle){mesaj.value=r.mesaj;elle=false;oneriEt.textContent=r.kaynak==="yapay zeka"?"Mesajı yapay zekâ yazdı ("+r.yapay_zeka+")":(r.kaynak==="gorev"?"Öneri: Aktapokus görevlerinden ("+r.gorev_sayisi+")":"Öneri: değişen dosyalardan")+(r.yapay_zeka_hata?" · yapay zekâ: "+r.yapay_zeka_hata:"")}return r}catch(x){}};
   const oneriEt=e("span",{class:"mut3"});
   for(const x of d.degisen.slice(0,200)){const kutu=e("input",{type:"checkbox",title:x.gizli?"Gizli görünen dosya: commit'e alınamaz":"Commit'e dahil et (hazırla)"});kutu.checked=x.hazir;kutu.disabled=!!x.gizli;
     kutu.onchange=async()=>{kutu.disabled=true;try{await api("/api/git/"+(kutu.checked?"hazirla":"hazirdan-cikar"),{method:"POST",body:{yollar:[x.yol]}});x.hazir=kutu.checked;x.calisma=!kutu.checked;durumYaz();oneriGetir(false)}catch(er){kutu.checked=!kutu.checked;ghMesaj(p,er.message,"b-err")}kutu.disabled=false};
@@ -1432,11 +1497,16 @@ async function gitPaneliYukle(){const p=$("#p-git");p.textContent="";
     if(!x.gizli)yol.onclick=()=>{liste.querySelectorAll(".git-sec").forEach(z=>z.style.background="");satir.style.background="var(--accbg)";gitFarkGoster(farkYeri,x.yol,null,x.hazir&&!x.calisma)};
     const satir=e("div",{class:"row git-sec",style:"gap:6px;padding:2px 3px;border-radius:5px"},kutu,e("span",{class:"mono",style:"min-width:20px;color:var(--tx3)",text:x.durum}),yol,x.gizli?e("span",{class:"badge b-warn",text:"gizli"}):null,at);liste.append(satir)}
   if(d.degisen_sayisi>200)liste.append(e("div",{class:"mut3",text:"… ilk 200 dosya gösteriliyor"}));
-  commitB.onclick=async()=>{const m=mesaj.value.trim();if(!m){ghMesaj(p,"Commit mesajı boş olamaz","b-err");return}commitB.disabled=true;
-    try{const r=await api("/api/github/commit",{method:"POST",body:{mesaj:m,yalniz_hazir:true}});await yenile("Commit oluşturuldu: "+r.commit+" ("+r.dosya_sayisi+" dosya)")}catch(x){durumYaz();ghMesaj(p,x.message,"b-err")}};
+  commitB.onclick=async()=>{commitB.disabled=true;
+    try{let m=mesaj.value.trim();
+      if(!elle||!m){ghMesaj(p,"Commit mesajı içeriğe göre yazılıyor…");await oneriGetir(true,true);m=mesaj.value.trim()}  /* mesajı elle yazmadıysanız yapay zekâ içeriğe göre yazar */
+      if(!m){ghMesaj(p,"Commit mesajı boş olamaz","b-err");durumYaz();return}
+      const kk=await api("/api/github/commit-kontrol",{method:"POST",body:{yalniz_hazir:true}});let kabul=[];
+      if(kk.bulgular.length){const sec=await gondermeDiyalogu({baslik:"Commit'ten önce kontrol",bulgular:kk.bulgular,ai:null,ozet:kk.dosya_sayisi+" dosya commit'e girecek",onay:"Yine de commit et"});if(!sec){durumYaz();return}kabul=sec.kabul}
+      const r=await api("/api/github/commit",{method:"POST",body:{mesaj:m,yalniz_hazir:true,kabul}});await yenile("Commit oluşturuldu: "+r.commit+" ("+r.dosya_sayisi+" dosya)")}catch(x){durumYaz();ghMesaj(p,x.message,"b-err")}};
   const rafB=e("button",{text:"Rafa kaldır",title:"İzlenen dosyalardaki değişiklikleri geçici olarak rafa alır (yeni/izlenmeyen dosyalar rafa alınmaz)"});
   rafB.onclick=async()=>{const n=prompt("Rafa kaldırma notu (isteğe bağlı):","");if(n===null)return;rafB.disabled=true;try{await api("/api/git/stash",{method:"POST",body:{mesaj:n}});S.gitAcik.stash=true;await yenile("Değişiklikler rafa kaldırıldı.")}catch(x){rafB.disabled=false;ghMesaj(p,x.message,"b-err")}};
-  const yenOner=e("button",{class:"mini",text:"↻ öneriyi yenile",onclick:()=>{if(elle&&mesaj.value.trim()&&!confirm("Yazdığınız mesaj öneriyle değiştirilsin mi?"))return;oneriGetir(true)}});
+  const yenOner=e("button",{class:"mini",text:"↻ yapay zekâ ile öner",title:"Commit'e girecek içeriği (sırlar maskelenerek) yapay zekâ okur ve mesajı yazar",onclick:()=>{if(elle&&mesaj.value.trim()&&!confirm("Yazdığınız mesaj öneriyle değiştirilsin mi?"))return;ghMesaj(p,"Commit mesajı içeriğe göre yazılıyor…");oneriGetir(true,true)}});
   degB.append(mesaj,e("div",{class:"row",style:"margin-top:4px;gap:6px;flex-wrap:wrap"},yenOner,oneriEt),e("div",{class:"row",style:"margin-top:6px"},commitB,rafB));durumYaz();if(d.degisen_sayisi)oneriGetir(false);
   /* ---- Geçmiş ---- */
   const gecB=gitBolum(p,"gecmis","Geçmiş");const gecListe=e("div");gecB.append(gecListe);let adet=30,gecYuklendi=false;
@@ -1508,6 +1578,7 @@ async function uzakBolumu(h){const kap=e("div");h.append(kap);
     if(ay.https&&d.dinleyici.https){const hs=d.dinleyici.https;ayarKart.append(e("div",{class:"badge "+(hs.calisiyor?"b-ok":"b-err"),style:"display:block;white-space:normal;margin-top:6px",text:hs.calisiyor?"HTTPS açık: "+hs.url:(hs.hata||"HTTPS açılamadı")}))}
     const port=e("input",{type:"number",min:"1024",max:"65535",value:String(ay.port),style:"width:90px"});
     ayarKart.append(e("div",{class:"row",style:"gap:6px;margin-top:8px"},e("span",{class:"mut",text:"Port"}),port,e("button",{text:"Kaydet",onclick:()=>degistir({port:Number(port.value)})})));
+    if(d.dinleyici.uyanik&&d.dinleyici.uyanik.desteklenir){ayarKart.append(kutu("Bilgisayar uyumasın",ay.uyanik,"uyanik",null,"Uzak erişim açıkken bilgisayar uykuya geçmez (ekran kapanabilir)."));if(ay.uyanik&&ay.acik&&d.dinleyici.uyanik.hata)ayarKart.append(e("div",{class:"badge b-err",style:"display:block;white-space:normal;margin-top:6px",text:d.dinleyici.uyanik.hata}))}
     ayarKart.append(kutu("Uzaktan terminale izin ver",ay.terminal,"terminal","Uzaktan terminal, bu bilgisayarda TAM komut çalıştırma yetkisi verir (dosya silme, program kurma dahil). Anahtarı ele geçiren herkes bunu yapabilir. Yine de açılsın mı?","TAM komut çalıştırma yetkisi. Varsayılan kapalı."));
     ayarKart.append(kutu("Uzaktan yönetime izin ver",ay.yonetim,"yonetim","Uzaktan yönetim; CLI/MCP/sağlayıcı/Telegram/beceri tanımlamayı, klasör gezmeyi ve depo klonlamayı uzaktan açar (bunlar bilgisayarda program çalıştırmak demektir). Yine de açılsın mı?","CLI, MCP, sağlayıcı, Telegram, beceri tanımlama; klasör gezme; depo klonlama. Varsayılan kapalı."));
     /* dinleyici ve bağlantılar */
@@ -1553,6 +1624,11 @@ async function otoModelSecenekleri(){const s=[];let canli=[];try{canli=(await ap
   return s}
 function otoAdUret(metin,mevcut){const t={ç:"c",ğ:"g",ı:"i",ö:"o",ş:"s",ü:"u"};let k=String(metin||"").toLowerCase().replace(/[çğıöşü]/g,c=>t[c]).replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,24).replace(/-+$/,"")||"otomasyon";let a=k,i=2;while(mevcut.includes(a))a=k.slice(0,22)+"-"+i++;return a}
 function zamanMetni(z){if(!z)return "";if(z.tur==="aralik")return "her "+z.dakika+" dakikada bir";const G=["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"];if(z.tur==="gunluk")return "her gün "+z.saat;return G.filter((g,i)=>(z.gunler||[]).includes(i)).join(", ")+" "+z.saat}
+/* Bilgisayar açılınca Aktapokus başlasın (Windows oturum açılışı; kayıt defteri kaynak doğruluktur, yalnız yerel arayüzden) */
+async function otomatikBaslatSatiri(h){let d;try{d=await api("/api/otomatik-baslat")}catch(x){return}if(!d.desteklenir)return;
+  const k=e("input",{type:"checkbox"});k.checked=!!d.acik;const mesaj=e("div",{class:"badge b-err",style:"display:none;white-space:normal;margin-top:6px"});
+  k.onchange=async()=>{const yeni=k.checked;mesaj.style.display="none";try{const r=await api("/api/otomatik-baslat",{method:"POST",body:{acik:yeni}});k.checked=!!r.acik}catch(x){k.checked=!yeni;mesaj.textContent=x.message;mesaj.style.display="block"}};
+  h.append(e("div",{class:"card"},e("label",{class:"row",style:"gap:6px"},k,e("b",{text:"Bilgisayar açılınca Aktapokus başlasın"})),mesaj))}
 async function izinlerBolumu(h){const kap=e("div");h.append(kap);const d=await api("/api/otomasyonlar");
   const mesaj=m=>{const x=kap.querySelector(".oto-mesaj");if(x)x.remove();kap.prepend(e("div",{class:"oto-mesaj badge b-err",style:"display:block;white-space:normal;margin:6px 0"},m))};
   const gz=await api("/api/izinler"),kz=e("input",{type:"checkbox",title:"Görev bitince Keep/Undo sorulmaz; geri alma noktası yine alınır"});kz.checked=!!gz.degisiklikleri_koru;

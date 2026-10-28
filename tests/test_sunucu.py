@@ -338,3 +338,35 @@ def test_zaman_asimi_hareketsizlik_sayilir_ilerleyen_gorev_oldurulmez(tmp_path):
         assert r.ok, r.hata
     finally:
         s.kapat()
+
+
+def test_yerel_model_icin_once_model_listesi_istenir_opencode_modelinde_istenmez_sunucu_basina_bir_kez(sahte, tmp_path):
+    cagrilar = []
+
+    class Izleyen(Istemci):
+        def modeller(self):
+            cagrilar.append(self.oturumlar_say())
+            return []  # basarili liste: sunucu basina bir kez istenir (hata verirse sonraki gorevde yeniden denenir)
+
+        def oturumlar_say(self):
+            return len(sahte.durum.oturumlar)  # liste istendiginde kac oturum acilmisti
+
+    i = Izleyen(sahte.taban, "p", zaman_asimi=5)
+    c = SunucuCalistirici(istemci=i, yoklama_sn=0.05)
+    c.calistir("g", tmp_path, model="opencode/m1")
+    assert cagrilar == []  # OpenCode'un kendi modeli: kesif gerekmez
+    r = c.calistir("g", tmp_path, model="ollama/qwen3:8b")  # fake sunucu bu saglayiciyi bilmeyebilir: sonuc onemli degil
+    assert cagrilar == [1]  # liste, YENI oturum acilmadan ONCE istendi (onceki opencode oturumu 1 tane)
+    c.calistir("g", tmp_path, model="ollama/qwen3:8b")
+    assert cagrilar == [1]  # ayni sunucuda ikinci kez istenmez
+    assert r is not None
+
+
+def test_model_kesfi_hata_verirse_gorev_yine_denenir(sahte, tmp_path):
+    class Bozuk(Istemci):
+        def modeller(self):
+            raise SunucuHatasi("liste yok")
+
+    c = SunucuCalistirici(istemci=Bozuk(sahte.taban, "p", zaman_asimi=5), yoklama_sn=0.05)
+    r = c.calistir("g", tmp_path, model="opencode/m1") if False else c.calistir("g", tmp_path, model="ollama/x")
+    assert r is not None and "liste yok" not in str(r.hata or "")  # kesif hatasi gorev sonucuna yansimaz

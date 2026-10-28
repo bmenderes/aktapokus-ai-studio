@@ -19,6 +19,22 @@ def proje(tmp_path):
     return klasor
 
 
+class SahteKayit:
+    """otomatik_baslat.Kayit yerine bellekte tek deger (testler gercek HKCU\\...\\Run anahtarina dokunmaz)."""
+
+    def __init__(self):
+        self.deger = None
+
+    def oku(self):
+        return self.deger
+
+    def yaz(self, komut):
+        self.deger = komut
+
+    def sil(self):
+        self.deger = None
+
+
 class SahteCalistirici(Calistirici):
     """Senaryo: rol adi -> islev(klasor, istem, cagri_no) -> CalistirmaSonucu. Rol, istemdeki 'ROLUN: <ad>.' satirindan okunur."""
 
@@ -78,6 +94,11 @@ def mcp_ve_beceri_yalitimi(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("AKTAPOKUS_MCP", str(tmp_path_factory.mktemp("mcp") / "mcp.json"))
     monkeypatch.setenv("AKTAPOKUS_BECERILER", str(tmp_path_factory.mktemp("beceriler") / "skills"))
     monkeypatch.setenv("AKTAPOKUS_MOTOR_TERCIH", "opencode-sunucu")  # test sonuclari bu bilgisayarda hangi CLI'in kurulu oldugundan bagimsiz olsun
+    monkeypatch.setenv("AKTAPOKUS_UZAK", str(tmp_path_factory.mktemp("uzak") / "uzak-erisim.json"))  # uzak erisim ayari (anahtar iceriyor) gercek ~/.aktapokus altina ASLA yazilmasin/okunmasin
+    from aktapokus_ai_studio import otomatik_baslat
+
+    monkeypatch.setattr(otomatik_baslat, "_gercek", lambda: SahteKayit())  # Windows kayit defteri (acilista baslat) gercek makineye YAZILMASIN
+    monkeypatch.setenv("AKTAPOKUS_YAYIN", str(tmp_path_factory.mktemp("yayin")))  # yayin icin klonlanan hedef depolar gercek ~/.aktapokus altina yazilmasin
     monkeypatch.setenv("AKTAPOKUS_IZINLER", str(tmp_path_factory.mktemp("izinler") / "izinler.json"))  # genel izinler gercek ~/.aktapokus altina yazilmasin
     monkeypatch.setenv("AKTAPOKUS_OTOMASYON", str(tmp_path_factory.mktemp("otomasyon") / "otomasyonlar.json"))  # testler gercek otomasyon tanimlarina dokunmasin
     monkeypatch.setenv("AKTAPOKUS_GOREV_META", str(tmp_path_factory.mktemp("gorevmeta") / "gorev-meta.json"))  # sabitle/arsivle bilgileri gercek ~/.aktapokus altina yazilmasin

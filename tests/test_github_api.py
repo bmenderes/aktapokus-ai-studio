@@ -122,14 +122,31 @@ def test_git_olmayan_klasorde_anlasilir_hata(ortam, tmp_path):
 
 
 # ---------- yazan islemler ----------
-def test_commit_dal_push_tam_dongu_yerel_origin(api):
-    _, _, istek, proje, uzak = api
+def test_commit_dal_push_tam_dongu_yerel_origin(ortam):
+    from conftest import SahteCalistirici
+
+    proje, uzak = ortam
+    app, sv, istek = kur_sunucu(uret=lambda ad: SahteCalistirici({}))  # gizlilik denetcisi rolu yok: gercek calistirici/model CAGRILMAZ, yapay zeka kontrolu 'hata' olur
+    app.klasor_sec(str(proje))
+    try:
+        _commit_dal_push_dongusu(istek, proje, uzak)
+    finally:
+        sv.kapat()
+
+
+def _commit_dal_push_dongusu(istek, proje, uzak):
     (proje / "yeni.txt").write_text("yeni")
     (proje / ".env").write_text("SIR")
     assert istek("POST", "/api/github/dal", {"ad": "ozellik/giris"})[1] == {"dal": "ozellik/giris"}
     st, d = istek("POST", "/api/github/commit", {"mesaj": "Giris ekle"})
     assert st == 200 and d["atlanan_gizli"] == [".env"] and "yeni.txt" in git(proje, "show", "--name-only", "--format=", "HEAD")
     st, d = istek("POST", "/api/github/push", {})
+    assert st == 409 and "Gonderme kontrolu yapilmadi" in d["hata"]  # kontrolsuz push YOK
+    kontrol = istek("POST", "/api/github/gonderme-kontrol", {})[1]
+    assert kontrol["bulgular"] == [] and kontrol["ai"]["durum"] in ("hata", "atlandi")  # bu testte sahte calistirici gizlilik rolunu bilmiyor: yapay zeka kontrolu yok
+    st, d = istek("POST", "/api/github/push", {"kontrol": kontrol["kontrol"]})
+    assert st == 409 and "Yapay zeka kontrolu yapilamadi" in d["hata"]
+    st, d = istek("POST", "/api/github/push", {"kontrol": kontrol["kontrol"], "ai_atla": True})
     assert st == 200 and d["dal"] == "ozellik/giris" and d["yeni_upstream"] is True
     assert git(uzak, "log", "-1", "--format=%s", "ozellik/giris").strip() == "Giris ekle"
     assert ".env" not in git(uzak, "ls-tree", "-r", "--name-only", "ozellik/giris")  # gizli dosya uzaga GITMEDI
