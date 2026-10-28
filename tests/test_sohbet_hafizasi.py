@@ -110,3 +110,24 @@ def test_arayuz_ve_api_gecmis_sohbetin_hafizasini_verir(kur):
     assert api("POST", "/api/konusma-ozeti", {})[1]["sohbet"] == KIM1
     html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     assert "body:S.gecmisGorev&&!S.sohbetYeni?{gorev:S.gecmisGorev}:{}" in html and "Bu sohbetin hafızası" in html
+
+
+def test_uygulama_acilinca_hafiza_bir_kere_okutulur_sonraki_mesajlarda_tekrarlanmaz(proje):
+    baglam._ACILIS.clear()
+    # c1 kaydi opencode-sunucu/deepseek ile yapildi: model AYNI. Acilis bayragi yoksa (eski davranis) bos
+    assert baglam.hafiza_istemi(proje, "kodcu", "opencode-sunucu", "deepseek") == ""
+    h, neden = baglam.hafiza_istemi_nedenli(proje, "kodcu", "opencode-sunucu", "deepseek", acilista=True)
+    assert neden == "acilis" and "ucuncu sohbet yaniti" in h and "uygulama yeniden acildi" in h and "birinci sohbet" not in h
+    assert baglam.hafiza_istemi_nedenli(proje, "kodcu", "opencode-sunucu", "deepseek", acilista=True) == ("", "")  # ayni acilista ikinci mesaj: tekrar yok (token harcanmaz)
+    assert baglam.hafiza_istemi_nedenli(proje, "test", "opencode-sunucu", "deepseek", acilista=True)[1] == "model"  # baska rol sohbette ilk kez: zaten modele gore verilir
+    h2, neden2 = baglam.hafiza_istemi_nedenli(proje, "kodcu", "claude", "sonnet", acilista=True)
+    assert neden2 == "model" and "onceki modellerle" in h2  # model degisimi acilis isaretinden bagimsiz yine okutulur
+    baglam._ACILIS.clear()  # uygulama kapatilip acildi
+    assert baglam.hafiza_istemi_nedenli(proje, "kodcu", "opencode-sunucu", "deepseek", acilista=True)[1] == "acilis"
+
+
+def test_acilista_bos_sohbette_hafiza_verilmez_ve_baska_sohbet_karismaz(tmp_path, proje):
+    baglam._ACILIS.clear()
+    assert baglam.hafiza_istemi_nedenli(tmp_path / "yeni-proje", "kodcu", "claude", "sonnet", acilista=True) == ("", "")
+    sinirlar(proje, SINIR1, SINIR2, "2026-10-28 09:00:00")  # 'Yeni' denildi: guncel sohbet bos
+    assert baglam.hafiza_istemi_nedenli(proje, "kodcu", "opencode-sunucu", "deepseek", acilista=True) == ("", "")

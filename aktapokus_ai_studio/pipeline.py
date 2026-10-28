@@ -172,11 +172,11 @@ def calistir_hat(
         hafiza = ""
         if ayar.baglam:  # Mistral Vibe ayrica istem_baglami (DURUM.md ozeti) alir; sohbet hafizasi tum araclara ayni gider
             try:  # model/arac degistiyse bu sohbetin hafizasi isteme eklenir; degismediyse CLI kendi oturumunu surdurur
-                hafiza = baglam_modulu.hafiza_istemi(klasor, rol.ad, rol.calistirici, rol.model)
+                hafiza, neden = baglam_modulu.hafiza_istemi_nedenli(klasor, rol.ad, rol.calistirici, rol.model, acilista=True)
             except OSError:
-                hafiza = ""
+                hafiza, neden = "", ""
             if hafiza:
-                bildir(f"Sohbet hafizasi {rol.ad} istemine eklendi (model degisti: {rol.calistirici}/{rol.model or 'varsayilan model'}).")
+                bildir(f"Sohbet hafizasi {rol.ad} istemine eklendi ({'model degisti: ' + rol.calistirici + '/' + (rol.model or 'varsayilan model') if neden == 'model' else 'uygulama yeniden acildi'}).")
         istem = istem_olustur(rol, gorev, onceki, duzeltme_notu if idx == 0 else None, hafiza)
         bildir(f"-> {rol.ad} ({rol.calistirici}/{rol.model or 'varsayilan model'}) calisiyor...")
         olay({"tur": "adim-basladi", "sira": len(sonuc.adimlar) + 1, "rol": rol.ad, "calistirici": rol.calistirici, "model": rol.model})

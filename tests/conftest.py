@@ -113,4 +113,6 @@ def mcp_ve_beceri_yalitimi(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("AKTAPOKUS_OPENCODE_DB", str(tmp_path_factory.mktemp("ocdb") / "opencode.db"))
     monkeypatch.setenv("AKTAPOKUS_OPENCODE_HABER", str(tmp_path_factory.mktemp("ochaber") / "haber.md"))
     monkeypatch.setenv("AKTAPOKUS_GOLGE", str(tmp_path_factory.mktemp("golge")))  # golge (git'siz) yedek depolari gercek ~/.aktapokus altina yazilmasin
+    from aktapokus_ai_studio import baglam as _baglam
+    _baglam._ACILIS.clear()  # "uygulama acilisinda bir kere oku" isaretleri testler arasinda sizmasin
     monkeypatch.setenv("AKTAPOKUS_GH_DIZIN", str(tmp_path_factory.mktemp("ghdizin") / "gh"))  # Aktapokus'un GitHub oturumlari (varsayilan + ek hesaplar) gercek ~/.aktapokus altindan okunmasin/yazilmasin
