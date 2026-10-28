@@ -49,9 +49,10 @@ class Otomasyon:
     olusturma: str = field(default_factory=lambda: time.strftime(ZAMAN_BICIMI))
     akis: dict | None = None  # gorsel is akisi (otomasyon_akis); varsa tur/zamanlama/gorev ondan TURETILIR. None: eski sablon
     zamanlama: dict | None = None  # yalniz tur == "zamanli": {tur: aralik|gunluk|haftalik, dakika | saat | saat+gunler(0=pazartesi)}
+    onaysiz: bool = False  # kullanicinin Izinler sayfasinda verdigi izin: plan onayi ve degisiklik 'koru' sorusu atlanir. Varsayilan KAPALI; yalniz yerel arayuzden yazilir
 
     def sozluk(self) -> dict:
-        return {"ad": self.ad, "proje": self.proje, "gorev": self.gorev, "tur": self.tur, "acik": self.acik, "aciklama": self.aciklama, "olusturma": self.olusturma, "zamanlama": self.zamanlama, "akis": self.akis}
+        return {"ad": self.ad, "proje": self.proje, "gorev": self.gorev, "tur": self.tur, "acik": self.acik, "aciklama": self.aciklama, "olusturma": self.olusturma, "zamanlama": self.zamanlama, "akis": self.akis, "onaysiz": self.onaysiz}
 
 
 def dosya_yolu() -> Path:
@@ -89,6 +90,9 @@ def coz(veri: object, eski: Otomasyon | None = None) -> Otomasyon:
     acik = veri.get("acik", True)
     if not isinstance(acik, bool):
         raise OtomasyonHatasi("'acik' true/false olmali")
+    onaysiz = veri.get("onaysiz", False)
+    if not isinstance(onaysiz, bool):
+        raise OtomasyonHatasi("'onaysiz' true/false olmali")
     aciklama = veri.get("aciklama") or ""
     if not isinstance(aciklama, str) or len(aciklama) > 300 or "\n" in aciklama:
         raise OtomasyonHatasi("'aciklama' en cok 300 karakterlik tek satir olmali")
@@ -96,7 +100,7 @@ def coz(veri: object, eski: Otomasyon | None = None) -> Otomasyon:
     if tur != "zamanli" and veri.get("zamanlama") is not None:
         raise OtomasyonHatasi("Zamanlama yalniz 'zamanli' turde olur")
     ek = {"olusturma": eski.olusturma} if eski else {}
-    return Otomasyon(ad=ad, proje=proje, gorev=gorev.strip(), tur=tur, acik=acik, aciklama=aciklama.strip(), zamanlama=zamanlama, akis=akis, **ek)
+    return Otomasyon(ad=ad, proje=proje, gorev=gorev.strip(), tur=tur, acik=acik, aciklama=aciklama.strip(), zamanlama=zamanlama, akis=akis, onaysiz=onaysiz, **ek)
 
 
 def _zamanlama_coz(z: object) -> dict:

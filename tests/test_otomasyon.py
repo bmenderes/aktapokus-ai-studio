@@ -262,7 +262,7 @@ def test_telegram_otomasyon_tanimlama_koduna_sahip_degil():
 # ---------- arayuz ----------
 def test_arayuz_otomasyon_bolumu():
     html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
-    for parca in ('["otomasyon","Otomasyonlar"]', "function otomasyonBolumu", "function otomasyonFormu", "/api/otomasyonlar", "/api/otomasyon-calistir", "Şimdi çalıştır", "yalnızca PLAN"):
+    for parca in ('["otomasyon","Otomasyonlar"]', "function otomasyonBolumu", "function otomasyonFormu", "/api/otomasyonlar", "/api/otomasyon-calistir", "Şimdi çalıştır", "Plan onayı varsayılan olarak istenir"):
         assert parca in html, parca
     govde = html.split("async function otomasyonBolumu")[1].split("(async()=>{if(!T)")[0]
     assert "confirm(" in govde and "innerHTML" not in govde  # silme onayli; gorev metinleri textContent ile

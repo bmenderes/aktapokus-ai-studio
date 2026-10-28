@@ -52,6 +52,12 @@ Bu belge, kullanıcının listelediği fikirlerin **hiçbirini düşürmemek** i
 | Otomasyon: şablon + "Şimdi çalıştır" + Telegram `/sablon` | VAR (A) | Yalnız plan üretir, onay ister. Tasarım: `otomasyon-tasarimi.md` |
 | Otomasyon: zamanlayıcı (aralık/günlük/haftalık, kaçırılan kaydı, günlük tavan) | VAR (B) | Yalnız uygulama açıkken; günlük tavan = plan sayısı (12), token tavanı değil |
 | Otomasyon: zincir, olay tetikleyici, bildirim/geçmiş cilası | YAPILACAK (C–E) | Kullanıcı dördünü de istedi; onay her zaman şart |
+| Otomasyon: Web getir düğümü | VAR (2026-10-28) | Siteleri Aktapokus okur (ajan web aracı onayı beklemez); SSRF korumalı. `otomasyon-akis-tasarimi.md` |
+| Otomasyon: Ayarlar › İzinler (onaysız çalıştırma) | VAR (2026-10-28) | Otomasyon bazında, varsayılan KAPALI, yalnız yerel arayüz; önceki "onay her zaman şart" kuralı kullanıcı kararıyla değişti |
+| Sohbet başlığı (proje · görev adı) | VAR (2026-10-28) | Sohbet alanının üstünde; telefonda kenar çubuğu kapalıyken de görünür |
+| Ayarlar › Önerilenler (32 depo, bağlantılı) | VAR (2026-10-28) | `oneriler.py`: beceri depoları için mevcut çevrimiçi kaynak akışı (önizle > onayla > indir); diğerleri bağlantı. Voicebox listede |
+| Voicebox entegrasyonu (sesle yaz / seslendirme) | YAPILACAK | Şimdilik yalnız Önerilenler'de bağlantı olarak |
+| Her sohbetin kendi hafızası (model değişince otomatik okunur) | YAPILACAK | Şu an proje bazlı ortak bağlam var (`baglam.py`, `KONUSMA-OZETI.md`) |
 | Windows açılışında otomatik başlatma | YAPILACAK | Onaylı ve geri alınabilir |
 | Temiz bilgisayarda kurulum denemesi | KULLANICI | Hafta başı kullanıcı yapacak |
 | OpenCode olmadan çalışma | VAR | Motor denetimi; temiz bilgisayarda gerçek deneme bekliyor |

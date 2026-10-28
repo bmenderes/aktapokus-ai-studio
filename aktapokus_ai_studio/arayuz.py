@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal
+from . import arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, oneriler
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_model_gecersiz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
@@ -196,6 +196,7 @@ class Kosu:
     baslangic: float | None = None  # calismaya basladigi an (time.time()): arayuzde 'ne kadar suredir' gostergesi
     otomasyon: str | None = None  # bu gorevi otomasyon olusturduysa adi
     model_gecersiz: tuple | None = None  # (calistirici, model): yalniz bu gorev icin tum rollerin modeli (otomasyonda 'model sec')
+    onaysiz: bool = False  # kullanicinin Ayarlar > Izinler'de bu otomasyona verdigi izin: plan onayi ve 'degisiklikler korunsun mu' sorulmaz
     bildirimler: list = field(default_factory=list)  # otomasyon akisindaki bildirim dugumlerinin metinleri: gorev BITINCE Telegram'a gider
     bildirim_baglami: dict = field(default_factory=dict)
 
@@ -829,6 +830,18 @@ class Uygulama:
         except otomasyon.OtomasyonHatasi as hata:
             raise UygulamaHatasi(str(hata)) from None
 
+    def otomasyon_izin(self, ad: object, onaysiz: object) -> dict:
+        """Ayarlar > Izinler: bir otomasyonun plan onayi ve 'degisiklikler korunsun mu' sorusunu atlama izni. Yalniz yerel arayuz (uzak.politika/yerel koruma); varsayilan kapali."""
+        o = otomasyon.bul(ad)
+        if o is None:
+            raise UygulamaHatasi("Boyle bir otomasyon yok", 404)
+        if not isinstance(onaysiz, bool):
+            raise UygulamaHatasi("'onaysiz' true/false olmali")
+        try:
+            return otomasyon.kaydet({**o.sozluk(), "onaysiz": onaysiz}).sozluk()
+        except otomasyon.OtomasyonHatasi as hata:
+            raise UygulamaHatasi(str(hata)) from None
+
     def otomasyon_sil(self, ad: object) -> dict:
         if not isinstance(ad, str) or not otomasyon.sil(ad):
             raise UygulamaHatasi("Boyle bir otomasyon yok", 404)
@@ -865,8 +878,18 @@ class Uygulama:
                     baglam["dal"] = github._git(oturum.klasor, "branch", "--show-current", kontrol=False).strip() or "(dal yok)"
                 except github.GithubHatasi:
                     baglam["dal"] = "(dal yok)"
+            metin = otomasyon.degiskenleri_doldur(o.gorev, baglam)
+            adresler = otomasyon_akis.web_adresleri(o.akis)
+            if adresler:  # 'Web getir' dugumu: sayfalari Aktapokus okur (ajan web araci onayi beklemez); metin goreve VERI olarak eklenir
+                sonuclar = web_getir.topla(adresler)
+                if not any(s["ok"] for s in sonuclar):
+                    neden = "web: hicbir sayfa okunamadi (" + "; ".join(f"{s['url']}: {s['hata']}" for s in sonuclar[:3]) + ")"
+                    kayit("hata", neden[:300])
+                    raise UygulamaHatasi(neden[:300], 502)
+                metin += web_getir.veri_blogu(sonuclar)
             try:
-                plan = self.gorev_olustur(otomasyon.degiskenleri_doldur(o.gorev, baglam), otomatik_onay_izni=False, model_gecersiz=otomasyon_akis.gorev_modeli(o.akis))  # otomasyon: onay HER ZAMAN istenir
+                # Plan onayi: varsayilan HER ZAMAN istenir; yalniz kullanicinin Ayarlar > Izinler'de bu otomasyona verdigi 'onaysiz' izni onayi kaldirir
+                plan = self.gorev_olustur(metin, otomatik_onay_izni=False, model_gecersiz=otomasyon_akis.gorev_modeli(o.akis), onaysiz=o.onaysiz)
             except UygulamaHatasi as hata:
                 kayit("hata", str(hata))
                 raise
@@ -1503,7 +1526,7 @@ class Uygulama:
             satirlar.append(f"- {y}")
         return gorev.strip() + "\n\nEkli dosyalar (proje klasorunde; gerekirse bu dosyalari acip okuyun, resimlere de bakin):\n" + "\n".join(satirlar)
 
-    def gorev_olustur(self, gorev: str, testsiz: bool | None = None, otomatik_onay_izni: bool = True, ekler: object = None, kuyruga: bool = False, model_gecersiz: tuple | None = None) -> dict:
+    def gorev_olustur(self, gorev: str, testsiz: bool | None = None, otomatik_onay_izni: bool = True, ekler: object = None, kuyruga: bool = False, model_gecersiz: tuple | None = None, onaysiz: bool = False) -> dict:
         """kuyruga=True: bir gorev surerken (calisiyor/karar) gelen yeni gorev reddedilmez, sirayla kosulmak uzere kuyruga alinir."""
         klasor = self._klasor()
         if not isinstance(gorev, str) or not gorev.strip():
@@ -1520,7 +1543,7 @@ class Uygulama:
                 self._kuyruk_yayinla(oturum)
                 self._devam_yaz(oturum)
                 return {"kuyruk": len(oturum.kuyruk)}
-            return self._gorev_kur(oturum, klasor, gorev, testsiz, otomatik_onay_izni, model_gecersiz)
+            return self._gorev_kur(oturum, klasor, gorev, testsiz, otomatik_onay_izni, model_gecersiz, onaysiz)
 
     def _kuyruk_yayinla(self, oturum: ProjeOturumu) -> None:
         self._yayinla(oturum, {"tur": "kuyruk", "gorevler": [k["gorev"][:200] for k in oturum.kuyruk]})
@@ -1555,8 +1578,8 @@ class Uygulama:
                 self._kuyruk_yayinla(oturum)
                 self._yayinla(oturum, {"tur": "gunluk", "mesaj": f"Kuyruktaki gorev baslatilamadi: {hata}"})
 
-    def _gorev_kur(self, oturum: ProjeOturumu, klasor: Path, gorev: str, testsiz: bool | None, otomatik_onay_izni: bool, model_gecersiz: tuple | None = None) -> dict:
-        """Plani kurar ve yayinlar; otomatik onay varsa kosuyu baslatir."""
+    def _gorev_kur(self, oturum: ProjeOturumu, klasor: Path, gorev: str, testsiz: bool | None, otomatik_onay_izni: bool, model_gecersiz: tuple | None = None, onaysiz: bool = False) -> dict:
+        """Plani kurar ve yayinlar; otomatik onay varsa kosuyu baslatir. `onaysiz` yalniz kayitli otomasyondan gelir (kullanicinin izni)."""
         with self.kilit:
             try:
                 ayar = ayar_yukle(klasor)
@@ -1566,9 +1589,10 @@ class Uygulama:
                 raise UygulamaHatasi(str(hata)) from None
             oturum.kosu = Kosu(kimlik=secrets.token_hex(4), gorev=gorev.strip(), testsiz=bool(ayar.testi_atla if testsiz is None else testsiz))
             oturum.kosu.model_gecersiz = model_gecersiz
+            oturum.kosu.onaysiz = onaysiz
             oturum.yarim = None  # yeni gorev baslarken eski 'yarim kaldi' karari gecersizdir
             self._devam_yaz(oturum)
-            otomatik = bool(ayar.otomatik_onay and otomatik_onay_izni)
+            otomatik = bool((ayar.otomatik_onay and otomatik_onay_izni) or onaysiz)
             plan = {
                 "tur": "plan",
                 "kosu": oturum.kosu.kimlik,
@@ -1697,7 +1721,7 @@ class Uygulama:
             ayar = ayar_yukle(klasor)
             if kosu.model_gecersiz:
                 ayar = ayar_model_gecersiz(ayar, *kosu.model_gecersiz)
-            koru[0] = ayar.otomatik_koru
+            koru[0] = ayar.otomatik_koru or kosu.onaysiz
             kosu.dogrulama_rolleri = frozenset(ad for ad, r in ayar.roller.items() if r.dogrulama)
             kosu.sonuc = calistir_hat(klasor, kosu.gorev, ayar, uret, onay, bildir=lambda m: yayinla({"tur": "gunluk", "mesaj": m}), olay=olay, iptal=kosu.iptal, testsiz=kosu.testsiz, testi_atla=kosu.testi_atla)
             oturum.son_hat = {"once": kosu.sonuc.once, "sonra": kosu.sonuc.sonra, "degisen": kosu.sonuc.degisen, "durum": kosu.sonuc.durum}
@@ -1980,6 +2004,12 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 for ad, rol in (yeni.get("roller", {}) if isinstance(yeni, dict) and isinstance(yeni.get("roller"), dict) else {}).items():
                     if isinstance(rol, dict) and bool(rol.get("okuma_riski_kabul", False)) != bool((eski.get(ad) or {}).get("okuma_riski_kabul", False)):
                         return "okuma_riski_kabul uzaktan degistirilemez (gizli dosya korumasini kapatir)"
+            if yol == "/api/otomasyonlar/izin":
+                return "Otomasyon izinleri uzaktan degistirilemez (plan onayini kaldirir)"
+            if yontem == "POST" and yol == "/api/otomasyonlar":
+                g = self._govde()
+                if isinstance(g, dict) and g.get("onaysiz"):
+                    return "'onaysiz' izni uzaktan verilemez (plan onayini kaldirir)"
             return None
 
         def _yol(self, yontem: str):
@@ -2136,6 +2166,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.github_issueler())
                 if yol == "/api/beceriler":
                     return self._gonder(200, app.beceri_listele())
+                if yol == "/api/oneriler":
+                    return self._gonder(200, {"kategoriler": oneriler.liste()})
                 if yol == "/api/beceri-kaynak":
                     return self._gonder(200, app.beceri_kaynak_listele(q.get("kaynak")))
                 if yol == "/api/beceri-kaynak/onizle":
@@ -2195,6 +2227,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.otomasyon_kaydet(g))
                 if yol == "/api/otomasyonlar/sil":
                     return self._gonder(200, app.otomasyon_sil(g.get("ad")))
+                if yol == "/api/otomasyonlar/izin":
+                    return self._gonder(200, app.otomasyon_izin(g.get("ad"), g.get("onaysiz")))
                 if yol == "/api/otomasyon-calistir":
                     return self._gonder(200, app.otomasyon_calistir(g.get("ad")))
                 if yol == "/api/gorev-meta":

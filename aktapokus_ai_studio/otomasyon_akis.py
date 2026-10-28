@@ -8,13 +8,15 @@ from __future__ import annotations
 import re
 from typing import Callable
 
+from . import web_getir
+
 AZAMI_DUGUM = 12
 AZAMI_OK = 16
 AZAMI_METIN = 4000
 AZAMI_BILDIRIM = 500
 KIMLIK_DESENI = re.compile(r"^[a-z0-9][a-z0-9_-]{0,19}$")
 TETIKLEYICILER = ("elle", "zamanlayici")
-TURLER = TETIKLEYICILER + ("gorev", "bildirim")
+TURLER = TETIKLEYICILER + ("web", "gorev", "bildirim")
 KOORDINAT_SINIRI = 20000
 
 
@@ -82,6 +84,11 @@ def coz(akis: object, zamanlama_coz: Callable[[object], dict]) -> dict:
             temiz = {"gorev": _metin(ayar, "gorev", AZAMI_METIN, True)}
             if ayar.get("model") is not None:
                 temiz["model"] = _model(ayar["model"])
+        elif tur == "web":
+            try:
+                temiz = {"adresler": web_getir.adres_listesi(ayar.get("adresler"))}
+            except web_getir.WebHatasi as hata:
+                raise AkisHatasi(str(hata)) from None
         elif tur == "bildirim":
             temiz = {"metin": _metin(ayar, "metin", AZAMI_BILDIRIM, True)}
         elif tur == "zamanlayici":
@@ -95,18 +102,25 @@ def coz(akis: object, zamanlama_coz: Callable[[object], dict]) -> dict:
         raise AkisHatasi("Akista tam olarak bir tetikleyici olmali")
     if len(gorevler) != 1:
         raise AkisHatasi("Akista tam olarak bir gorev dugumu olmali")
+    web = [d for d in dugumler.values() if d["tur"] == "web"]
+    if len(web) > 1:
+        raise AkisHatasi("Akista en cok bir web getir dugumu olabilir")
     oklar: list[dict] = []
     for o in ham_o:
         if not isinstance(o, dict) or o.get("kaynak") not in dugumler or o.get("hedef") not in dugumler:
             raise AkisHatasi("Ok bilinen iki dugumu baglamali")
         k, h = dugumler[o["kaynak"]]["tur"], dugumler[o["hedef"]]["tur"]
-        gecerli = (k in TETIKLEYICILER and h == "gorev") or (k == "gorev" and h == "bildirim")
+        gecerli = (k in TETIKLEYICILER and h == "web") or (k == "web" and h == "gorev") or (k in TETIKLEYICILER and h == "gorev" and not web) or (k == "gorev" and h == "bildirim")
         if not gecerli:
-            raise AkisHatasi("Ok yalniz tetikleyici -> gorev ve gorev -> bildirim yonunde olabilir")
+            raise AkisHatasi("Ok yalniz tetikleyici -> (web getir) -> gorev ve gorev -> bildirim yonunde olabilir")
         if any(x["kaynak"] == o["kaynak"] and x["hedef"] == o["hedef"] for x in oklar):
             raise AkisHatasi("Ayni ok iki kez cizilemez")
         oklar.append({"kaynak": o["kaynak"], "hedef": o["hedef"]})
-    if not any(o["kaynak"] == tetik[0]["id"] and o["hedef"] == gorevler[0]["id"] for o in oklar):
+    var = lambda k, h: any(o["kaynak"] == k["id"] and o["hedef"] == h["id"] for o in oklar)  # noqa: E731
+    if web:
+        if not (var(tetik[0], web[0]) and var(web[0], gorevler[0])):
+            raise AkisHatasi("Tetikleyici web getir dugumune, o da gorev dugumune baglanmali")
+    elif not var(tetik[0], gorevler[0]):
         raise AkisHatasi("Tetikleyici gorev dugumune baglanmali")
     z = tetik[0]["ayar"].get("zamanlama")
     return {"dugumler": list(dugumler.values()), "oklar": oklar, "tur": "zamanli" if z else "sablon", "zamanlama": z, "gorev": gorevler[0]["ayar"]["gorev"]}
@@ -116,6 +130,11 @@ def sablondan_akis(gorev: str, zamanlama: dict | None) -> dict:
     """Akissiz (eski) sablonu tuvalde gostermek icin: tetikleyici -> gorev. Kayda yazilmaz; kullanici kaydedince akis olur."""
     tetik = {"id": "t1", "tur": "zamanlayici" if zamanlama else "elle", "x": 40, "y": 60, "ayar": {"zamanlama": zamanlama} if zamanlama else {}}
     return {"dugumler": [tetik, {"id": "g1", "tur": "gorev", "x": 300, "y": 60, "ayar": {"gorev": gorev}}], "oklar": [{"kaynak": "t1", "hedef": "g1"}]}
+
+
+def web_adresleri(akis: dict | None) -> list[str]:
+    """Akistaki web getir dugumunun adresleri (yoksa bos liste)."""
+    return next((list(d["ayar"]["adresler"]) for d in (akis or {}).get("dugumler", []) if d.get("tur") == "web"), [])
 
 
 def bildirim_metinleri(akis: dict | None) -> list[str]:

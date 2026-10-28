@@ -61,3 +61,11 @@ Bu iki seçenekten biri kullanıcıya sorulmadan uygulanmaz; ikinci dilim 1. se�
 
 ### Dilim sırası
 2a: gizli bilgi deposu + Ayarlar alanı; 2b: `web-topla` + `rapor` + `telegram-gonder` (önce Telegram'a plan/rapor onay akışıyla); 2c: `posta-oku` (salt-okunur); 2d: kullanıcı kararına göre izin modeli.
+
+## Üçüncü dilim (yapıldı): Web getir + izinler
+- **Neden:** Kod ajanları (Mistral, OpenCode…) web araçlarını her çağrıda onay ister; otomasyonda onaylayacak kimse yoktur ve iş durur ("Kullanıcı onayı olmadan web sitelerine bağlanamıyorum").
+- **Web getir düğümü** (`web`, en çok 1): tetikleyici → web getir → görev. Adresleri Aktapokus kendisi okur (`web_getir.py`, yalnız `http/https`, 80/443, en çok 15 adres, 10 sn, 500 KB); başlık, h1–h4 ve uzun bağlantı metni çıkarılır, görev metnine **veri olarak** eklenir (talimat değil uyarısıyla, alınamayan sayfa açıkça yazılır). Hiçbir sayfa okunamazsa plan oluşmaz, geçmişe "hata" yazılır.
+- **SSRF koruması:** çözümlenen tüm IP'ler genel (global) olmalı (loopback, yerel ağ, link-local bulut meta verisi reddedilir); bağlantı doğrulanan IP'ye yapılır, yönlendirmeler elle izlenir (en çok 3) ve her adım yeniden doğrulanır.
+- **İzinler (Ayarlar › İzinler):** varsayılan KAPALI. Bir otomasyona verilen `onaysiz` izni plan onayını ve "değişiklikler korunsun mu" sorusunu atlar (geri alma yedeği yine alınır; gizli dosya okuma onayı bundan bağımsız kalır). İzin yalnız yerel arayüzden verilir: `/api/otomasyonlar/izin` uzaktan her zaman reddedilir, uzaktan kayıtta `onaysiz: true` reddedilir, `onaysiz` göndermeyen bir düzenleme izni sıfırlar (güvenli yön). Verirken onay penceresi çıkar.
+- Önceki "HER ZAMAN onay" kuralı bu kararla değişti: kullanıcı kilitlenmeye başladığı için onay otomasyon bazında isteğe bağlı kaldırılabilir.
+- Sıradakiler: dosya yaz, webhook, e-posta (dış dünyaya yazan kutular; izin sayfasına eklenecek).

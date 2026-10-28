@@ -321,6 +321,39 @@ def mesajlardan_metin(mesajlar: list[dict]) -> str:
     return "\n".join(parcalar)
 
 
+KOTA_DESENI = re.compile(r"free (usage|messages)|usage limit|rate limit|quota|too many requests|\b429\b", re.IGNORECASE)
+
+
+def _hata_metni(v: object, derinlik: int = 0) -> str:
+    """OpenCode hata nesnesi bicimleri degisebilir (metin, {message}, {data:{message}}, {name}); okunur bir metin cikarir."""
+    if isinstance(v, str):
+        return v.strip()
+    if isinstance(v, dict) and derinlik < 3:
+        for anahtar in ("message", "data", "error", "name"):
+            m = _hata_metni(v.get(anahtar), derinlik + 1) if v.get(anahtar) is not None else ""
+            if m:
+                return m
+    return ""
+
+
+def mesajlardan_hata(mesajlar: list[dict]) -> str:
+    """Asistan mesajlarinda OpenCode'un kendi hata metni varsa (ornek: 'You've used today's free messages. They reset at 3:00 AM.') onu doner."""
+    for m in reversed([m for m in mesajlar if m.get("type") == "assistant"]):
+        for aday in [m.get("error"), *(c.get("error") or c for c in (m.get("content") or []) if isinstance(c, dict) and (c.get("type") == "error" or c.get("error")))]:
+            metin = _hata_metni(aday)
+            if metin:
+                return " ".join(metin.split())[:300]
+    return ""
+
+
+def hata_acikla(bilgi: dict, mesajlar: list[dict]) -> str:
+    """Basarisiz OpenCode oturumunun nedeni: kota dolduysa bunu acikca yazar (eskiden yalniz outcome='failed' gorunurdu)."""
+    neden = mesajlardan_hata(mesajlar) or _hata_metni(bilgi.get("error"))
+    if neden and KOTA_DESENI.search(neden):
+        return f"OpenCode ucretsiz kotasi doldu: {neden}"
+    return f"OpenCode oturumu basarisiz bitti (outcome={bilgi.get('outcome')!r})" + (f": {neden}" if neden else "")
+
+
 class SunucuCalistirici(Calistirici):
     """Kalici `opencode serve` uzerinden calistirir; sunucu cagrilar arasi acik kalir.
 
@@ -595,5 +628,5 @@ class SunucuCalistirici(Calistirici):
         if not sonuc.ok:
             if self.oturum_kipi == "tek":
                 self._oturum_yaz(klasor, anahtar, None)  # basarisiz oturum surdurulmez
-            sonuc.hata = f"OpenCode oturumu basarisiz bitti (outcome={bilgi.get('outcome')!r})" + (f": {bilgi['error']}" if bilgi.get("error") else "")
+            sonuc.hata = hata_acikla(bilgi, mesajlar)
         return sonuc

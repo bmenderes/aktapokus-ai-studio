@@ -254,6 +254,8 @@ def politika(yontem: str, yol: str, ayar: Ayar) -> str | None:
     """Uzak istek icin ret sebebi (Turkce) ya da izinliyse None. Cagri oncesi /api/p/<id>/ oneki ve sorgu ayiklanmis olmali."""
     if yol == "/api/uzak" or yol.startswith("/api/uzak/"):
         return "Uzak erisim ayarlari yalnizca bu bilgisayardan degistirilebilir"
+    if yol == "/api/otomasyonlar/izin":
+        return "Otomasyon izinleri (onaysiz calistirma) yalnizca bu bilgisayardan degistirilebilir"
     if yol == "/api/terminal" or yol.startswith("/api/terminal/"):
         return None if ayar.terminal else "Terminal uzaktan kapali (bilgisayardan Ayarlar > Uzak erisim'den acilabilir)"
     if not ayar.yonetim:
