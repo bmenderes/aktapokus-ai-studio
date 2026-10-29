@@ -380,3 +380,13 @@ def test_mesajlardan_beceriler_cagrilan_becerileri_sirayla_ve_tekrarsiz_verir():
     ]
     assert sunucu_modulu.mesajlardan_beceriler(mesajlar) == ["birinci", "ikinci"]
     assert sunucu_modulu.mesajlardan_beceriler([]) == []
+
+
+def test_sunucu_istemi_komut_satiri_sinirina_takilmaz_ama_ust_siniri_vardir():
+    from aktapokus_ai_studio import runners
+    uzun = "a" * 38_336
+    with pytest.raises(runners.CalistiriciHatasi):
+        runners._istemi_denetle(uzun)  # CLI: komut satiri siniri
+    runners._istemi_denetle(uzun, sunucu_modulu.AZAMI_SUNUCU_ISTEMI)  # sunucu: HTTP govdesi
+    with pytest.raises(runners.CalistiriciHatasi):
+        runners._istemi_denetle("a" * (sunucu_modulu.AZAMI_SUNUCU_ISTEMI + 1), sunucu_modulu.AZAMI_SUNUCU_ISTEMI)

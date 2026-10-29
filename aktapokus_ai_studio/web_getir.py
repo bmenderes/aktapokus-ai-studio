@@ -218,8 +218,9 @@ def topla(adresler: list[str]) -> list[dict]:
 def veri_blogu(sonuclar: list[dict]) -> str:
     """Goreve eklenecek blok. Sayfa metni talimat degil VERIDIR; alinamayan sayfalar acikca yazilir (model uydurmasin)."""
     parcalar, toplam = [], 0
+    pay = max(500, AZAMI_TOPLAM // max(1, len(sonuclar)))  # her sayfaya esit pay: sondaki kaynaklar 'atlandi' olmasin
     for s in sonuclar:
-        p = f"## {s['url']}\n" + (s["metin"] if s["ok"] else f"(alinamadi: {s['hata']})")
+        p = f"## {s['url']}\n" + (s["metin"][: max(0, pay - len(s["url"]) - 10)] if s["ok"] else f"(alinamadi: {s['hata']})")
         if toplam + len(p) > AZAMI_TOPLAM:
             parcalar.append(f"## {s['url']}\n(atlandi: toplam veri siniri)")
             continue

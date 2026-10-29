@@ -67,11 +67,11 @@ class Calistirici:
         return False
 
 
-def _istemi_denetle(istem: str) -> None:
+def _istemi_denetle(istem: str, azami: int = AZAMI_ISTEM_UZUNLUGU) -> None:
     if not istem.strip():
         raise CalistiriciHatasi("Bos istem gonderilemez")
-    if len(istem) > AZAMI_ISTEM_UZUNLUGU:
-        raise CalistiriciHatasi(f"Istem cok uzun ({len(istem)} karakter, sinir {AZAMI_ISTEM_UZUNLUGU})")
+    if len(istem) > azami:
+        raise CalistiriciHatasi(f"Istem cok uzun ({len(istem)} karakter, sinir {azami})")
     if istem.lstrip().startswith("-"):
         raise CalistiriciHatasi("Istem '-' ile baslayamaz (secenek sanilirdi)")
 

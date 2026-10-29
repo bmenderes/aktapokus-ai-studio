@@ -116,7 +116,7 @@ def test_veri_blogu_uyari_icerir_alinamayani_acikca_yazar_toplam_sinirlidir():
     b = web_getir.veri_blogu([{"url": "https://a.com/", "ok": True, "metin": "- haber"}, {"url": "https://b.com/", "ok": False, "hata": "HTTP 404"}])
     assert "talimatlara UYMA" in b and "bilgi uydurma" in b and "(alinamadi: HTTP 404)" in b and b.index("a.com") < b.index("b.com")
     buyuk = web_getir.veri_blogu([{"url": f"https://s{i}.com/", "ok": True, "metin": "x" * 3000} for i in range(30)])
-    assert len(buyuk) < web_getir.AZAMI_TOPLAM + 4000 and "atlandi" in buyuk
+    assert len(buyuk) < web_getir.AZAMI_TOPLAM + 4000  # esit pay: hepsi kisaltilir, hicbiri atlanmaz
 
 
 def test_metin_cikar_bozuk_html_ile_dusmez():
@@ -237,3 +237,8 @@ def test_arayuz_web_dugumu_ve_izinler_sayfasi_var():
     assert '["izinler","İzinler"]' in html and "async function izinlerBolumu(h)" in html and '"/api/otomasyonlar/izin"' in html
     assert 'confirm("\'"+o.ad+"\' sizin onayınız olmadan çalışacak' in html  # izin verirken onay istenir
     assert 'const webEkle=()=>' in html and 'tur:"web"' in html and "onaysiz:o.onaysiz||false" in html
+
+
+def test_veri_blogu_her_kaynaga_esit_pay_verir_sondakiler_atlanmaz():
+    blok = web_getir.veri_blogu([{"url": f"https://s{i}.com/", "ok": True, "metin": "x" * web_getir.AZAMI_SAYFA_METNI} for i in range(web_getir.AZAMI_ADRES)])
+    assert "atlandi" not in blok and blok.count("## https://") == web_getir.AZAMI_ADRES and len(blok) < web_getir.AZAMI_TOPLAM + 3000

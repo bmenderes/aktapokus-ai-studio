@@ -366,6 +366,9 @@ def hata_acikla(bilgi: dict, mesajlar: list[dict]) -> str:
     return f"OpenCode oturumu basarisiz bitti (outcome={bilgi.get('outcome')!r})" + (f": {neden}" if neden else "")
 
 
+AZAMI_SUNUCU_ISTEMI = 200_000  # istem HTTP govdesiyle gider (komut satiri degil): 24.000'lik CLI siniri burada gecerli degil; 13 web sayfali otomasyon 38.000 karakter tutmustu
+
+
 class SunucuCalistirici(Calistirici):
     """Kalici `opencode serve` uzerinden calistirir; sunucu cagrilar arasi acik kalir.
 
@@ -572,7 +575,7 @@ class SunucuCalistirici(Calistirici):
         once_mesajlar: set | None = None
         sid = None
         try:
-            _istemi_denetle(istem)
+            _istemi_denetle(istem, AZAMI_SUNUCU_ISTEMI)
             istemci = self._al()
             self._modelleri_kesfet(istemci, model)
             for sorun in self._mcp_uygula(istemci, Path(klasor)):
