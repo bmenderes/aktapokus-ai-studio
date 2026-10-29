@@ -376,8 +376,9 @@ class SunucuCalistirici(Calistirici):
     konusurken her gorev yeni sayfa acmaz; 24 saat sonra ya da 'Yeni' ile yenilenir); 'yeni'/'hic' = her cagri yeni oturum (temiz baglam)."""
 
     ad = "opencode-sunucu"
-    OTURUM_OMRU_SN = 24 * 3600
+    OTURUM_OMRU_SN = 14 * 24 * 3600  # sohbetler kalici
     oturum_kipi = "yeni"  # arayuz proje ayarindan (varsayilan "tek") atar; CLI/testlerde eski davranis
+    sohbet = None  # verilirse oturum anahtari sohbet basina ayrilir
 
     def __init__(
         self,
@@ -570,7 +571,7 @@ class SunucuCalistirici(Calistirici):
 
     def calistir(self, istem, klasor, model=None, agent=None, zaman_asimi_sn=900, onayli=True):
         baslangic = time.monotonic()
-        anahtar = f"{model or ''}|{agent or ''}"
+        anahtar = f"{self.sohbet + '#' if self.sohbet else ''}{model or ''}|{agent or ''}"  # oturum sohbet basina
         once_tokens: dict = {}
         once_mesajlar: set | None = None
         sid = None

@@ -269,8 +269,9 @@ class ClaudeCodeCalistirici(Calistirici):
 
     ad = "claude"
     oturum_kipi = "yeni"  # CLI/testlerde eski davranis; arayuz proje ayarindan (varsayilan 'tek') atar
+    sohbet = None  # verilirse oturum SOHBET basina tutulur (proje+sohbet); None: eski proje basina tek oturum
     ilerleme = None  # canli olay geri cagrisi: {"tur": "metin"|"arac"|"arac-sonuc", ...} (OpenCode sunucu calistiricisiyla ayni bicim)
-    OTURUM_OMRU_SN = 24 * 3600  # bundan eski konusma surdurulmez (bayat baglam)
+    OTURUM_OMRU_SN = 14 * 24 * 3600  # bundan eski konusma surdurulmez; sohbetler kalici oldugu icin uzun
 
     def __init__(self, cli_yolu: str | None = None):
         self.cli_yolu = cli_yolu
@@ -328,12 +329,13 @@ class ClaudeCodeCalistirici(Calistirici):
 
     # ---- proje basina tek konusma ------------------------------------------------------------------------------------------
     @staticmethod
-    def _oturum_yolu(klasor) -> Path:
-        return Path(klasor) / AYAR_KLASORU / "claude-oturum.json"
+    def _oturum_yolu(klasor, sohbet: str | None = None) -> Path:
+        ek = f"-{sohbet}" if sohbet and re.fullmatch(r"[0-9a-z-]{1,40}", sohbet) else ""
+        return Path(klasor) / AYAR_KLASORU / f"claude-oturum{ek}.json"
 
     def _oturum_oku(self, klasor) -> str | None:
         try:
-            d = json.loads(self._oturum_yolu(klasor).read_text(encoding="utf-8"))
+            d = json.loads(self._oturum_yolu(klasor, self.sohbet).read_text(encoding="utf-8"))
             kimlik, zaman = d["oturum"], float(d["zaman"])
         except (OSError, ValueError, KeyError, TypeError):
             return None
@@ -343,7 +345,7 @@ class ClaudeCodeCalistirici(Calistirici):
 
     def _oturum_yaz(self, klasor, kimlik: str) -> None:
         try:
-            yol = self._oturum_yolu(klasor)
+            yol = self._oturum_yolu(klasor, self.sohbet)
             yol.parent.mkdir(parents=True, exist_ok=True)
             yol.write_text(json.dumps({"oturum": kimlik, "zaman": time.time()}), encoding="utf-8")
         except OSError:
@@ -351,7 +353,7 @@ class ClaudeCodeCalistirici(Calistirici):
 
     def _oturum_sil(self, klasor) -> None:
         try:
-            self._oturum_yolu(klasor).unlink(missing_ok=True)
+            self._oturum_yolu(klasor, self.sohbet).unlink(missing_ok=True)
         except OSError:
             pass
 

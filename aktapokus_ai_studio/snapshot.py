@@ -261,6 +261,20 @@ def commit_var_mi(klasor: str | Path, commit: str) -> bool:
     return subprocess.run(["git", "-C", str(klasor), "cat-file", "-e", f"{commit}^{{commit}}"], capture_output=True, stdin=subprocess.DEVNULL, env=ortam).returncode == 0
 
 
+def satir_sayilari(klasor: str | Path, once: str, sonra: str) -> tuple[int, int]:
+    """Iki anlik goruntu arasinda eklenen/silinen satir sayisi (ikili dosyalar sayilmaz)."""
+    for c in (once, sonra):
+        if not commit_var_mi(klasor, c):
+            return 0, 0
+    ekle = sil = 0
+    for satir in _git(Path(klasor), "diff", "--no-renames", "--numstat", once, sonra).splitlines():
+        a, _, rest = satir.partition("	")
+        b = rest.partition("	")[0]
+        if a.isdigit() and b.isdigit():
+            ekle, sil = ekle + int(a), sil + int(b)
+    return ekle, sil
+
+
 def fark_yamasi(klasor: str | Path, once: str, sonra: str, dosya: str | None = None, azami: int = 60_000) -> str:
     """Iki anlik goruntu arasindaki birlesik (unified) fark. Commit adlari dogrulanir; 'dosya' literal yol olarak verilir."""
     for c in (once, sonra):

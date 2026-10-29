@@ -46,7 +46,7 @@ def test_eski_ya_da_bozuk_kayit_yeni_oturum_acar(sahte, tmp_path):
     c.calistir("bir", tmp_path, model="opencode/m1")
     yol = SunucuCalistirici.oturum_yolu(tmp_path)
     d = json.loads(yol.read_text(encoding="utf-8"))
-    d["opencode/m1|"]["zaman"] = time.time() - 25 * 3600  # 24 saatten eski
+    d["opencode/m1|"]["zaman"] = time.time() - 15 * 24 * 3600  # 14 gunden eski
     yol.write_text(json.dumps(d), encoding="utf-8")
     c.calistir("iki", tmp_path, model="opencode/m1")
     assert len(sahte.durum.oturumlar) == 2

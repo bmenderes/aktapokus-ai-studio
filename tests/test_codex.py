@@ -216,7 +216,7 @@ def test_codex_rolu_hassas_dosya_varken_calismaz_hicbir_sey_baslamaz(proje):
     mesajlar = []
     with pytest.raises(HatHatasi, match=r"\.env.*codex.*OKUYUP") as h:
         calistir_hat(proje, "g", codex_ayari(), lambda ad: c, lambda q: True, mesajlar.append)
-    assert "abc123" not in str(h.value) and "okuma_riski_kabul" in str(h.value)  # dosya ADI gosterilir, ICERIGI degil
+    assert "abc123" not in str(h.value) and "Gizli dosya okumaya izin ver" in str(h.value)  # dosya ADI gosterilir, ICERIGI degil
     assert c.cagrilar == [] and any("OpenCode koruyucusu" in m for m in mesajlar)  # hicbir rol calismadi; uyari verildi
 
 

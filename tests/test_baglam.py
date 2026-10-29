@@ -158,7 +158,7 @@ def test_baglam_kapaliysa_dosya_yazilmaz(proje):
 
 def test_baglam_yazilamazsa_gorev_dusmez(proje, monkeypatch):
     mesajlar = []
-    monkeypatch.setattr(baglam, "guncelle", lambda k, a: (_ for _ in ()).throw(OSError("disk dolu")))
+    monkeypatch.setattr(baglam, "guncelle", lambda k, a, *s: (_ for _ in ()).throw(OSError("disk dolu")))
     s = calistir_hat(proje, "gorev", ayar(), lambda ad: basarili(), lambda q: True, mesajlar.append)
     assert s.durum == "onaylandi" and any("baglam dosyalari yazilamadi" in m for m in mesajlar)
 

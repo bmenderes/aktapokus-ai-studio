@@ -100,7 +100,7 @@ def test_eski_ya_da_bozuk_konusma_kaydi_kullanilmaz_komuta_girmez(monkeypatch, t
     (tmp_path / ".aktapokus").mkdir()
     yol = tmp_path / ".aktapokus" / "claude-oturum.json"
     for icerik in (
-        {"oturum": ID1, "zaman": time.time() - 25 * 3600},  # 24 saatten eski
+        {"oturum": ID1, "zaman": time.time() - 15 * 24 * 3600},  # 14 gunden eski
         {"oturum": "--dangerously-skip-permissions", "zaman": time.time()},  # proje klasorundeki dosya guvenilmez
         {"oturum": "../../x", "zaman": time.time()},
         {"oturum": ID1},

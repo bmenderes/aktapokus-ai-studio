@@ -37,6 +37,7 @@ from . import ag_araci, ag_profil, bootp, opcua, opcua_ayar, opcua_depo, opcua_t
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_model_gecersiz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
+from . import baglam as baglam_modulu, sohbetler
 from .pipeline import HatHatasi, _kayit_klasoru, calistir_hat, eksik_kayitlari_onar, son_kayit
 from .proje import GitGerekli, hazirla as proje_hazirla
 from .runners import Calistirici, CalistiriciHatasi, ClaudeCodeCalistirici, calistirici_olustur, claude_bul, codex_bul, hepsini_kapat, opencode_bul
@@ -213,6 +214,7 @@ class Kosu:
     dogrulama_rolleri: frozenset = frozenset()
     olaylar: list = field(default_factory=list)  # konusma olarak yeniden oynatilacak olaylar (kayitla birlikte saklanir)
     kayit_kimligi: str | None = None  # pipeline kayit kimligi ('basladi' olayindan)
+    sohbet: str | None = None  # gorevin ait oldugu sohbet (kayda yazilir, CLI oturumu/hafiza buna gore)
     once: str | None = None  # gorevden onceki anlik goruntu ('basladi' olayindan): yarim kalirsa geri alma noktasi
     baslangic: float | None = None  # calismaya basladigi an (time.time()): arayuzde 'ne kadar suredir' gostergesi
     otomasyon: str | None = None  # bu gorevi otomasyon olusturduysa adi
@@ -1626,10 +1628,50 @@ class Uygulama:
                 pass
 
     # --- ciktilar (Outputs): projede gorevlerle olusan/degisen dosyalarin birlesik listesi (yalniz okur) ---
-    def ciktilar(self) -> dict:
+    def _sohbet_kayitlari_dogrula(self, klasor: Path, sohbet: object) -> list[dict] | None:
+        if sohbet in (None, ""):
+            return None
+        if not isinstance(sohbet, str) or sohbet not in self._sohbet_kimlikleri(klasor):
+            raise UygulamaHatasi("Bilinmeyen sohbet", 400)
+        return baglam_modulu.sohbet_kayitlari(klasor, sohbet)
+
+    def ciktilar(self, sohbet: object = None) -> dict:
+        """Projenin ciktilari; `sohbet` verilirse yalniz o sohbetin gorevlerinin dosyalari."""
         klasor = self._klasor()
-        liste = ciktilar.topla(klasor, ciktilar.kayitlari_oku(klasor), guvenli_goreli)
+        kayitlar = self._sohbet_kayitlari_dogrula(klasor, sohbet)
+        liste = ciktilar.topla(klasor, ciktilar.kayitlari_oku(klasor) if kayitlar is None else kayitlar, guvenli_goreli)
         return {"ciktilar": liste, "toplam": len(liste)}
+
+    BAGLAM_PENCERESI = 200_000  # 'Baglam %' paydasi: sohbetin toplam token kullanimi bu pencereye oranlanir
+
+    def sohbet_ozeti(self, sohbet: object = None) -> dict:
+        """Aktif sohbetin ozeti (sag panel): onizlenecek son html, +/- satir, token ve baglam yuzdesi. Yalniz okur."""
+        klasor = self._klasor()
+        sohbet = self._sohbet_coz(klasor, sohbet)
+        kayitlar = baglam_modulu.sohbet_kayitlari(klasor, sohbet)
+        liste = ciktilar.topla(klasor, kayitlar, guvenli_goreli)
+        html = next((c["yol"] for c in liste if c.get("tur") == "html"), None)
+        if html is None:  # korunmamis/geri alinmis olsa da sohbetin son degistirdigi sayfa: yedek
+            for k in reversed(kayitlar):
+                yol = next((y for y, d in reversed(list((k.get("degisen") or {}).items())) if d != "D" and ciktilar.tur_bul(y) == "html"), None)
+                if yol:
+                    try:
+                        if guvenli_goreli(klasor, yol).is_file():
+                            html = yol.replace("\\", "/")
+                            break
+                    except ValueError:
+                        pass
+        ekle = sil = 0
+        for k in kayitlar[-30:]:
+            if k.get("korundu") and not k.get("geri_alindi_sonradan") and isinstance(k.get("once"), str) and isinstance(k.get("sonra"), str):
+                try:
+                    a, s = snapshot.satir_sayilari(klasor, k["once"], k["sonra"])
+                except Exception:
+                    a = s = 0
+                ekle, sil = ekle + a, sil + s
+        token = sum(int(k.get("token_toplam") or 0) for k in kayitlar)
+        return {"sohbet": sohbet, "gorev_sayisi": len(kayitlar), "html": html, "cikti_sayisi": len(liste), "ekle": ekle, "sil": sil, "token": token,
+                "baglam_yuzde": min(100, round(token * 100 / self.BAGLAM_PENCERESI))}
 
     # --- gorev gecmisi (sol kenar cubugu): .aktapokus/kayitlar altindaki calistirma kayitlari, yalniz okunur ---
     def gecmis(self, adet: int = 30) -> list[dict]:
@@ -1642,6 +1684,7 @@ class Uygulama:
         except Exception:
             pass
         klasoru = _kayit_klasoru(klasor)
+        sinirlar = baglam_modulu._sinirlar(klasor)
         dosyalar = sorted(klasoru.glob("*.json"), reverse=True)[: max(1, min(int(adet), 100))] if klasoru.is_dir() else []
         cikti = []
         for d in dosyalar:
@@ -1652,6 +1695,7 @@ class Uygulama:
             cikti.append({
                 "id": k.get("id"), "zaman": k.get("zaman"), "gorev": str(k.get("gorev", ""))[:200], "durum": k.get("durum"),
                 "token_toplam": k.get("token_toplam", 0), "akis": k.get("akis", []), "degisen_sayisi": len(k.get("degisen") or {}),
+                "sohbet": baglam_modulu.kayit_sohbeti(k, sinirlar),
             })
         return cikti
 
@@ -1664,12 +1708,13 @@ class Uygulama:
         for pr in projeler.listele():
             o = acik.get(pr["id"])
             tum = self._gecmis_oku(Path(pr["yol"]), 100) if pr["var"] else []
+            sohbet_listesi = baglam_modulu.sohbet_listesi(Path(pr["yol"])) if pr["var"] else []
             meta = gorevmeta.proje_icin(pr["id"])
             for g in tum:
                 m = meta.get(g.get("id"), {})
                 g["sabit"], g["arsiv"], g["okunmadi"], g["ozel_ad"] = bool(m.get("sabit")), bool(m.get("arsiv")), bool(m.get("okunmadi")), m.get("ad")
             arsivlenen = [g for g in tum if g["arsiv"]]
-            gorevler = [g for g in tum if g["sabit"] and not g["arsiv"]] + [g for g in tum if not g["sabit"] and not g["arsiv"]][:adet]  # sabitler hep ustte
+            gorevler = [g for g in tum if g["sabit"] and not g["arsiv"]] + [g for g in tum if not g["sabit"] and not g["arsiv"]]  # sabitler hep ustte; kalici sohbetlerin eski gorevleri de gerekir (adet: yalniz sohbet sayisini kenar cubugu sinirlar)
             k = o.kosu if o else None
             aktif = k.durum if k and k.durum in AKTIF_KOSU else None
             gruplar.append({
@@ -1677,8 +1722,10 @@ class Uygulama:
                 "konusma_basi": konusma_basi_oku(Path(pr["yol"])) if pr["var"] else None,
                 "github": github_deposu_mu(Path(pr["yol"])) if pr["var"] else False,
                 "konusma_sinirlar": konusma_sinirlari_oku(Path(pr["yol"])) if pr["var"] else [],
+                "sohbetler": [{x: s.get(x) for x in ("id", "ad", "ust", "zaman", "son", "sayi")} for s in sohbet_listesi],
+                "aktif_sohbet": baglam_modulu.aktif_sohbet(Path(pr["yol"])) if pr["var"] else None,
                 "durum": aktif, "gorev": k.gorev[:200] if aktif else None,
-                "gorevler": [{x: g.get(x) for x in ("id", "zaman", "gorev", "durum", "token_toplam", "degisen_sayisi", "sabit", "okunmadi", "ozel_ad")} for g in gorevler],
+                "gorevler": [{x: g.get(x) for x in ("id", "zaman", "gorev", "durum", "token_toplam", "degisen_sayisi", "sabit", "okunmadi", "ozel_ad", "sohbet")} for g in gorevler],
                 "arsiv": [{x: g.get(x) for x in ("id", "zaman", "gorev", "durum", "ozel_ad")} for g in arsivlenen[:30]],
             })
             for g in [x for x in tum if not x["arsiv"]][:son_adet]:
@@ -1892,23 +1939,67 @@ class Uygulama:
         return {k: v for k, v in veri.items() if not k.startswith("_")}
 
     # --- gorev akisi: plan -> onay -> calisma -> karar ---
-    def yeni_konusma(self) -> dict:
-        """'Yeni' dugmesi: onceki gorevler listede KALIR ama konusma bos baslar; Claude Code'un proje konusmasi da sifirlanir (model eskiyi hatirlamaz)."""
+    def _sohbet_kimlikleri(self, klasor: Path) -> set[str]:
+        return {s["id"] for s in baglam_modulu.sohbet_listesi(klasor)} | {baglam_modulu.aktif_sohbet(klasor)}
+
+    def _sohbet_coz(self, klasor: Path, sohbet: object) -> str:
+        """Gorevin sohbeti: verilmediyse aktif sohbet; verildiyse bu projede bilinen bir sohbet olmali."""
+        if sohbet is None or sohbet == "":
+            return baglam_modulu.aktif_sohbet(klasor)
+        if not isinstance(sohbet, str) or sohbet not in self._sohbet_kimlikleri(klasor):
+            raise UygulamaHatasi("Bilinmeyen sohbet", 400)
+        return sohbet
+
+    @staticmethod
+    def _sohbet_adlandir(klasor: Path, sohbet: str, gorev: str) -> None:
+        """Sohbetin ilk istemi: adi yoksa ve henuz gorevi yoksa ilk istemden kisa baslik konur (sonra tiklayip degistirilebilir)."""
+        try:
+            if any(s["id"] == sohbet and (s["ad"] or s["sayi"]) for s in baglam_modulu.sohbet_listesi(klasor)):
+                return
+            if sohbet not in {s["id"] for s in sohbetler.oku(klasor)["liste"]}:
+                return  # eski (kayitlardan turetilen) sohbet: kenar cubugu zaten ilk istemi gosterir
+            sohbetler.ayarla(klasor, sohbet, ad=sohbetler.baslik_uret(gorev))
+        except (OSError, ValueError):
+            pass
+
+    def yeni_konusma(self, ust: object = None) -> dict:
+        """'+ Yeni sohbet' (ya da sohbet menusunde 'Alt sohbet ac'): kalici, adli yeni sohbet acar ve aktif yapar; oncekiler olduklari gibi kalir.
+        Aktif sohbet zaten bos (gorevsiz) ve ayni ebeveynliyse yenisi acilmaz, o doner."""
         klasor = self._klasor()
         with self.kilit:
-            o = self._oturum()
-            if o.kosu and o.kosu.durum in ("plan", "calisiyor", "karar-bekliyor"):
-                raise UygulamaHatasi("Gorev varken yeni konusma baslatilamaz", 409)
-            zaman = time.strftime("%Y-%m-%d %H:%M:%S")
-            yol = klasor / ".aktapokus" / "konusma-basi.json"
-            yol.parent.mkdir(parents=True, exist_ok=True)
-            yol.write_text(json.dumps({"zaman": zaman, "sinirlar": [*konusma_sinirlari_oku(klasor), zaman][-200:]}), encoding="utf-8")
+            if ust is not None and (not isinstance(ust, str) or ust not in self._sohbet_kimlikleri(klasor)):
+                raise UygulamaHatasi("Ust sohbet bulunamadi", 404)
+            aktif = baglam_modulu.aktif_sohbet(klasor)
+            bos = next((s for s in baglam_modulu.sohbet_listesi(klasor) if s["id"] == aktif and not s["sayi"]), None)
+            if bos and bos["ust"] == ust:
+                return {"sohbet": aktif, "ust": ust}
             try:
-                ClaudeCodeCalistirici._oturum_yolu(klasor).unlink(missing_ok=True)
-                SunucuCalistirici.oturum_yolu(klasor).unlink(missing_ok=True)
-            except OSError:
-                pass
-        return {"zaman": zaman}
+                return {"sohbet": sohbetler.ac(klasor, ust), "ust": ust}
+            except (OSError, ValueError) as hata:
+                raise UygulamaHatasi(f"Sohbet acilamadi: {hata}", 500) from None
+
+    def sohbet_sec(self, sohbet: object) -> dict:
+        klasor = self._klasor()
+        if not isinstance(sohbet, str) or sohbet not in self._sohbet_kimlikleri(klasor):
+            raise UygulamaHatasi("Sohbet bulunamadi", 404)
+        try:
+            sohbetler.aktif_yap(klasor, sohbet)
+        except OSError as hata:
+            raise UygulamaHatasi(f"Yazilamadi: {hata}", 500) from None
+        return {"sohbet": sohbet}
+
+    def sohbet_ad(self, sohbet: object, ad: object) -> dict:
+        """Sohbeti yeniden adlandirir (bos ad = otomatik/ilk istem adi)."""
+        klasor = self._klasor()
+        if not isinstance(sohbet, str) or sohbet not in self._sohbet_kimlikleri(klasor):
+            raise UygulamaHatasi("Sohbet bulunamadi", 404)
+        if not isinstance(ad, str) or any(c in ad for c in "\r\n\x00"):
+            raise UygulamaHatasi("Ad tek satirlik metin olmali")
+        try:
+            sohbetler.ayarla(klasor, sohbet, ad=ad)
+        except (OSError, ValueError) as hata:
+            raise UygulamaHatasi(str(hata)) from None
+        return {"sohbet": sohbet, "ad": " ".join(ad.split())[: sohbetler.AZAMI_AD]}
 
     def ek_kaydet(self, ad: object, veri: bytes) -> dict:
         """Gorev eki: projenin `.aktapokus/ekler/<zaman>-<rastgele>/<ad>` klasorune yazilir (anlik goruntuye/git'e girmez). Yalniz izinli uzantilar, en fazla EK_AZAMI bayt."""
@@ -1962,12 +2053,13 @@ class Uygulama:
             satirlar.append(f"- {y}")
         return gorev.strip() + "\n\nEkli dosyalar (proje klasorunde; gerekirse bu dosyalari acip okuyun, resimlere de bakin):\n" + "\n".join(satirlar)
 
-    def gorev_olustur(self, gorev: str, testsiz: bool | None = None, otomatik_onay_izni: bool = True, ekler: object = None, kuyruga: bool = False, model_gecersiz: tuple | None = None, onaysiz: bool = False) -> dict:
+    def gorev_olustur(self, gorev: str, testsiz: bool | None = None, otomatik_onay_izni: bool = True, ekler: object = None, kuyruga: bool = False, model_gecersiz: tuple | None = None, onaysiz: bool = False, sohbet: object = None) -> dict:
         """kuyruga=True: bir gorev surerken (calisiyor/karar) gelen yeni gorev reddedilmez, sirayla kosulmak uzere kuyruga alinir."""
         klasor = self._klasor()
         if not isinstance(gorev, str) or not gorev.strip():
             raise UygulamaHatasi("Gorev bos olamaz")
         gorev = self._ekleri_ekle(klasor, gorev, ekler)
+        sohbet = self._sohbet_coz(klasor, sohbet)
         with self.kilit:
             oturum = self._oturum()
             if oturum.kosu and oturum.kosu.durum in ("plan", "calisiyor", "karar-bekliyor"):
@@ -1975,11 +2067,11 @@ class Uygulama:
                     raise UygulamaHatasi("Zaten bir gorev var (onay/calisma/karar bekliyor)", 409)
                 if len(oturum.kuyruk) >= KUYRUK_AZAMI:
                     raise UygulamaHatasi(f"Kuyruk dolu (en fazla {KUYRUK_AZAMI} gorev)", 409)
-                oturum.kuyruk.append({"gorev": gorev.strip(), "testsiz": testsiz})
+                oturum.kuyruk.append({"gorev": gorev.strip(), "testsiz": testsiz, "sohbet": sohbet})
                 self._kuyruk_yayinla(oturum)
                 self._devam_yaz(oturum)
                 return {"kuyruk": len(oturum.kuyruk)}
-            return self._gorev_kur(oturum, klasor, gorev, testsiz, otomatik_onay_izni, model_gecersiz, onaysiz)
+            return self._gorev_kur(oturum, klasor, gorev, testsiz, otomatik_onay_izni, model_gecersiz, onaysiz, sohbet)
 
     def _kuyruk_yayinla(self, oturum: ProjeOturumu) -> None:
         self._yayinla(oturum, {"tur": "kuyruk", "gorevler": [k["gorev"][:200] for k in oturum.kuyruk]})
@@ -2008,13 +2100,13 @@ class Uygulama:
             siradaki = oturum.kuyruk.pop(0)
             self._kuyruk_yayinla(oturum)
             try:
-                self._gorev_kur(oturum, oturum.klasor, siradaki["gorev"], siradaki["testsiz"], True)
+                self._gorev_kur(oturum, oturum.klasor, siradaki["gorev"], siradaki["testsiz"], True, sohbet=siradaki.get("sohbet"))
             except (UygulamaHatasi, AyarHatasi) as hata:
                 oturum.kuyruk.clear()
                 self._kuyruk_yayinla(oturum)
                 self._yayinla(oturum, {"tur": "gunluk", "mesaj": f"Kuyruktaki gorev baslatilamadi: {hata}"})
 
-    def _gorev_kur(self, oturum: ProjeOturumu, klasor: Path, gorev: str, testsiz: bool | None, otomatik_onay_izni: bool, model_gecersiz: tuple | None = None, onaysiz: bool = False) -> dict:
+    def _gorev_kur(self, oturum: ProjeOturumu, klasor: Path, gorev: str, testsiz: bool | None, otomatik_onay_izni: bool, model_gecersiz: tuple | None = None, onaysiz: bool = False, sohbet: str | None = None) -> dict:
         """Plani kurar ve yayinlar; otomatik onay varsa kosuyu baslatir. `onaysiz` yalniz kayitli otomasyondan gelir (kullanicinin izni)."""
         with self.kilit:
             try:
@@ -2026,6 +2118,8 @@ class Uygulama:
             oturum.kosu = Kosu(kimlik=secrets.token_hex(4), gorev=gorev.strip(), testsiz=bool(ayar.testi_atla if testsiz is None else testsiz))
             oturum.kosu.model_gecersiz = model_gecersiz
             oturum.kosu.onaysiz = onaysiz
+            oturum.kosu.sohbet = sohbet or baglam_modulu.aktif_sohbet(klasor)
+            self._sohbet_adlandir(klasor, oturum.kosu.sohbet, gorev)
             oturum.yarim = None  # yeni gorev baslarken eski 'yarim kaldi' karari gecersizdir
             self._devam_yaz(oturum)
             otomatik = bool((ayar.otomatik_onay and otomatik_onay_izni) or onaysiz)
@@ -2159,7 +2253,7 @@ class Uygulama:
                 ayar = ayar_model_gecersiz(ayar, *kosu.model_gecersiz)
             koru[0] = ayar.otomatik_koru or kosu.onaysiz or izinler.koru()  # Ayarlar > Izinler: tum projelerde 'Keep' sorulmaz
             kosu.dogrulama_rolleri = frozenset(ad for ad, r in ayar.roller.items() if r.dogrulama)
-            kosu.sonuc = calistir_hat(klasor, kosu.gorev, ayar, uret, onay, bildir=lambda m: yayinla({"tur": "gunluk", "mesaj": m}), olay=olay, iptal=kosu.iptal, testsiz=kosu.testsiz, testi_atla=kosu.testi_atla)
+            kosu.sonuc = calistir_hat(klasor, kosu.gorev, ayar, uret, onay, bildir=lambda m: yayinla({"tur": "gunluk", "mesaj": m}), olay=olay, iptal=kosu.iptal, testsiz=kosu.testsiz, testi_atla=kosu.testi_atla, sohbet=kosu.sohbet)
             oturum.son_hat = {"once": kosu.sonuc.once, "sonra": kosu.sonuc.sonra, "degisen": kosu.sonuc.degisen, "durum": kosu.sonuc.durum}
         except (HatHatasi, KlasorHatasi, AyarHatasi, snapshot.GitHatasi, CalistiriciHatasi) as hata:
             yayinla({"tur": "bitti", "durum": "hata", "mesaj": str(hata), "kosu": kosu.kimlik})
@@ -2186,10 +2280,11 @@ class Uygulama:
             if not isinstance(gorev, str) or not re.fullmatch(r"[0-9A-Za-z_-]{1,64}", gorev):
                 raise UygulamaHatasi("Gorev kimligi gecersiz", 400)
             try:
-                zaman = json.loads((klasor / ".aktapokus" / "kayit" / f"{gorev}.json").read_text(encoding="utf-8")).get("zaman")
+                k_kayit = json.loads((klasor / ".aktapokus" / "kayit" / f"{gorev}.json").read_text(encoding="utf-8"))
+                zaman = k_kayit.get("zaman")
             except (OSError, ValueError):
                 raise UygulamaHatasi("Gorev kaydi bulunamadi", 404) from None
-            sohbet = baglam_modulu.sohbet_kimligi(klasor, zaman if isinstance(zaman, str) else None)
+            sohbet = baglam_modulu.kayit_sohbeti({**k_kayit, "zaman": zaman if isinstance(zaman, str) else ""}, baglam_modulu._sinirlar(klasor))
         try:
             return baglam_modulu.konusma_ozeti_yaz(klasor, sohbet)
         except OSError as hata:
@@ -2654,7 +2749,9 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if m:
                     return self._terminal_akis(m.group(1), int(q.get("son", "0") or 0))
                 if yol == "/api/ciktilar":
-                    return self._gonder(200, app.ciktilar())
+                    return self._gonder(200, app.ciktilar(q.get("sohbet")))
+                if yol == "/api/sohbet-ozeti":
+                    return self._gonder(200, app.sohbet_ozeti(q.get("sohbet")))
                 if yol == "/api/hesaplar":
                     return self._gonder(200, app.hesaplar())
                 if yol == "/api/gecmis":
@@ -2683,7 +2780,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if yol == "/api/olaylar":
                     return self._akis(int(q.get("son", "0") or 0))
             if yontem == "POST" and yol == "/api/yeni-konusma":
-                return self._gonder(200, app.yeni_konusma())
+                g = self._govde()
+                return self._gonder(200, app.yeni_konusma(g.get("ust") if isinstance(g, dict) else None))
             if yontem == "POST" and yol == "/api/ek":
                 return self._gonder(200, app.ek_kaydet(q.get("ad"), self._ham_govde(EK_AZAMI)))
             if yontem == "POST":
@@ -2826,7 +2924,13 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if yol == "/api/clilar/dene":
                     return self._gonder(200, app.cli_dene(g.get("ad"), g.get("model")))
                 if yol == "/api/gorev":
-                    return self._gonder(200, app.gorev_olustur(g.get("gorev"), g.get("testsiz") if isinstance(g.get("testsiz"), bool) else None, ekler=g.get("ekler"), kuyruga=g.get("kuyruga") is True))
+                    return self._gonder(200, app.gorev_olustur(g.get("gorev"), g.get("testsiz") if isinstance(g.get("testsiz"), bool) else None, ekler=g.get("ekler"), kuyruga=g.get("kuyruga") is True, sohbet=g.get("sohbet")))
+                if yol == "/api/yeni-sohbet":
+                    return self._gonder(200, app.yeni_konusma(g.get("ust")))
+                if yol == "/api/sohbet-sec":
+                    return self._gonder(200, app.sohbet_sec(g.get("sohbet")))
+                if yol == "/api/sohbet-ad":
+                    return self._gonder(200, app.sohbet_ad(g.get("sohbet"), g.get("ad")))
                 if yol == "/api/konusma-ozeti":
                     return self._gonder(200, app.konusma_ozeti(g.get("gorev")))
                 if yol == "/api/kuyruk/sil":

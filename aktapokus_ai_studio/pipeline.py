@@ -109,11 +109,14 @@ def calistir_hat(
     iptal: threading.Event | None = None,
     testsiz: bool = False,
     testi_atla: threading.Event | None = None,
+    sohbet: str | None = None,
 ) -> HatSonucu:
-    """olay: yapisal ilerleme olaylari (arayuz icin); iptal: ayarlanirsa bir sonraki adimdan once durur."""
+    """olay: yapisal ilerleme olaylari (arayuz icin); iptal: ayarlanirsa bir sonraki adimdan once durur.
+    sohbet: gorevin ait oldugu sohbet (kayita yazilir, hafiza/oturum sohbete gore secilir); None: aktif sohbet."""
     if not gorev.strip():
         raise HatHatasi("Gorev bos olamaz")
     klasor = guvenli_klasor(klasor)
+    sohbet = sohbet or baglam_modulu.aktif_sohbet(klasor)
     if not snapshot.hazir_mi(klasor):
         raise HatHatasi(
             f"{klasor} icin geri alma hazir degil (git deposu degil ve golge yedek kurulmamis): once klasoru arayuzden ya da 'aktapokus ac {klasor}' ile acin."
@@ -139,12 +142,12 @@ def calistir_hat(
             raise HatHatasi(
                 "Bu klasorde gizli/hassas dosyalar var (" + ", ".join(hassas[:5]) + ("..." if len(hassas) > 5 else "") + ") ve "
                 + ", ".join(sorted({r.calistirici for r in riskli})) + " rolu bunlari OKUYUP modele/buluta gonderebilir (koruyucusu yok). "
-                "Cozum: dosyalari proje disina tasiyin, ya da bu rolleri OpenCode ile calistirin, ya da riski bilerek kabul edip "
-                "rolde \"okuma_riski_kabul\": true yazin."
+                "Cozum: Ayarlar > Roller'den rol icin OpenCode secin, dosyalari proje disina tasiyin, ya da rolde "
+                "'Gizli dosya okumaya izin ver' kutusunu isaretleyin."
             )
     if ayar.baglam:  # ajanin degisikligi sayilmasin diye anlik goruntuden ONCE
         try:
-            degisen_baglam = {d: s for d, s in baglam_modulu.guncelle(klasor, ayar).items() if s != "ayni"}
+            degisen_baglam = {d: s for d, s in baglam_modulu.guncelle(klasor, ayar, sohbet).items() if s != "ayni"}
             if degisen_baglam:
                 bildir("Ortak baglam guncellendi: " + ", ".join(f"{d} ({s})" for d, s in degisen_baglam.items()))
         except OSError as hata:
@@ -172,17 +175,24 @@ def calistir_hat(
         hafiza = ""
         if ayar.baglam:  # Mistral Vibe ayrica istem_baglami (DURUM.md ozeti) alir; sohbet hafizasi tum araclara ayni gider
             try:  # model/arac degistiyse bu sohbetin hafizasi isteme eklenir; degismediyse CLI kendi oturumunu surdurur
-                hafiza, neden = baglam_modulu.hafiza_istemi_nedenli(klasor, rol.ad, rol.calistirici, rol.model, acilista=True)
+                hafiza, neden = baglam_modulu.hafiza_istemi_nedenli(klasor, rol.ad, rol.calistirici, rol.model, acilista=True, sohbet=sohbet)
             except OSError:
                 hafiza, neden = "", ""
             if hafiza:
                 bildir(f"Sohbet hafizasi {rol.ad} istemine eklendi ({'model degisti: ' + rol.calistirici + '/' + (rol.model or 'varsayilan model') if neden == 'model' else 'uygulama yeniden acildi'}).")
+        if ayar.baglam:  # projedeki DIGER sohbetlerin kisa ozeti (veri): sohbetler birbirinden habersiz kalmasin
+            try:
+                diger = baglam_modulu.diger_sohbetler_baglami(klasor, sohbet)
+            except OSError:
+                diger = ""
+            hafiza = "\n\n".join(x for x in (hafiza, diger) if x)
         istem = istem_olustur(rol, gorev, onceki, duzeltme_notu if idx == 0 else None, hafiza)
         bildir(f"-> {rol.ad} ({rol.calistirici}/{rol.model or 'varsayilan model'}) calisiyor...")
         olay({"tur": "adim-basladi", "sira": len(sonuc.adimlar) + 1, "rol": rol.ad, "calistirici": rol.calistirici, "model": rol.model})
         try:
             ru = calistirici_uret(rol.calistirici)
             ru.dusunme = rol.dusunme or None  # rol basina dusunme seviyesi (Claude Code / Codex)
+            ru.sohbet = sohbet  # CLI oturumu sohbet basina tutulur
             r: CalistirmaSonucu = ru.calistir(
                 istem, klasor, model=rol.model, agent=rol.agent, zaman_asimi_sn=ayar.zaman_asimi_sn, onayli=True
             )
@@ -274,23 +284,24 @@ def calistir_hat(
         else:
             snapshot.geri_yukle(klasor, once, sonra)
             sonuc.durum = "geri_alindi" if durum == "tamam" else durum
-    sonuc.kayit_yolu = _kayit_yaz(klasor, kimlik, gorev, ayar, sonuc)
+    sonuc.kayit_yolu = _kayit_yaz(klasor, kimlik, gorev, ayar, sonuc, sohbet)
     if ayar.baglam:  # basa donen/yeni bir modele 'KONUSMA-OZETI.md'yi oku' denebilsin: ozet her calisma sonunda guncel
         try:
-            baglam_modulu.konusma_ozeti_yaz(klasor)
+            baglam_modulu.konusma_ozeti_yaz(klasor, sohbet)
         except OSError:
             pass
     olay({"tur": "bitti", "durum": sonuc.durum, "mesaj": sonuc.mesaj, "korundu": sonuc.korundu, "token_toplam": sonuc.token_toplam, "degisen": sonuc.degisen})
     return sonuc
 
 
-def _kayit_yaz(klasor: Path, kimlik: str, gorev: str, ayar: Ayar, sonuc: HatSonucu) -> Path:
+def _kayit_yaz(klasor: Path, kimlik: str, gorev: str, ayar: Ayar, sonuc: HatSonucu, sohbet: str | None = None) -> Path:
     klasoru = _kayit_klasoru(klasor)
     klasoru.mkdir(parents=True, exist_ok=True)
     kayit = {
         "id": kimlik,
         "zaman": time.strftime("%Y-%m-%d %H:%M:%S"),
         "gorev": gorev,
+        **({"sohbet": sohbet} if sohbet else {}),
         "akis": list(ayar.akis),
         "durum": sonuc.durum,
         "korundu": sonuc.korundu,

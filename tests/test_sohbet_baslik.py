@@ -30,7 +30,7 @@ def test_sohbet_adi_yeni_gorev_eklenince_eski_metne_donmez_en_yeni_ad_gecerlidir
 
     if shutil.which("node") is None:
         pytest.skip("node kurulu degil")
-    fn = re.search(r"function konusmaOzeti\(a\)\{.*?\}\n", HTML, re.S).group(0)
+    fn = re.search(r"function konusmaOzeti\(a,g\)\{.*?\}\n", HTML, re.S).group(0)
     betik = fn + """
 const g = (id, ad, gorev) => ({id, zaman: id, gorev, ozel_ad: ad, degisen_sayisi: 1});
 const out = {

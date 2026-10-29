@@ -55,7 +55,8 @@ def test_proje_gruplari_github_alani(kur):
 
 
 def test_arayuz_enter_gonderir_sesli_yazma_ve_sade_kenar():
-    assert 'id="gonder" style="display:none"' in HTML  # gorunur Gonder dugmesi yok
+    assert 'id="gonder" class="pri yuvarlak" style="display:none"' in HTML  # gonder dugmesi yalniz yazi varken gorunur
+    assert "function gonderDugmeGuncelle" in HTML and 'addEventListener("input",gonderDugmeGuncelle)' in HTML
     assert "ev.key===\"Enter\"&&!ev.shiftKey&&!ev.isComposing" in HTML
     assert 'id="mikDugme"' in HTML and "webkitSpeechRecognition" in HTML and "isSecureContext" in HTML and "r.lang=DIL.yerel" in HTML
     assert "Son görevler" not in HTML  # kenar cubugunda ayri liste yok
@@ -63,13 +64,13 @@ def test_arayuz_enter_gonderir_sesli_yazma_ve_sade_kenar():
     assert "Hep koru" in HTML and "otomatik_koru" in HTML
 
 
-def test_yeni_konusma_siniri_listede_birikir(kur):
+def test_yeni_sohbet_listede_birikir(kur):
     app, sv, api, _ = kur()
     klasor_sec(api, kur.proje)
-    z = api("POST", "/api/yeni-konusma", {})[1]["zaman"]
+    s = api("POST", "/api/yeni-konusma", {})[1]["sohbet"]
     g = [x for x in api("GET", "/api/proje-gruplari")[1]["projeler"] if x["secili"]][0]
-    assert g["konusma_basi"] == z and g["konusma_sinirlar"][-1] == z
-    assert "konusmaGruplari" in HTML and "konusmaOzeti" in HTML  # kenar cubugu konusma basina tek satir
+    assert g["aktif_sohbet"] == s and g["sohbetler"][-1]["id"] == s
+    assert "konusmaGruplari" in HTML and "konusmaOzeti" in HTML  # kenar cubugu sohbet basina tek satir
 
 
 def test_ciktilar_alt_cerceve_listeyi_kapatmaz():
