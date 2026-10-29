@@ -93,6 +93,7 @@ def mcp_ve_beceri_yalitimi(tmp_path_factory, monkeypatch):
     """Hicbir test kullanicinin gercek ~/.aktapokus/mcp.json ya da ~/.agents/skills klasorunu okumasin/yazmasin."""
     monkeypatch.setenv("AKTAPOKUS_OPCUA_DB", str(tmp_path_factory.mktemp("opcuadb") / "opcua.db"))  # OPC UA olcum veritabani gercek ~/.aktapokus altina yazilmasin
     monkeypatch.setenv("AKTAPOKUS_AG_PROFILLER", str(tmp_path_factory.mktemp("agprofil") / "ag-profiller.json"))  # IP profilleri gercek ~/.aktapokus altina yazilmasin
+    monkeypatch.setenv("AKTAPOKUS_OPCUA_TOPLAMA", str(tmp_path_factory.mktemp("opcuatopla") / "opcua-toplama.json"))  # kayitli toplama ayari gercek ~/.aktapokus altina yazilmasin / testler gercek toplamayi surdurmesin
     monkeypatch.setenv("AKTAPOKUS_MCP", str(tmp_path_factory.mktemp("mcp") / "mcp.json"))
     monkeypatch.setenv("AKTAPOKUS_BECERILER", str(tmp_path_factory.mktemp("beceriler") / "skills"))
     monkeypatch.setenv("AKTAPOKUS_MOTOR_TERCIH", "opencode-sunucu")  # test sonuclari bu bilgisayarda hangi CLI'in kurulu oldugundan bagimsiz olsun

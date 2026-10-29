@@ -8,8 +8,10 @@ from .opcua_depo import Depo
 
 
 class Toplayici:
-    def __init__(self, adres: str, kimlikler: list[str], adlar: dict[str, str], depo: Depo, aralik_ms: int = 500):
+    def __init__(self, adres: str, kimlikler: list[str], adlar: dict[str, str], depo: Depo, aralik_ms: int = 500, saklama_gun: int = 0):
         self.adres, self.kimlikler, self.adlar, self.depo, self.aralik_ms = adres, kimlikler, adlar, depo, aralik_ms
+        self.saklama_gun = saklama_gun  # 0: sinirsiz
+        self._son_temizlik = 0.0
         self.bagli = False
         self.yazilan = 0
         self.hata: str | None = None
@@ -33,12 +35,17 @@ class Toplayici:
         if self._is_parcacigi is not None:
             self._is_parcacigi.join(10)
 
+    def temizle(self) -> int:
+        """Saklama suresinden eski olcumleri siler (0 gun: hicbir sey silinmez)."""
+        self._son_temizlik = time.time()
+        return self.depo.sil_eski(time.time() - self.saklama_gun * 86400) if self.saklama_gun > 0 else 0
+
     @property
     def calisiyor(self) -> bool:
         return self._is_parcacigi is not None and self._is_parcacigi.is_alive()
 
     def durum(self) -> dict:
-        return {"calisiyor": self.calisiyor, "bagli": self.bagli, "adres": self.adres, "kimlikler": self.kimlikler, "yazilan": self.yazilan, "hata": self.hata}
+        return {"calisiyor": self.calisiyor, "bagli": self.bagli, "adres": self.adres, "kimlikler": self.kimlikler, "yazilan": self.yazilan, "hata": self.hata, "saklama_gun": self.saklama_gun}
 
     async def _ana(self) -> None:
         from asyncua import Client
@@ -64,6 +71,8 @@ class Toplayici:
                     await abonelik.subscribe_data_change([istemci.get_node(k) for k in self.kimlikler])
                     self.bagli, self.hata, bekleme = True, None, 1.0
                     while not self._dur.is_set():
+                        if time.time() - self._son_temizlik > 3600:
+                            self.temizle()
                         try:
                             await asyncio.wait_for(self._dur.wait(), 1.0)
                         except asyncio.TimeoutError:

@@ -78,3 +78,26 @@ def test_toplayici_sunucu_sonradan_acilsa_da_yazar(tmp_path):
         dur.set()
         th.join(10)
     assert not t.calisiyor
+
+
+def test_depo_temizligi_saklama_suresine_gore(tmp_path):
+    import time as zaman
+    from aktapokus_ai_studio.opcua_toplayici import Toplayici
+
+    depo = Depo(tmp_path / "s.db")
+    simdi = zaman.time()
+    depo.ekle("k", [(simdi - 40 * 86400, "a", "A", 1), (simdi - 5 * 86400, "a", "A", 2), (simdi, "a", "A", 3)])
+    assert Toplayici("opc.tcp://x", ["a"], {}, depo, saklama_gun=0).temizle() == 0 and depo.say() == 3  # 0: sinirsiz
+    assert Toplayici("opc.tcp://x", ["a"], {}, depo, saklama_gun=30).temizle() == 1 and depo.say() == 2
+
+
+def test_ayar_dosyasi_gecerlilik(tmp_path, monkeypatch):
+    from aktapokus_ai_studio import opcua_ayar
+
+    assert opcua_ayar.oku() is None
+    opcua_ayar.yaz("opc.tcp://x:1", ["ns=2;i=1"], {"ns=2;i=1": "A"}, 7, True)
+    assert opcua_ayar.oku() == {"adres": "opc.tcp://x:1", "kimlikler": ["ns=2;i=1"], "adlar": {"ns=2;i=1": "A"}, "saklama_gun": 7, "otomatik": True}
+    opcua_ayar.otomatik_ayarla(False)
+    assert opcua_ayar.oku()["otomatik"] is False
+    opcua_ayar.yol().write_text('{"adres": "http://x", "kimlikler": ["a"]}', encoding="utf-8")
+    assert opcua_ayar.oku() is None

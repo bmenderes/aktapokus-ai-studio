@@ -87,3 +87,39 @@ def test_toplama_uctan_uca(api):
         assert st == 200 and len(d["olcumler"]) == 2 and d["olcumler"][0]["ad"] == "Sayac"
 
     _sunucuda(dene)
+
+
+def test_toplama_acilista_devam_eder_durdurulunca_etmez(api):
+    pytest.importorskip("asyncua")
+    import time
+
+    from aktapokus_ai_studio import opcua_ayar
+
+    def dene(s):
+        kimlik = s.dugumler["Sayac"].nodeid.to_string()
+        assert api("POST", "/api/opcua/topla", {"adres": s.adres, "kimlikler": [kimlik], "saklama_gun": 7})[0] == 200
+        assert opcua_ayar.oku()["otomatik"] is True and opcua_ayar.oku()["saklama_gun"] == 7
+        # uygulama yeniden aciliyor gibi: yeni Uygulama ayni ayari okuyup toplamayi surdurur
+        yeni = Uygulama()
+        yeni.opcua_devam()
+        try:
+            for _ in range(100):
+                if yeni.opcua_toplama_durumu()["yazilan"] >= 2:
+                    break
+                time.sleep(0.1)
+            assert yeni.opcua_toplama_durumu()["yazilan"] >= 2
+        finally:
+            yeni.opcua_durdur(kalici=False)
+        assert opcua_ayar.oku()["otomatik"] is True  # kapanis ayari bozmaz
+        api("POST", "/api/opcua/durdur", {})
+        assert opcua_ayar.oku()["otomatik"] is False  # kullanici durdurdu
+        sifir = Uygulama()
+        sifir.opcua_devam()
+        assert sifir._opcua_toplayici is None
+
+    _sunucuda(dene)
+
+
+def test_saklama_gunu_dogrulanir(api):
+    for kotu in (-1, 4000, "30", True):
+        assert api("POST", "/api/opcua/topla", {"adres": "opc.tcp://127.0.0.1:1", "kimlikler": ["a"], "saklama_gun": kotu})[0] == 400, kotu

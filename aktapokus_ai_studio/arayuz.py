@@ -33,7 +33,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import ag_araci, ag_profil, bootp, opcua, opcua_depo, opcua_toplayici, arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, oneriler, izinler, uyanik, otomatik_baslat, gonderme_kontrol, yayin
+from . import ag_araci, ag_profil, bootp, opcua, opcua_ayar, opcua_depo, opcua_toplayici, arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, oneriler, izinler, uyanik, otomatik_baslat, gonderme_kontrol, yayin
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_model_gecersiz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
@@ -1340,19 +1340,37 @@ class Uygulama:
         if not isinstance(kimlikler, list) or not kimlikler or len(kimlikler) > 200 or not all(isinstance(k, str) and k for k in kimlikler):
             raise UygulamaHatasi("Dugum kimlikleri gerekli")
         adlar = {k: str(v)[:100] for k, v in adlar.items() if isinstance(k, str)} if isinstance(adlar, dict) else {}
+        gun = g.get("saklama_gun", opcua_ayar.VARSAYILAN_SAKLAMA_GUN)
+        if isinstance(gun, bool) or not isinstance(gun, int) or not 0 <= gun <= 3650:
+            raise UygulamaHatasi("Saklama suresi 0-3650 gun olmali (0: sinirsiz)")
         if not opcua.kurulu():
             raise UygulamaHatasi("asyncua kurulu degil", 501)
         with self._opcua_kilit:
             if self._opcua_toplayici is not None and self._opcua_toplayici.calisiyor:
                 raise UygulamaHatasi("Toplama zaten calisiyor", 409)
-            self._opcua_toplayici = opcua_toplayici.Toplayici(adres, kimlikler, adlar, self._opcua_depoyu_ac())
+            self._opcua_toplayici = opcua_toplayici.Toplayici(adres, kimlikler, adlar, self._opcua_depoyu_ac(), saklama_gun=gun)
+            self._opcua_toplayici.temizle()
             self._opcua_toplayici.baslat()
+            opcua_ayar.yaz(adres, kimlikler, adlar, gun, True)  # yeniden acilinca devam eder
         return self.opcua_toplama_durumu()
 
-    def opcua_durdur(self) -> dict:
+    def opcua_devam(self) -> None:
+        """Uygulama acilirken: kullanici durdurmadiysa kayitli toplamayi surdurur (asyncua yoksa sessizce atlar)."""
+        a = opcua_ayar.oku()
+        if a is None or not a["otomatik"] or not opcua.kurulu():
+            return
+        try:
+            self.opcua_topla(a)
+        except UygulamaHatasi:
+            pass
+
+    def opcua_durdur(self, kalici: bool = True) -> dict:
+        """kalici=True: kullanici durdurdu, acilista devam etme. Kapanista False: ayar korunur, bir sonraki acilista surer."""
         with self._opcua_kilit:
             if self._opcua_toplayici is not None:
                 self._opcua_toplayici.durdur()
+            if kalici:
+                opcua_ayar.otomatik_ayarla(False)
         return self.opcua_toplama_durumu()
 
     def opcua_veri(self, kimlik: object, n: object) -> dict:
@@ -3113,6 +3131,7 @@ class ArayuzSunucusu:
 
     def baslat(self) -> None:
         threading.Thread(target=self.http.serve_forever, daemon=True).start()
+        self.app.opcua_devam()
 
     def kapat(self) -> None:
         self.kapaniyor.set()
@@ -3121,7 +3140,7 @@ class ArayuzSunucusu:
         self.uzak_durdur()
         self.uyku_engeli.kapat()
         if self.app._opcua_toplayici is not None:
-            self.app.opcua_durdur()
+            self.app.opcua_durdur(kalici=False)
         if self.app._bootp is not None:
             self.app._bootp.durdur()
         self.app.terminalleri_kapat()  # terminal surecleri arayuzle birlikte kapanir

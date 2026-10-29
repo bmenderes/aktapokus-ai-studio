@@ -1263,10 +1263,10 @@ async function opcuaBolumu(h){const d=await api("/api/opcua");
     return e("div",{class:"row",style:"margin-left:12px;gap:6px;white-space:nowrap",title:n.kimlik},kutu,e("span",{text:n.ad}),oku,sonuc)};
   const agac=e("button",{class:"yuvarlak",text:"Ağaç",onclick:async()=>{agac.disabled=true;const r=await calis("agac",{});agac.disabled=false;if(!r)return;secili.clear();agacKap.textContent="";r.agac.forEach(n=>agacKap.append(dugum(n)))}});
   const dinle=e("button",{class:"yuvarlak",text:"Dinle",onclick:async()=>{if(!secili.size)return;dinle.disabled=true;cikti.textContent="";const r=await calis("abone",{kimlikler:[...secili.keys()],sure:3});dinle.disabled=false;if(!r)return;cikti.textContent=r.olaylar.map(o=>(secili.get(o.kimlik)||o.kimlik)+" = "+o.deger).join("\n")}});
-  const durum=e("span",{class:"mono mut3"});let calisiyor=false;
-  const topla=e("button",{class:"yuvarlak",text:"Topla",onclick:async()=>{if(calisiyor){await calis("durdur",{});return durumYenile()}if(!secili.size)return;topla.disabled=true;await calis("topla",{kimlikler:[...secili.keys()],adlar:Object.fromEntries(secili)});topla.disabled=false;durumYenile()}});
+  const durum=e("span",{class:"mono mut3"});let calisiyor=false;const gun=e("input",{type:"number",min:"0",max:"3650",value:"30",title:"Saklama (gün, 0: sınırsız)",style:"width:64px"});
+  const topla=e("button",{class:"yuvarlak",text:"Topla",onclick:async()=>{if(calisiyor){await calis("durdur",{});return durumYenile()}if(!secili.size)return;topla.disabled=true;await calis("topla",{kimlikler:[...secili.keys()],adlar:Object.fromEntries(secili),saklama_gun:Math.max(0,parseInt(gun.value)||0)});topla.disabled=false;durumYenile()}});
   const durumYenile=async()=>{try{const t=await api("/api/opcua/toplama");calisiyor=t.calisiyor;topla.textContent=calisiyor?"Durdur":"Topla";durum.textContent=(calisiyor?(t.bagli?"bağlı":"bağlanılıyor"):"durdu")+" · "+t.kayit+" kayıt"+(t.hata?" · "+t.hata:"")}catch(x){}};
-  h.append(e("div",{class:"row",style:"gap:6px;flex-wrap:nowrap"},adres,agac,dinle,topla),e("div",{style:"margin-top:6px"},durum),hata,agacKap,cikti);
+  h.append(e("div",{class:"row",style:"gap:6px;flex-wrap:nowrap"},adres,agac,dinle,gun,topla),e("div",{style:"margin-top:6px"},durum),hata,agacKap,cikti);
   await durumYenile();S.telegramZ=setInterval(durumYenile,2000)}
 /* ---- Ayarlar > MCP sunucuları ve Beceriler ---- */
 function mcpOzet(s){return s.tur==="remote"?s.url:s.komut.join(" ")}
