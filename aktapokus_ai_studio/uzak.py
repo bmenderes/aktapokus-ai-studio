@@ -230,6 +230,7 @@ YONETIM_KAPALIYKEN_YASAK = (
     ({"POST", "PUT", "DELETE"}, "/api/clilar"),
     ({"POST", "PUT", "DELETE"}, "/api/mcp-sunuculari"),
     ({"POST"}, "/api/opcua"),  # istek sunucusundan ag adreslerine baglanir
+    ({"POST"}, "/api/ag"),  # bilgisayarin IP'sini degistirir, agi tarar, BOOTP yanitlar
     ({"POST", "PUT", "DELETE"}, "/api/saglayicilar"),
     ({"POST", "PUT", "DELETE"}, "/api/telegram"),
     ({"POST", "PUT", "DELETE"}, "/api/beceriler"),

@@ -33,7 +33,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import opcua, opcua_depo, opcua_toplayici, arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, oneriler, izinler, uyanik, otomatik_baslat, gonderme_kontrol, yayin
+from . import ag_araci, ag_profil, bootp, opcua, opcua_depo, opcua_toplayici, arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, oneriler, izinler, uyanik, otomatik_baslat, gonderme_kontrol, yayin
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_model_gecersiz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
@@ -299,6 +299,8 @@ class Uygulama:
     ):
         self.calistirici_uret = calistirici_uret
         self._opcua_toplayici = None
+        self._bootp = None
+        self._ag_kilit = threading.Lock()
         self._opcua_depo = None
         self._opcua_kilit = threading.Lock()
         self._saglayici_istemci_uret = saglayici_istemci_uret
@@ -1261,6 +1263,60 @@ class Uygulama:
 
     # --- MCP sunuculari ve beceriler: tanimlar YALNIZ bu yerel, belirtecli arayuzden yazilir (Telegram'dan degil): ikisi de bu bilgisayarda
     # program/talimat calistirmak demektir. Ortam/baslik DEGERLERI arayuze geri verilmez. ---
+    # --- Ag araci (ayri /ag sayfasi): tarama, bu bilgisayarin IP'si, BOOTP/DHCP atama. Yazan islemler YALNIZ yerel, belirtecli arayuzden (uzak.py'de yasak). ---
+    def _ag_hata(self, islev, *a):
+        try:
+            return islev(*a)
+        except (ag_araci.AgHatasi, bootp.BootpHatasi) as hata:
+            raise UygulamaHatasi(str(hata)) from None
+
+    def ag_adaptorler(self) -> dict:
+        return {"adaptorler": ag_araci.adaptorler()}
+
+    def ag_tara(self, ag: object) -> dict:
+        return {"cihazlar": self._ag_hata(ag_araci.tara, ag)}
+
+    def ag_adaptor_ip(self, g: dict) -> dict:
+        self._ag_hata(ag_araci.adaptor_ip_ata, g.get("ad"), g.get("ip"), g.get("maske"), g.get("gecit"))
+        return self.ag_adaptorler()
+
+    def ag_adaptor_dhcp(self, ad: object) -> dict:
+        self._ag_hata(ag_araci.adaptor_dhcp_yap, ad)
+        return self.ag_adaptorler()
+
+    def ag_profiller(self) -> dict:
+        return {"profiller": ag_profil.yukle()}
+
+    def ag_profil_islem(self, eylem: str, g: dict) -> dict:
+        if eylem == "kaydet":
+            self._ag_hata(ag_profil.kaydet, g)
+        elif eylem == "sil":
+            self._ag_hata(ag_profil.sil, g.get("ad"))
+        else:
+            self._ag_hata(ag_profil.uygula, g.get("ad"))
+        return self.ag_profiller()
+
+    def _bootp_sunucu(self):
+        with self._ag_kilit:
+            if self._bootp is None:
+                self._bootp = bootp.Sunucu()
+            return self._bootp
+
+    def bootp_durum(self) -> dict:
+        return self._bootp_sunucu().durum()
+
+    def bootp_islem(self, eylem: str, g: dict) -> dict:
+        s = self._bootp_sunucu()
+        if eylem == "baslat":
+            self._ag_hata(s.baslat)
+        elif eylem == "durdur":
+            s.durdur()
+        elif eylem == "ata":
+            self._ag_hata(s.ata, g.get("mac"), g.get("ip"), g.get("maske") or "255.255.255.0", g.get("gecit"))
+        else:
+            self._ag_hata(s.kaldir, g.get("mac"))
+        return s.durum()
+
     # --- OPC UA: yalniz okuma/gezme/abonelik (PLC'ye YAZMAZ). Adres her istekte gelir; uzaktan yonetim kapaliyken POST'lar uzak.py'de yasak. ---
     def opcua_durum(self) -> dict:
         return {"kurulu": opcua.kurulu(), "test_adres": "opc.tcp://127.0.0.1:4840/aktapokus/test"}
@@ -2438,6 +2494,11 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if not dosya.is_file():
                     return self._gonder(500, {"hata": "web/index.html yok"})
                 return self._gonder(200, dosya.read_bytes(), "text/html; charset=utf-8", {"Content-Security-Policy": f"default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-src 'self' http://127.0.0.1:* http://localhost:*; img-src 'self' data: blob:"})
+            if yontem in ("GET", "HEAD") and yol == "/ag":  # ayri ag araci sayfasi (statik, belirtecsiz; veriyi /api/ag/* ile belirtecle ister)
+                sayfa = WEB / "ag.html"
+                if not sayfa.is_file():
+                    return self._gonder(500, {"hata": "web/ag.html yok"})
+                return self._gonder(200, sayfa.read_bytes(), "text/html; charset=utf-8", {"Content-Security-Policy": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"})
             if yontem in ("GET", "HEAD") and (ym := re.fullmatch(r"/yardim/(otomasyon|otomasyon-en)\.html", yol)):  # yardim sayfalari (statik, belirteçsiz; yalniz izin listesi); arayuzde yan cercevede acilir
                 yardim = WEB / "yardim" / f"{ym.group(1)}.html"
                 if yardim.is_file():
@@ -2520,6 +2581,12 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.mcp_listele())
                 if yol == "/api/opcua":
                     return self._gonder(200, app.opcua_durum())
+                if yol == "/api/ag/adaptorler":
+                    return self._gonder(200, app.ag_adaptorler())
+                if yol == "/api/ag/bootp":
+                    return self._gonder(200, app.bootp_durum())
+                if yol == "/api/ag/profiller":
+                    return self._gonder(200, app.ag_profiller())
                 if yol == "/api/opcua/toplama":
                     return self._gonder(200, app.opcua_toplama_durumu())
                 if yol == "/api/opcua/veri":
@@ -2691,6 +2758,16 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.github_issue_gorev(g.get("no")))
                 if yol == "/api/github/issue-yorum":
                     return self._gonder(200, app.github_issue_yorum(g.get("no"), g.get("metin")))
+                if yol in ("/api/ag/profil", "/api/ag/profil-sil", "/api/ag/profil-uygula"):
+                    return self._gonder(200, app.ag_profil_islem({"/api/ag/profil": "kaydet", "/api/ag/profil-sil": "sil"}.get(yol, "uygula"), g))
+                if yol == "/api/ag/tara":
+                    return self._gonder(200, app.ag_tara(g.get("ag")))
+                if yol == "/api/ag/adaptor-ip":
+                    return self._gonder(200, app.ag_adaptor_ip(g))
+                if yol == "/api/ag/adaptor-dhcp":
+                    return self._gonder(200, app.ag_adaptor_dhcp(g.get("ad")))
+                if yol in ("/api/ag/bootp/baslat", "/api/ag/bootp/durdur", "/api/ag/bootp/ata", "/api/ag/bootp/kaldir"):
+                    return self._gonder(200, app.bootp_islem(yol.rsplit("/", 1)[1], g))
                 if yol == "/api/opcua/topla":
                     return self._gonder(200, app.opcua_topla(g))
                 if yol == "/api/opcua/durdur":
@@ -3045,6 +3122,8 @@ class ArayuzSunucusu:
         self.uyku_engeli.kapat()
         if self.app._opcua_toplayici is not None:
             self.app.opcua_durdur()
+        if self.app._bootp is not None:
+            self.app._bootp.durdur()
         self.app.terminalleri_kapat()  # terminal surecleri arayuzle birlikte kapanir
         with self._onizleme_kilit:
             onizlemeler = list(self.onizlemeler.values())

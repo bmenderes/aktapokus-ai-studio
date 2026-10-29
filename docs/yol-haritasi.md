@@ -90,3 +90,7 @@ Bu belge, kullanıcının listelediği fikirlerin **hiçbirini düşürmemek** i
 ### OPC UA toplama (yapildi)
 - Surekli toplama: `POST /api/opcua/topla|durdur`, `GET /api/opcua/toplama|veri`; olcumler SQLite'a (`~/.aktapokus/opcua.db`, `AKTAPOKUS_OPCUA_DB`). SQLite secildi: standart kutuphane, ek kurulum yok. Postgres/Mongo ileride ayri bir "hedef" olarak eklenebilir.
 - Eksik: toplama ayari kalici degil (yeniden acilista durur), eski kayit temizligi yok, MQTT dagitimi yok.
+
+### Ag araci (ayri /ag sayfasi; ana ekrandaki ⇄ dugmesiyle yeni pencerede acilir)
+- Cihazlar: ping + acik port + ARP/MAC ile ag taramasi (Angry IP Scanner benzeri); Bilgisayar: adaptor IP/DHCP (netsh, yonetici yetkisi ister); Profiller: kayitli IP ayarlari, tek tikla uygula (NetSetMan benzeri); BOOTP: yalniz atanan MAC'lere BOOTP/DHCP yaniti (UDP 67).
+- Eksik: Siemens DCP (SIM-IPE/PRONETA gibi katman-2 ile cihaz IP'si degistirme) ham paket/Npcap ister, standart kutuphaneyle yapilamaz; Modbus/EtherNet-IP uzerinden cihaz IP'si yazma yok; sayfa yalniz Turkce.

@@ -247,7 +247,7 @@ body.suruklenir iframe{pointer-events:none}
     <div id="gecmis" class="mut3" style="margin-top:6px">-</div>
     <div class="sec">Klon</div><div id="klon" class="mut">-</div>
     </div>
-    <div id="solAlt"><button id="hesapChip" class="hesap-chip" title="Hesaplar: kim olarak, hangi hizmette giriş yapıldı"><span class="av" id="hesapAv">?</span><span class="hc"><b id="hesapAd">…</b><small id="hesapAlt">yerel kullanıcı</small></span></button><button id="terminalDugme" class="yuvarlak simge" title="Terminal (Alt+3)" aria-label="Terminal">⌨</button><button id="ayarDugme" class="yuvarlak simge" title="Ayarlar" aria-label="Ayarlar">⚙</button></div>
+    <div id="solAlt"><button id="hesapChip" class="hesap-chip" title="Hesaplar: kim olarak, hangi hizmette giriş yapıldı"><span class="av" id="hesapAv">?</span><span class="hc"><b id="hesapAd">…</b><small id="hesapAlt">yerel kullanıcı</small></span></button><button id="terminalDugme" class="yuvarlak simge" title="Terminal (Alt+3)" aria-label="Terminal">⌨</button><button id="agDugme" class="yuvarlak simge" title="Ağ aracı" aria-label="Ağ aracı">⇄</button><button id="ayarDugme" class="yuvarlak simge" title="Ayarlar" aria-label="Ayarlar">⚙</button></div>
   </div>
   <div class="bolucu" id="bolucuSol" title="Sürükleyin: genişliği değiştirin · çift tıklayın: sıfırla"></div>
   <div id="orta">
@@ -635,7 +635,7 @@ async function hakkindaBolumu(h){let cl=[];try{cl=await clilarYukle()}catch(x){}
       e("div",{class:"ayar-satir"},e("div",null,e("div",{text:"Kullanıcı verisi"}),e("div",{class:"mut3 mono",text:"~/.aktapokus  (clilar.json, telegram.json, uygulama.log)"}))),
       e("div",{class:"ayar-satir"},e("div",null,e("div",{text:"Proje ayarı ve kayıtlar"}),e("div",{class:"mut3 mono",text:(S.klasor||"<proje>")+"\\.aktapokus  (roller.json, kayit/)"})))))}
 
-$("#ayarDugme").onclick=()=>ayarAc();document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&$("#ayarlar").classList.contains("on"))ayarKapat()});
+$("#agDugme").onclick=()=>window.open("/ag#t="+T,"aktapokus-ag","popup,width=920,height=640");$("#ayarDugme").onclick=()=>ayarAc();document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&$("#ayarlar").classList.contains("on"))ayarKapat()});
 /* ---- Ana ekran: rol/model cipleri + hizli model menusu, alt durum cubugu, yeni gorev, gorev listesi ---- */
 function bas_harfler(kullanici,ad){/* iki harf: 'baris.menderes' -> BM; ayirac yoksa ilk iki harf */const p=String(kullanici||"").split(/[.\s_-]+/).filter(Boolean);if(p.length>=2)return(p[0][0]+p[1][0]).toUpperCase();const t=String(ad||kullanici||"").replace(/^@/,"").split("@")[0].replace(/[^A-Za-z0-9\u00C0-\u024F]/g,"");return(t.slice(0,2)||"?").toUpperCase()}
 function hesapChipCiz(){const y=S.yerel||{};const h=S.hesaplar;let ad=y.kullanici||"yerel kullanıcı",alt="yerel · hesap girişi yok",ipucu="Aktapokus'un kendi hesabı yok; yerel çalışır.";

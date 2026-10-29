@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Aktapokus Ağ</title>
+<link rel="icon" href="/favicon.ico">
+<style>
+@font-face{font-family:"Inter";font-style:normal;font-weight:100 900;font-display:swap;src:url(/vendor/inter-latin-ext-wght-normal.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Inter";font-style:normal;font-weight:100 900;font-display:swap;src:url(/vendor/inter-latin-wght-normal.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
+:root{--bg:#f7f5f1;--panel:#fff;--line:#d3d1c7;--tx:#2c2c2a;--tx3:#888780;--acc:#8a6500;--sari:#f5c400;--ok:#3b6d11;--okbg:#eaf3de;--err:#a32d2d;--errbg:#fcebeb;--mono:"Cascadia Mono",Consolas,monospace}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:13px/1.5 "Inter",system-ui,sans-serif}
+main{max-width:860px;margin:0 auto;padding:16px}
+.ust{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+h1{font-size:15px;font-weight:600;margin:0 8px 0 0}
+button{font:inherit;color:var(--tx);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:3px 14px;cursor:pointer;flex:none;white-space:nowrap}
+button:hover{border-color:var(--acc)}button:disabled{opacity:.5;cursor:default}
+button.on{background:var(--sari);border-color:var(--sari);font-weight:500}
+button.kucuk{width:26px;height:26px;padding:0}
+input{font:inherit;background:var(--panel);color:var(--tx);border:1px solid var(--line);border-radius:8px;padding:3px 8px;min-width:0}
+.mono{font-family:var(--mono);font-size:12px}
+.satir{display:flex;align-items:center;gap:6px;flex-wrap:nowrap;overflow-x:auto;padding:5px 0;border-bottom:1px solid var(--line)}
+.satir>*{flex:none}.satir input{width:136px}.satir .ge{flex:1;min-width:140px;width:auto}
+.mut{color:var(--tx3)}
+.rozet{border-radius:999px;padding:1px 9px;font-size:12px;background:var(--okbg);color:var(--ok)}
+.hata{background:var(--errbg);color:var(--err);border-radius:8px;padding:5px 10px;margin:8px 0;display:none}
+@media(max-width:480px){input{font-size:16px}}
+</style>
+</head>
+<body>
+<main>
+<div class="ust"><h1>Ağ</h1><span id="sek"></span></div>
+<div id="hata" class="hata"></div>
+<div id="icerik"></div>
+</main>
+<script>
+const T=(()=>{const m=location.hash.match(/t=([\w-]+)/);if(m){try{sessionStorage.setItem("t",m[1])}catch(x){}history.replaceState(null,"",location.pathname)}try{return sessionStorage.getItem("t")||""}catch(x){return""}})();
+const $=s=>document.querySelector(s);
+function e(tag,a,...c){const n=document.createElement(tag);if(a)for(const k in a){if(k==="class")n.className=a[k];else if(k.startsWith("on")&&typeof a[k]==="function")n[k]=a[k];else if(k==="text")n.textContent=a[k];else if(a[k]!=null&&a[k]!==false)n.setAttribute(k,a[k]===true?"":a[k])}for(const x of c.flat())if(x!=null)n.append(x);return n}
+async function api(yol,govde){const r=await fetch(yol,{method:govde?"POST":"GET",headers:{"X-Aktapokus-Token":T,"Content-Type":"application/json"},body:govde?JSON.stringify(govde):undefined});let j=null;try{j=await r.json()}catch(x){}if(!r.ok)throw new Error((j&&j.hata)||("HTTP "+r.status));return j}
+function hataGoster(m){const h=$("#hata");h.textContent=m||"";h.style.display=m?"block":"none"}
+async function dene(f){hataGoster("");try{return await f()}catch(x){hataGoster(x.message)}}
+let sekme="cihazlar",zamanlayici=null;const S={mac:"",adaptorler:[]};
+const SEKMELER=[["cihazlar","Cihazlar"],["bootp","BOOTP"],["bilgisayar","Bilgisayar"],["profiller","Profiller"]];
+function sekmeCiz(){const k=$("#sek");k.textContent="";for(const [id,ad] of SEKMELER)k.append(e("button",{class:id===sekme?"on":"",text:ad,style:"margin-right:6px",onclick:()=>git(id)}))}
+async function git(id){sekme=id;if(zamanlayici){clearInterval(zamanlayici);zamanlayici=null}hataGoster("");sekmeCiz();const h=$("#icerik");h.textContent="";
+  if(id==="cihazlar")await cihazlar(h);else if(id==="bootp")await bootpSayfasi(h);else if(id==="bilgisayar")await bilgisayar(h);else await profiller(h)}
+async function adaptorleriAl(){try{S.adaptorler=(await api("/api/ag/adaptorler")).adaptorler}catch(x){S.adaptorler=[]}return S.adaptorler}
+function ornekAg(){const a=S.adaptorler.find(x=>x.onek>=23&&x.onek<=30)||S.adaptorler.find(x=>x.onek<32);if(!a)return"192.168.1.0/24";const p=a.ip.split(".").map(Number);const m=a.maske.split(".").map(Number);return p.map((b,i)=>b&m[i]).join(".")+"/"+a.onek}
+async function cihazlar(h){await adaptorleriAl();const ag=e("input",{class:"mono ge",value:ornekAg()});const liste=e("div",{style:"margin-top:8px"});
+  const tara=e("button",{class:"on",text:"Tara",onclick:async()=>{tara.disabled=true;liste.textContent="taranıyor…";const r=await dene(()=>api("/api/ag/tara",{ag:ag.value.trim()}));tara.disabled=false;liste.textContent="";if(!r)return;if(!r.cihazlar.length)liste.append(e("div",{class:"mut",text:"Cihaz bulunamadı"}));
+    for(const c of r.cihazlar)liste.append(e("div",{class:"satir"},e("span",{class:"mono",style:"width:120px",text:c.ip}),e("span",{class:"mono mut",style:"width:140px",text:c.mac||"—"}),e("span",{style:"width:110px",text:c.uretici||""}),e("span",{class:"mut ge",text:c.portlar.map(p=>p.ad).join(", ")}),c.mac?e("button",{text:"IP ata",onclick:()=>{S.mac=c.mac;git("bootp")}}):null))}});
+  h.append(e("div",{class:"satir",style:"border:0"},ag,tara),liste)}
+async function bootpSayfasi(h){const kap=e("div");h.append(kap);
+  const ciz=async()=>{let d;try{d=await api("/api/ag/bootp")}catch(x){hataGoster(x.message);return}
+    const odak=document.activeElement&&kap.contains(document.activeElement)&&document.activeElement.tagName==="INPUT";if(odak)return; // yazarken yenileme
+    kap.textContent="";
+    kap.append(e("div",{class:"satir",style:"border:0"},e("button",{class:d.calisiyor?"on":"",text:d.calisiyor?"Durdur":"Başlat",onclick:()=>dene(async()=>{await api("/api/ag/bootp/"+(d.calisiyor?"durdur":"baslat"),{});ciz()})}),e("span",{class:"mut",text:d.calisiyor?"dinliyor (67)":"durdu"}),d.hata?e("span",{style:"color:var(--err)",text:d.hata}):null));
+    const ata=(mac,ipG,maskeG,gecitG)=>dene(async()=>{await api("/api/ag/bootp/ata",{mac,ip:ipG.value.trim(),maske:maskeG.value.trim(),gecit:gecitG.value.trim()});S.mac="";ciz()});
+    const satir=(mac,ek,atama)=>{const ip=e("input",{class:"mono",placeholder:"IP",value:atama?atama.ip:""});const mk=e("input",{class:"mono",placeholder:"Maske",value:atama?atama.maske:"255.255.255.0"});const gc=e("input",{class:"mono",placeholder:"Geçit",value:atama&&atama.gecit||""});
+      return e("div",{class:"satir"},e("span",{class:"mono",style:"width:140px",text:mac}),ek,ip,mk,gc,e("button",{text:atama?"Güncelle":"Ata",onclick:()=>ata(mac,ip,mk,gc)}),atama?e("button",{class:"kucuk",text:"✕",title:"Kaldır",onclick:()=>dene(async()=>{await api("/api/ag/bootp/kaldir",{mac});ciz()})}):null)};
+    const atanmis=new Map(d.atamalar.map(a=>[a.mac,a]));
+    for(const a of d.atamalar){const ist=d.istekler.find(i=>i.mac===a.mac);kap.append(satir(a.mac,e("span",{class:"mut",style:"width:90px",text:ist?ist.yanit+" yanıt":"bekliyor"}),a))}
+    for(const i of d.istekler)if(!atanmis.has(i.mac))kap.append(satir(i.mac,e("span",{class:"mut",style:"width:90px",text:i.tur+" ×"+i.adet}),null));
+    if(S.mac&&!atanmis.has(S.mac)&&!d.istekler.some(i=>i.mac===S.mac))kap.append(satir(S.mac,e("span",{style:"width:90px"}),null));
+    const yeniMac=e("input",{class:"mono ge",placeholder:"MAC ekle (00:1D:9C:12:34:56)"});kap.append(e("div",{class:"satir"},yeniMac,e("button",{text:"Ekle",onclick:()=>{S.mac=yeniMac.value.trim();ciz()}})))};
+  await ciz();zamanlayici=setInterval(ciz,2000)}
+async function bilgisayar(h){await adaptorleriAl();if(!S.adaptorler.length)h.append(e("div",{class:"mut",text:"Adaptör bulunamadı"}));
+  for(const a of S.adaptorler){const ip=e("input",{class:"mono",value:a.ip});const mk=e("input",{class:"mono",value:a.maske});const gc=e("input",{class:"mono",placeholder:"Geçit"});
+    const yenile=async r=>{S.adaptorler=r.adaptorler;git("bilgisayar")};
+    h.append(e("div",{class:"satir"},e("b",{style:"width:110px",text:a.ad}),ip,mk,gc,
+      e("button",{text:"Uygula",onclick:()=>{if(confirm(a.ad+" adaptörü "+ip.value+" olarak ayarlansın mı?"))dene(async()=>yenile(await api("/api/ag/adaptor-ip",{ad:a.ad,ip:ip.value.trim(),maske:mk.value.trim(),gecit:gc.value.trim()})))}}),
+      e("button",{text:"DHCP",onclick:()=>{if(confirm(a.ad+" adaptörü DHCP'ye dönsün mü?"))dene(async()=>yenile(await api("/api/ag/adaptor-dhcp",{ad:a.ad})))}}),
+      e("button",{text:"Kaydet",title:"Profil olarak kaydet",onclick:()=>{const ad=prompt("Profil adı");if(ad)dene(()=>api("/api/ag/profil",{ad,adaptor:a.ad,dhcp:false,ip:ip.value.trim(),maske:mk.value.trim(),gecit:gc.value.trim()}))}}),
+      a.dhcp?e("span",{class:"rozet",text:"DHCP"}):null))}}
+async function profiller(h){const d=await dene(()=>api("/api/ag/profiller"));if(!d)return;if(!d.profiller.length)h.append(e("div",{class:"mut",text:"Profil yok (Bilgisayar sekmesinden kaydedin)"}));
+  for(const p of d.profiller)h.append(e("div",{class:"satir"},e("b",{style:"width:130px",text:p.ad}),e("span",{class:"mut",style:"width:110px",text:p.adaptor}),e("span",{class:"mono ge",text:p.dhcp?"DHCP":p.ip+" / "+p.maske+(p.gecit?" → "+p.gecit:"")}),
+    e("button",{class:"on",text:"Uygula",onclick:()=>{if(confirm(p.adaptor+" adaptörüne "+p.ad+" uygulansın mı?"))dene(async()=>{await api("/api/ag/profil-uygula",{ad:p.ad});git("profiller")})}}),
+    e("button",{class:"kucuk",text:"✕",title:"Sil",onclick:()=>dene(async()=>{await api("/api/ag/profil-sil",{ad:p.ad});git("profiller")})})))}
+git("cihazlar");
+</script>
+</body>
+</html>
