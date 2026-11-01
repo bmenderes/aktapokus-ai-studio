@@ -2,7 +2,7 @@
 $ErrorActionPreference = "Stop"
 $proje = Split-Path -Parent $MyInvocation.MyCommand.Path
 $py = Join-Path $proje ".venv\Scripts\pythonw.exe"
-if (-not (Test-Path $py)) { Write-Host "Once kur.bat dosyasini calistirin (bir kerelik kurulum)."; exit 1 }
+if (-not (Test-Path $py)) { Write-Host "Run setup.bat first (one-time setup)."; exit 1 }
 $masaustu = [Environment]::GetFolderPath("Desktop")
 $yol = Join-Path $masaustu "Aktapokus.lnk"
 $ws = New-Object -ComObject WScript.Shell

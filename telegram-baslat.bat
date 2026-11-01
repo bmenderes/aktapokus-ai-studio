@@ -2,7 +2,7 @@
 rem Aktapokus Telegram botu baslatici. Hangi klasorden acilirsa acilsin dogru yere gecer. Durdurmak icin Ctrl+C ^(sorarsa E^).
 cd /d "%~dp0"
 if exist ".venv\Scripts\python.exe" goto :var
-echo Once kur.bat dosyasini calistirin ^(bir kerelik kurulum^).
+echo Run setup.bat first ^(one-time setup^).
 pause
 exit /b 1
 :var

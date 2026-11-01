@@ -119,7 +119,7 @@ Yazı kutusunun altındaki rol akışı çipine ve sol listedeki rollere tıklam
 - **Tek pencere (gerçek hata, 2026-10-23):** yeni bir Edge profilinde Edge, uygulama penceresinin yanında ikinci bir pencere açıyordu (`edge://sync-confirmation-dialog`: "We are now syncing your browsing data..."), ayrıca bir "Translate page from Turkish?" kutusu çıkıyordu. Çözüm: `--disable-sync`, `--disable-features=Translate,TranslateUI,msImplicitSignin` bayrakları ve sayfada `translate="no"`; gerçek Edge'de 2-3 pencere → 1 olarak ölçüldü. Pencere simgesi `/favicon.ico` ile verilir (görev çubuğunda dünya yerine Aktapokus simgesi; Windows'tan okunan pencere simgesi 16/32 px koyu zeminli Aktapokus simgesiydi).
 - **Ayrı tarayıcı profili** (`~/.aktapokus/uygulama-profil`): normal tarayıcınıza/sekmelerinize dokunmaz. Hatalar `~/.aktapokus/uygulama.log` dosyasına yazılır, Windows'ta ayrıca kutuyla gösterilir.
 - Konsolsuz (`pythonw`) çalıştığı için alt süreçlerin (OpenCode, git, codex...) siyah pencere açmaması için bu modda Windows'ta `CREATE_NO_WINDOW` bayrağı eklenir.
-- Başka bilgisayarda: `kur.bat`, sonra `kisayol-olustur.bat`.
+- Başka bilgisayarda: `setup.bat` (eski adı `kur.bat` yönlendirir), sonra `kisayol-olustur.bat`.
 
 **Doğrulanan (gerçek Edge, Windows 11):** pencere açıldı (başlık "Aktapokus", `--app`, ayrı profil), `CloseMainWindow` ile kapatılınca pythonw, Edge, kilit ve OpenCode süreci kalmadı, son klasör kaydedildi; gerçek masaüstü kısayoluyla ve **tarayıcı devri (bayat pencere açıkken ikinci başlatma)** durumunda da aynısı. **Doğrulanmayan:** pencerenin görsel düzeni (ekran görüntüsü alınamadı), ikinci tıklamada çıkan "zaten açık" kutusu (yalnız testle), Chrome yolu, tarayıcı güncellemesinin `--app` davranışını değiştirmesi, Windows başlangıcında otomatik açılma (yapılmadı).
 
@@ -181,7 +181,7 @@ Token'ı **siz** `~/.aktapokus/telegram.token` dosyasına (ya da `AKTAPOKUS_TELE
 
 1. Depoyu klonlayın (`git clone https://github.com/bmenderes/aktapokus-ai-studio.git`) ya da klasörü kopyalayın (`.venv`, `.git`, `__pycache__` hariç).
 2. Gereksinimleri kontrol edin (yukarıdaki **Gereksinimler** bölümü): Python 3.10+, git ve **en az bir ajan CLI'ı** (OpenCode, Claude Code ya da Codex).
-3. `kur.bat` dosyasına çift tıklayın: Python/git'i denetler (eksikse indirme adresini verir), klasörde `.venv` kurar, isteğe bağlı QR paketini (segno) sorar, OpenCode'u bulup bulmadığını yazar. Yönetici izni gerekmez, başka yere dosya yazmaz.
+3. `setup.bat` dosyasına çift tıklayın (betik İngilizce yazar): Python/git'i denetler (eksikse indirme adresini verir), klasörde `.venv` kurar, isteğe bağlı QR paketini (segno) ve OPC UA paketini (asyncua, varsayılan evet) sorar, ajan CLI'larını bulup bulmadığını yazar. Giriş bilgisi (hesap/anahtar) kurulumda istenmez. Yönetici izni gerekmez, başka yere dosya yazmaz.
 4. **Her bilgisayar için ayrı Telegram botu açın** (BotFather → `/newbot`); token'ı o bilgisayarda `%USERPROFILE%\.aktapokus\telegram.token` dosyasına yazın. Aynı token iki bilgisayarda aynı anda çalışmaz (Telegram çakışma hatası verir).
 5. `telegram-baslat.bat --kok C:\yol\projeler` (kökler kaydedilir), telefondan bağlantıyı açıp eşleşin. Canlı arayüz: `arayuz-baslat.bat`.
 

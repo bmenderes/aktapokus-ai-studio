@@ -259,6 +259,7 @@ def test_arayuz_motor_uyarisini_icerir():
     for parca in ('id="motorUyari"', "function motorUyarisi", "/api/motorlar", "/api/motorlar/rolleri-gecir", "hiçbir ajan CLI'ı bulunamadı", "Yeniden kontrol et"):
         assert parca in html, parca
     govde = html.split("async function motorUyarisi")[1].split("(async()=>{if(!T)")[0]
+    govde = govde.replace("s.innerHTML=P[[...m[0]][0]]", "")  # sabit simge tablosu (P), sunucu metni degil
     assert "confirm(" in govde and "innerHTML" not in govde  # degisiklik onayla yapilir; sunucudan gelen metinler textContent ile
 
 
@@ -280,6 +281,8 @@ def test_durum_komutu_uc_cli_icin_de_bulunamadiysa_uyarir(monkeypatch, capsys, t
     assert "Codex CLI: node codex.js  9.9" in capsys.readouterr().out
 
 
-def test_kur_bat_artik_yalniz_opencode_istemez():
-    kur = (Path(__file__).resolve().parent.parent / "kur.bat").read_text(encoding="utf-8")
-    assert "En az bir ajan CLI kurulu olmali" in kur and "OpenCode kurulu olmali" not in kur
+def test_setup_bat_artik_yalniz_opencode_istemez():
+    kur = (Path(__file__).resolve().parent.parent / "setup.bat").read_text(encoding="utf-8")
+    assert "Install at least one agent CLI" in kur and "OpenCode must be installed" not in kur
+    assert "kur.bat" not in kur  # tek kurulum betigi setup.bat; kur.bat yalniz eski ad icin yonlendirir
+    assert "setup.bat" in (Path(__file__).resolve().parent.parent / "kur.bat").read_text(encoding="utf-8")
