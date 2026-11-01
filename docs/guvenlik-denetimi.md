@@ -16,11 +16,11 @@ otomasyon, Telegram, beceri indirme, OPC UA / ağ aracı, HTTP sunucusu ve aray�
 | G-05 | Orta | Prompt injection: e-posta/web metni "VERİ BİTİŞ" satırını taklit edip veri bloğundan çıkabiliyordu | Düzeltildi |
 | G-06 | Orta | İstek çerçevelemesi: gövdede `Transfer-Encoding`, negatif/yinelenen `Content-Length` kabul ediliyordu (request smuggling, bloke eden okuma) | Düzeltildi |
 | G-07 | Orta | Depo yapılandırmasındaki `core.fsmonitor=<komut>` Aktapokus'un `git status` çağrısında çalışırdı (ajan korumalarının dışında kod çalıştırma) | Düzeltildi |
-| K-01 | Orta | Uzak kimlik doğrulamalı istemci GitHub'a push / PR / Git yıkıcı işlemleri yapabilir (politika kara listesi) | **Karar bekliyor** |
+| K-01 | Orta | Uzak kimlik doğrulamalı istemci GitHub'a push / PR / Git yıkıcı işlemleri yapabilir (politika kara listesi) | Düzeltildi (2026-11-01): yönetim izni ister |
 | K-02 | Orta | Uzak istemci görev verip onaylayabilir (= ajan aracılığıyla bu bilgisayarda kod çalıştırma) | **Karar bekliyor** |
-| K-03 | Düşük | Kara liste politikası: yeni uç eklendiğinde varsayılan izinli | **Karar bekliyor** |
+| K-03 | Düşük | Kara liste politikası: yeni uç eklendiğinde varsayılan izinli | Düzeltildi (2026-11-01): `uzak.UZAK_BILINEN_UCLAR` dışındaki uç reddedilir, eşitlik testi var |
 | K-04 | Düşük | Ağ aracı yazan işlemlerinde (IP değiştirme, BOOTP) sunucu tarafı ikinci onay yok | **Karar bekliyor** |
-| K-05 | Düşük | Ajan alt süreçleri kullanıcının tüm ortam değişkenlerini devralır | **Karar bekliyor** |
+| K-05 | Düşük | Ajan alt süreçleri kullanıcının tüm ortam değişkenlerini devralır | Kısmen (2026-11-01): Aktapokus'un `AKTAPOKUS_*` sırları çıkarıldı; CLI anahtarları gerektiği için geçer |
 | K-06 | Bilgi | OpenCode koruyucusunun kabuk kuralları yalnız desen eşleştirmesidir (kendi belgesinde belirtilmiş) | Bilinen sınır |
 
 ## G-00 — Dinleyici kurulurken ters DNS kilitlenmesi (Bölüm A: bozuk uzak erişim testlerinin kök nedeni)

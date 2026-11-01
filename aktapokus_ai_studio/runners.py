@@ -94,10 +94,13 @@ def _stdinli_calistir(komut, istem: str, klasor: Path, zaman_asimi_sn: int):
     return islem
 
 
+_AKTAPOKUS_SIRRI = re.compile(r"AKTAPOKUS_.*(TOKEN|SIR|SECRET|ANAHTAR|PAROLA|PASSWORD|KEY)")
+
+
 def _alt_surec_ortami(klasor: Path) -> dict[str, str]:
     """cwd= tek basina yetmez: OpenCode calisma klasorunu PWD ortam degiskeninden okuyor (gercek denemede,
     bir kabuktan baslatilinca ajan hedef klasor yerine kabugun klasorune yazdi). PWD'yi hedef klasore ayarla."""
-    ortam = os.environ.copy()
+    ortam = {k: v for k, v in os.environ.items() if not _AKTAPOKUS_SIRRI.match(k.upper())}  # Aktapokus'un kendi sirlari ajana gecmez; CLI'larin kendi anahtarlari kalir
     ortam["PWD"] = str(klasor)
     ortam.pop("OLDPWD", None)
     return ortam

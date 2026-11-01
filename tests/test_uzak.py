@@ -3,6 +3,7 @@ Gercek soketler kullanilir: Tailscale yerine sahte CLI 127.0.0.2 (loopback) adre
 
 import http.client
 import json
+import re
 import socket
 import threading
 import time
@@ -468,3 +469,34 @@ def test_dinleyici_kurarken_ters_dns_sorgusu_yapilmaz(monkeypatch):
             assert s.server_address[0] == adres and s.server_name == adres and s.server_port == s.server_address[1]
         finally:
             s.server_close()
+
+
+def test_yikici_git_ve_gonderme_yonetim_izni_ister(ortam):
+    kapali = uzak.Ayar(yonetim=False)
+    acik = uzak.Ayar(yonetim=True)
+    for yol in ("/api/github/push", "/api/github/pr", "/api/github/dal", "/api/github/issue-yorum", "/api/git/degisiklik-at", "/api/git/pull", "/api/git/cek",
+                "/api/git/birlestir", "/api/git/dal-sil", "/api/git/stash-sil", "/api/projeler/unut", "/api/motorlar/rolleri-gecir"):
+        assert uzak.politika("POST", yol, kapali), yol
+        assert uzak.politika("POST", yol, acik) is None, yol
+    assert uzak.politika("POST", "/api/github/commit", kapali) is None and uzak.politika("GET", "/api/git/gecmis", kapali) is None
+
+
+def test_bilinmeyen_uc_uzaktan_reddedilir(ortam):
+    for a in (uzak.Ayar(yonetim=False), uzak.Ayar(yonetim=True)):
+        assert uzak.politika("POST", "/api/yeni-tehlikeli-uc", a)
+        assert uzak.politika("GET", "/api/yeni-tehlikeli-uc", a)
+
+
+def test_her_uc_uzak_listesinde_siniflandirilmis():
+    """Yeni uc eklendiyse bu test duser: uzaktan guvenli mi karar verip uzak.UZAK_BILINEN_UCLAR'a (gerekirse YONETIM_KAPALIYKEN_YASAK'a) ekleyin."""
+    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "arayuz.py").read_text(encoding="utf-8")
+    assert set(re.findall(r'"(/api/[a-zA-Z0-9_/-]+)"', kaynak)) <= uzak.UZAK_BILINEN_UCLAR
+
+
+def test_aktapokus_sirlari_ajan_ortamina_gecmez(monkeypatch, tmp_path):
+    from aktapokus_ai_studio.runners import _alt_surec_ortami
+    monkeypatch.setenv("AKTAPOKUS_TELEGRAM_TOKEN", "gizli")
+    monkeypatch.setenv("AKTAPOKUS_CLAUDE", "yol")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "cli-anahtari")
+    o = _alt_surec_ortami(tmp_path)
+    assert "AKTAPOKUS_TELEGRAM_TOKEN" not in o and o["AKTAPOKUS_CLAUDE"] == "yol" and o["ANTHROPIC_API_KEY"] == "cli-anahtari"

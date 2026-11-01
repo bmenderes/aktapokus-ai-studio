@@ -248,10 +248,48 @@ YONETIM_KAPALIYKEN_YASAK = (
     ({"POST"}, "/api/github/cikis"),
     ({"GET"}, "/api/github/giris/durum"),
     ({"POST"}, "/api/github/klonla"),
+    ({"POST"}, "/api/github/push"),  # disariya gonderir ya da geri donusu zor: uzaktan yalniz yonetim izniyle
+    ({"POST"}, "/api/github/pr"),
+    ({"POST"}, "/api/github/dal"),
+    ({"POST"}, "/api/github/issue-yorum"),
+    ({"POST"}, "/api/git/degisiklik-at"),
+    ({"POST"}, "/api/git/pull"),
+    ({"POST"}, "/api/git/cek"),
+    ({"POST"}, "/api/git/birlestir"),
+    ({"POST"}, "/api/git/dal-sil"),
+    ({"POST"}, "/api/git/stash-sil"),
+    ({"POST"}, "/api/projeler/unut"),
+    ({"POST"}, "/api/motorlar/rolleri-gecir"),
     ({"POST"}, "/api/github/yayin-hazirla"),  # baska depoya klasor kopyalar (GitHub islemleri uzaktan yonetim izni ister)
     ({"GET"}, "/api/klasorler"),
     ({"GET"}, "/api/beceri-kaynak"),  # bilgisayardan internete cikis tetikler
 )
+
+
+# Uzaktan degerlendirilen uclar: listede olmayan uc uzaktan REDDEDILIR (yeni uc eklenince kendiliginden acik kalmasin).
+# Yeni uc eklerken once uzaktan guvenli mi diye karar verin: tests/test_uzak.py eksik siniflandirmayi yakalar.
+UZAK_BILINEN_UCLAR = frozenset({
+    "/api/ag/adaptor-dhcp", "/api/ag/adaptor-ip", "/api/ag/adaptorler", "/api/ag/bootp", "/api/ag/bootp/ata", "/api/ag/bootp/baslat",
+    "/api/ag/bootp/durdur", "/api/ag/bootp/kaldir", "/api/ag/profil", "/api/ag/profil-sil", "/api/ag/profil-uygula", "/api/ag/profiller",
+    "/api/ag/tara", "/api/ayar", "/api/beceri-kaynak", "/api/beceri-kaynak/onizle", "/api/beceriler", "/api/beceriler/indir", "/api/beceriler/sil",
+    "/api/ciktilar", "/api/claude-devam", "/api/claude-konusma", "/api/claude-oturumlari", "/api/claude-surdur", "/api/clilar", "/api/clilar/dene",
+    "/api/clilar/sil", "/api/dosya", "/api/dosyalar", "/api/durum", "/api/ek", "/api/fark", "/api/gecmis", "/api/git/birlestir", "/api/git/cek",
+    "/api/git/commit", "/api/git/commit-oneri", "/api/git/dal-gec", "/api/git/dal-sil", "/api/git/dallar", "/api/git/degisiklik-at", "/api/git/fark",
+    "/api/git/gecmis", "/api/git/hazirdan-cikar", "/api/git/hazirla", "/api/git/pull", "/api/git/stash", "/api/git/stash-sil",
+    "/api/git/stash-uygula", "/api/git/stashler", "/api/github/cikis", "/api/github/commit", "/api/github/commit-kontrol", "/api/github/dal",
+    "/api/github/depolar", "/api/github/durum", "/api/github/giris/baslat", "/api/github/giris/durum", "/api/github/giris/iptal",
+    "/api/github/gonderme-kontrol", "/api/github/issue-gorev", "/api/github/issue-yorum", "/api/github/issueler", "/api/github/klonla",
+    "/api/github/pr", "/api/github/proje", "/api/github/push", "/api/github/yayin-hazirla", "/api/google", "/api/google/baglan", "/api/google/cikis",
+    "/api/google/istemci", "/api/gorev", "/api/gorev-meta", "/api/gorev-sil", "/api/hesaplar", "/api/imza", "/api/istatistik", "/api/izinler",
+    "/api/klasor", "/api/klasor-ac", "/api/klasorler", "/api/konusma-ozeti", "/api/kuyruk/sil", "/api/mcp-sunuculari", "/api/mcp-sunuculari/dene",
+    "/api/mcp-sunuculari/proje", "/api/mcp-sunuculari/sil", "/api/modeller", "/api/motorlar", "/api/motorlar/rolleri-gecir", "/api/olaylar",
+    "/api/oneriler", "/api/onizleme", "/api/onizleme-ac", "/api/onizleme-ekran", "/api/opcua", "/api/opcua/abone", "/api/opcua/agac",
+    "/api/opcua/degerler", "/api/opcua/durdur", "/api/opcua/goz", "/api/opcua/oku", "/api/opcua/ozellik", "/api/opcua/topla", "/api/opcua/toplama",
+    "/api/opcua/veri", "/api/otomasyon-calistir", "/api/otomasyonlar", "/api/otomasyonlar/izin", "/api/otomasyonlar/sil", "/api/otomatik-baslat",
+    "/api/oturumlar", "/api/proje-gruplari", "/api/projeler", "/api/projeler/unut", "/api/saglayicilar", "/api/saglayicilar/baglan",
+    "/api/saglayicilar/kaldir", "/api/sohbet-ad", "/api/sohbet-kararlar", "/api/sohbet-ozeti", "/api/sohbet-sec", "/api/telegram", "/api/terminal",
+    "/api/terminal/ac", "/api/uzak", "/api/uzak/anahtar-yenile", "/api/yarim", "/api/yeni-konusma", "/api/yeni-sohbet",
+})
 
 
 def politika(yontem: str, yol: str, ayar: Ayar) -> str | None:
@@ -266,8 +304,10 @@ def politika(yontem: str, yol: str, ayar: Ayar) -> str | None:
         return "Otomasyon izinleri (onaysiz calistirma) yalnizca bu bilgisayardan degistirilebilir"
     if yol == "/api/terminal" or yol.startswith("/api/terminal/"):
         return None if ayar.terminal else "Terminal uzaktan kapali (bilgisayardan Ayarlar > Uzak erisim'den acilabilir)"
+    if yol not in UZAK_BILINEN_UCLAR:
+        return "Bu islem uzaktan tanimli degil"
     if not ayar.yonetim:
         for yontemler, onek in YONETIM_KAPALIYKEN_YASAK:
             if yontem in yontemler and (yol == onek or yol.startswith(onek + "/")):
-                return "Bu islem uzaktan kapali (CLI/MCP/saglayici/Telegram/beceri tanimlama, klasor gezme ve depo klonlama bilgisayardan yapilir)"
+                return "Bu islem uzaktan kapali (GitHub'a gonderme, yikici Git islemleri, CLI/MCP/saglayici/Telegram/beceri tanimlama, klasor gezme ve depo klonlama icin Ayarlar > Uzak erisim'de yonetim izni gerekir)"
     return None
