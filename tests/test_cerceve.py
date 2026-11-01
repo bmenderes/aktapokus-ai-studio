@@ -56,10 +56,15 @@ def test_esc_acik_duzenleyiciyi_ayarlardan_once_kapatir():
 
 
 def test_otomasyon_yan_cercevesi_acilip_kapanir():
-    assert 'id:"otoYan"' in HTML and "yanDegis" in HTML and '"/api/dosyalar"' in HTML and "Otomasyon yardımı" in HTML
+    assert 'id:"otoYan"' in HTML and "yanDegis" in HTML and 'text:"Dosyalar"' in HTML and "Otomasyon yardımı" in HTML
+    assert 'pYol("/ciktilar")' in HTML and 'pYol("/dosyalar")' in HTML and 'pYol("/dosya?yol="' in HTML  # secili projenin ciktilari ve belgeleri okunur
     assert HTML.index('const yan=$("#otoYan.on")') < HTML.index('const of=$("#otoForm");if(of){')  # Esc once yan cerceveyi kapatir
 
 
 def test_klon_satiri_kalkti_ag_popup_acmaz():
     assert 'id="klon"' not in HTML and "klon_bekleyen" not in HTML
     assert 'window.open("/ag' not in HTML
+
+
+def test_bos_ekran_yeni_simgeyi_kullanir():
+    assert "--maskot:url(/simge-512.png)" in HTML

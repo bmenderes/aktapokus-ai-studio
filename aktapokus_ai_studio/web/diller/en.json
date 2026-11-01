@@ -4,6 +4,8 @@
  "yerel": "en-US",
  "tam": {
   "Google ile bağlan": "Connect with Google",
+  "Yardım, çıktılar ve belgeler": "Help, outputs and documents",
+  "Bu dosya metin değil, burada okunamaz.": "This file is not text and cannot be read here.",
   "Kararlar": "Decisions",
   "Bu sohbetin kararları": "Decisions for this chat",
   "Örn: Veritabanı değişmeyecek.": "E.g. The database stays as it is.",
