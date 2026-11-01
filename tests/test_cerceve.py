@@ -68,3 +68,7 @@ def test_klon_satiri_kalkti_ag_popup_acmaz():
 
 def test_bos_ekran_yeni_simgeyi_kullanir():
     assert "--maskot:url(/simge-512.png)" in HTML
+
+
+def test_ayarlar_sol_menusu_acilip_kapanir():
+    assert 'id="ayarMenuDugme"' in HTML and "#ayarlar.menu-kapali #ayarMenu{display:none}" in HTML and "aktapokus.ayarMenu" in HTML

@@ -237,6 +237,9 @@ button,input,textarea,select{font-family:inherit}
 .md code,.md pre,.md pre code{font-family:var(--mono)}
 body:has(#terminalSayfa.on) .bolucu{display:none}  /* terminal tam sayfa: bolucu cubuklari (frame) kaybolur */
 #ayarIcerik.genis{max-width:none}
+#ayarMenuDugme{position:absolute;top:8px;left:178px;z-index:2;width:26px;height:26px;min-width:26px;min-height:0;padding:0;border-radius:50%;line-height:1}
+#ayarlar.menu-kapali{grid-template-columns:0 minmax(0,1fr)}#ayarlar.menu-kapali #ayarMenu{display:none}#ayarlar.menu-kapali #ayarMenuDugme{left:6px}#ayarlar.menu-kapali #ayarIcerik{padding-left:38px!important}
+@media(max-width:768px){#ayarMenuDugme{display:none}}
 body:has(#ayarlar.on) #bolucuSol,html.ayar-tam body:has(#ayarlar.on) #bolucuSag{visibility:hidden;pointer-events:none}  /* Ayarlar acikken bolucu menunun ustunde kalip tiklamayi almaz */
 .ua{display:grid;grid-template-columns:var(--ua-s,240px) 6px minmax(0,1fr) 6px var(--ua-r,280px);grid-template-rows:minmax(0,1fr) 6px var(--ua-a,110px);height:calc(100dvh - 190px);min-height:360px;margin-top:8px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
 .ua-pane{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
@@ -385,7 +388,7 @@ body:has(#ayarlar.on) #bolucuSol,html.ayar-tam body:has(#ayarlar.on) #bolucuSag{
   <div class="row"><span id="gitRozet"></span><span id="korRozet"></span><span id="durumMetni" class="durum-hazir">Hazır</span><span id="gecenSure" class="mut3 mono" title="Geçen süre"></span></div>
   <div class="row mut"><span id="tokenYazi">token 0</span><span style="width:70px;height:4px;background:var(--panel2);border-radius:2px;display:inline-block"><span id="tokenCubuk" style="display:block;height:4px;width:0;background:var(--tx2);border-radius:2px"></span></span><span id="baglanti" class="badge">bağlanıyor</span></div>
 </div>
-<div id="ayarlar"><div id="ayarMenu"></div><div id="ayarIcerik"></div></div>
+<div id="ayarlar"><button id="ayarMenuDugme" title="Menüyü aç/kapat" aria-label="Menüyü aç/kapat">‹</button><div id="ayarMenu"></div><div id="ayarIcerik"></div></div>
 <div id="terminalSayfa"><div id="trmUst"></div><div id="trmGovde"><div id="trmTelegram"></div><div id="trmMesaj"></div></div></div>
 <script>
 "use strict";
@@ -659,6 +662,9 @@ async function istatistikYukle(hedef){const p=hedef||S.istHedef||$("#ayarIcerik"
 function kapsamSecici(){const b=(ad,v)=>e("button",{class:S.istKapsam===v?"pri":"",text:ad,onclick:()=>{S.istKapsam=v;istatistikYukle()}});return e("div",{class:"row"},b("Bu proje","proje"),b("Tüm projeler","tum"),e("button",{text:"Yenile",onclick:()=>istatistikYukle()}))}
 /* ---- AYARLAR: sol menulu tam sayfa . Bolumler: Genel, Saglayicilar, Modeller, CLI'lar, Roller, Kullanim, Hakkinda ---- */
 const AYAR_BOLUMLERI=[["hesaplar","Hesaplar"],["genel","Genel"],["saglayicilar","Sağlayıcılar"],["modeller","Modeller"],["clilar","CLI'lar"],["baglayicilar","Bağlayıcılar"],["mcp","MCP sunucuları"],["opcua","OPC UA"],["ag","Ağ"],["nodered","Node-RED"],["beceriler","Beceriler"],["onerilenler","Önerilenler"],["github","GitHub"],["roller","Roller"],["telegram","Telegram"],["otomasyon","Otomasyonlar"],["izinler","İzinler"],["uzak","Uzak erişim"],["kullanim","Kullanım"],["hakkinda","Hakkında"]];
+function ayarMenuUygula(kapali){$("#ayarlar").classList.toggle("menu-kapali",kapali);$("#ayarMenuDugme").textContent=kapali?"›":"‹";try{localStorage.setItem("aktapokus.ayarMenu",kapali?"1":"")}catch(x){}}
+$("#ayarMenuDugme").onclick=()=>ayarMenuUygula(!$("#ayarlar").classList.contains("menu-kapali"));
+try{if(localStorage.getItem("aktapokus.ayarMenu"))ayarMenuUygula(true)}catch(x){}
 function ayarAc(id){terminalKapat();$("#ayarlar").classList.add("on");$("#ayarUst").classList.add("on");ayarGit(id||S.ayarBolum||"genel")}
 function otoFormTerk(){const f=$("#otoForm");if(!f||!f.dataset.kirli)return true;if(!confirm("Kaydedilmemiş otomasyon değişiklikleri silinsin mi?"))return false;f.remove();return true}
 function ayarKapat(){if(!otoFormTerk())return false;if(S.telegramZ){clearInterval(S.telegramZ);S.telegramZ=null}$("#ayarlar").classList.remove("on");$("#ayarUst").classList.remove("on");hesapOzetYukle();return true}
