@@ -226,6 +226,7 @@ button,input,textarea,select{font-family:inherit}
 .md code,.md pre,.md pre code{font-family:var(--mono)}
 body:has(#terminalSayfa.on) .bolucu{display:none}  /* terminal tam sayfa: bolucu cubuklari (frame) kaybolur */
 #ayarIcerik.genis{max-width:none}
+body:has(#ayarlar.on) #bolucuSol,html.ayar-tam body:has(#ayarlar.on) #bolucuSag{visibility:hidden;pointer-events:none}  /* Ayarlar acikken bolucu menunun ustunde kalip tiklamayi almaz */
 .ua{display:grid;grid-template-columns:var(--ua-s,240px) 6px minmax(0,1fr) 6px var(--ua-r,280px);grid-template-rows:minmax(0,1fr) 6px var(--ua-a,110px);height:calc(100dvh - 190px);min-height:360px;margin-top:8px;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--panel)}
 .ua-pane{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .ua-sag{min-width:0;min-height:0;display:grid;grid-template-rows:minmax(0,3fr) minmax(0,2fr)}
@@ -647,13 +648,14 @@ async function istatistikYukle(hedef){const p=hedef||S.istHedef||$("#ayarIcerik"
 function kapsamSecici(){const b=(ad,v)=>e("button",{class:S.istKapsam===v?"pri":"",text:ad,onclick:()=>{S.istKapsam=v;istatistikYukle()}});return e("div",{class:"row"},b("Bu proje","proje"),b("Tüm projeler","tum"),e("button",{text:"Yenile",onclick:()=>istatistikYukle()}))}
 /* ---- AYARLAR: sol menulu tam sayfa . Bolumler: Genel, Saglayicilar, Modeller, CLI'lar, Roller, Kullanim, Hakkinda ---- */
 const AYAR_BOLUMLERI=[["hesaplar","Hesaplar"],["genel","Genel"],["saglayicilar","Sağlayıcılar"],["modeller","Modeller"],["clilar","CLI'lar"],["baglayicilar","Bağlayıcılar"],["mcp","MCP sunucuları"],["opcua","OPC UA"],["beceriler","Beceriler"],["onerilenler","Önerilenler"],["github","GitHub"],["roller","Roller"],["telegram","Telegram"],["otomasyon","Otomasyonlar"],["izinler","İzinler"],["uzak","Uzak erişim"],["kullanim","Kullanım"],["hakkinda","Hakkında"]];
-function ayarAc(id){$("#ayarlar").classList.add("on");$("#ayarUst").classList.add("on");ayarGit(id||S.ayarBolum||"genel")}
-function ayarKapat(){$("#ayarlar").classList.remove("on");$("#ayarUst").classList.remove("on");hesapOzetYukle()}
+function ayarAc(id){terminalKapat();$("#ayarlar").classList.add("on");$("#ayarUst").classList.add("on");ayarGit(id||S.ayarBolum||"genel")}
+function otoFormTerk(){const f=$("#otoForm");if(!f||!f.dataset.kirli)return true;if(!confirm("Kaydedilmemiş otomasyon değişiklikleri silinsin mi?"))return false;f.remove();return true}
+function ayarKapat(){if(!otoFormTerk())return false;if(S.telegramZ){clearInterval(S.telegramZ);S.telegramZ=null}$("#ayarlar").classList.remove("on");$("#ayarUst").classList.remove("on");hesapOzetYukle();return true}
 async function clilarYukle(){S.clilar=(await api("/api/clilar")).clilar;return S.clilar}
 async function canliModelleriYukle(){try{S.canliModeller=(await api("/api/modeller")).modeller;(S.modelListeleri||[]).forEach(x=>modelOnerileri(x.liste,x.sel.value))}catch(x){}}
 function ayarMenusuCiz(){const m=$("#ayarMenu");m.textContent="";m.append(e("button",{class:"geri",text:"← Uygulamaya dön",onclick:ayarKapat}));
   for(const [id,ad] of AYAR_BOLUMLERI)m.append(e("button",{class:"ayar-oge"+(S.ayarBolum===id?" on":""),text:ad,onclick:()=>ayarGit(id)}))}
-async function ayarGit(id){if(S.telegramZ){clearInterval(S.telegramZ);S.telegramZ=null}S.ayarBolum=id;ayarMenusuCiz();const h=$("#ayarIcerik");h.textContent="";h.scrollTop=0;h.classList.remove("genis");
+async function ayarGit(id){if(id!==S.ayarBolum&&!otoFormTerk())return;if(S.telegramZ){clearInterval(S.telegramZ);S.telegramZ=null}S.ayarBolum=id;ayarMenusuCiz();const ic=$("#ayarIcerik");ic.textContent="";ic.scrollTop=0;ic.classList.remove("genis");const h=e("div");ic.append(h);  /* yavas bolumun gec gelen icerigi kopuk kaba gider, yeni bolume karismaz */
   const baslik=(ad,alt)=>{h.append(e("h2",{class:"ayar-baslik",text:ad}));if(alt)h.append(e("div",{class:"mut3 ayar-alt",text:alt}))};
   try{
     if(id==="hesaplar"){baslik("Hesaplar","Hangi hizmette kim olarak giriş yapıldı. Aktapokus'un kendi kullanıcı hesabı yoktur; kimlikler aşağıdaki araçların kendi oturumlarıdır.");await hesaplarBolumu(h)}
@@ -766,7 +768,9 @@ async function hakkindaBolumu(h){let cl=[];try{cl=await clilarYukle()}catch(x){}
       e("div",{class:"ayar-satir"},e("div",null,e("div",{text:"Kullanıcı verisi"}),e("div",{class:"mut3 mono",text:"~/.aktapokus  (clilar.json, telegram.json, uygulama.log)"}))),
       e("div",{class:"ayar-satir"},e("div",null,e("div",{text:"Proje ayarı ve kayıtlar"}),e("div",{class:"mut3 mono",text:(S.klasor||"<proje>")+"\\.aktapokus  (roller.json, kayit/)"})))))}
 
-$("#agDugme").onclick=()=>window.open("/ag#t="+T,"aktapokus-ag","popup,width=920,height=640");$("#ayarDugme").onclick=()=>ayarAc();document.addEventListener("keydown",ev=>{if(ev.key==="Escape"&&$("#ayarlar").classList.contains("on"))ayarKapat()});
+$("#agDugme").onclick=()=>window.open("/ag#t="+T,"aktapokus-ag","popup,width=920,height=640");$("#ayarDugme").onclick=()=>ayarAc();document.addEventListener("keydown",ev=>{if(ev.key!=="Escape")return;const m=[...document.querySelectorAll(".modal-arka")].pop();if(m){if(m.id==="uaSunucuForm")m.remove();return}  /* en ustteki katman once; digerleri kendi Esc'ini isler */
+  if([...document.querySelectorAll(".rd-arka,.resim-ust,#yardimPaneli,#modelMenu,#ortamMenu,#sekmeMenu,#baglamMenu")].some(x=>getComputedStyle(x).display!=="none"))return;
+  if($("#ayarlar").classList.contains("on"))ayarKapat()});
 /* ---- Ana ekran: rol/model cipleri + hizli model menusu, alt durum cubugu, yeni gorev, gorev listesi ---- */
 function bas_harfler(kullanici,ad){/* iki harf: 'baris.menderes' -> BM; ayirac yoksa ilk iki harf */const p=String(kullanici||"").split(/[.\s_-]+/).filter(Boolean);if(p.length>=2)return(p[0][0]+p[1][0]).toUpperCase();const t=String(ad||kullanici||"").replace(/^@/,"").split("@")[0].replace(/[^A-Za-z0-9\u00C0-\u024F]/g,"");return(t.slice(0,2)||"?").toUpperCase()}
 function hesapChipCiz(){const y=S.yerel||{};const h=S.hesaplar;let ad=y.kullanici||"yerel kullanıcı",alt="yerel · hesap girişi yok",ipucu="Aktapokus'un kendi hesabı yok; yerel çalışır.";
@@ -991,7 +995,7 @@ async function ciktilariYukle(){const p=$("#ciktiListe");const dugme=document.qu
   if(d.toplam>15)p.append(e("button",{style:"margin-top:4px",text:S.ciktiHepsi?"Daha az göster":"Daha fazla göster ("+(d.toplam-15)+")",onclick:()=>{S.ciktiHepsi=!S.ciktiHepsi;ciktilariYukle()}}))}
 /* ---- Esnek paneller: surukle-birak bolucu, ac/kapa dugmeleri, boyutlari hatirla, onizlemeyi ayri pencerede ac ---- */
 const DUZEN_ANAHTAR="aktapokus.duzen";
-const BOLUCU_PX=6,SOL_AZ=140,SOL_COK=420,SAG_AZ=280;
+const BOLUCU_PX=6,AYAR_EN_AZ=760,SOL_AZ=140,SOL_COK=420,SAG_AZ=280;
 S.duzen={sol:190,sag:0,solKapali:false,sagKapali:false};
 try{Object.assign(S.duzen,JSON.parse(localStorage.getItem(DUZEN_ANAHTAR)||"{}"))}catch(x){}
 S.duzen.sagGenis=!!S.duzen.sagGenis;S.duzen.sol=Math.min(SOL_COK,Math.max(SOL_AZ,+S.duzen.sol||190));S.duzen.sag=+S.duzen.sag>=SAG_AZ?+S.duzen.sag:0;S.duzen.solKapali=!!S.duzen.solKapali;S.duzen.sagKapali=!!S.duzen.sagKapali;
@@ -1003,7 +1007,7 @@ function duzenUygula(){const m=$("#main");const g=m.clientWidth;const d=S.duzen;
   const sag=d.sagKapali?0:(d.sagGenis?sagEnCok:Math.max(SAG_AZ,Math.min(sagEnCok,+d.sag||Math.round(g*0.46))));
   m.style.setProperty("--sol-w",sol+"px");m.style.setProperty("--sag-w",sag+"px");
   m.style.setProperty("--b1",d.solKapali?"0px":BOLUCU_PX+"px");m.style.setProperty("--b2",d.sagKapali?"0px":BOLUCU_PX+"px");
-  document.documentElement.style.setProperty("--ayar-sag",(d.sagKapali?0:sag+BOLUCU_PX)+"px");  /* ayarlar sayfasi sag paneli ortmez: panel acikken ayarlarla yan yana gorunur */
+  const ayarSag=d.sagKapali?0:sag+BOLUCU_PX,ayarTam=g-ayarSag<AYAR_EN_AZ;document.documentElement.style.setProperty("--ayar-sag",(ayarTam?0:ayarSag)+"px");document.documentElement.classList.toggle("ayar-tam",ayarTam);  /* genis ekranda sag panelle yan yana; sigmiyorsa Ayarlar tum genisligi kullanir */
   m.classList.toggle("sol-kapali",!!d.solKapali);m.classList.toggle("sag-kapali",!!d.sagKapali);
   $("#solDugme").classList.toggle("on",!d.solKapali);$("#sagDugme").classList.toggle("on",!d.sagKapali);const gb=$("#sagGenis");if(gb)gb.classList.toggle("on",!!d.sagGenis)}
 function solDegis(){S.duzen.solKapali=!S.duzen.solKapali;duzenUygula();duzenYaz()}
@@ -1456,7 +1460,7 @@ async function trmYeni(){await xtYukle();const kutu=$("#trmGovde");const g=Math.
   const d=await api("/api/terminal/ac",{method:"POST",body:{satir:g,sutun:w}});trmBagla(d.id,d);trmSec(d.id)}
 async function trmKapat(id){const t=TRM.t[id];if(!t)return;t.kapali=true;try{await api("/api/terminal/"+id+"/kapat",{method:"POST",body:{}})}catch(x){}
   try{t.term.dispose()}catch(x){}t.kutu.remove();delete TRM.t[id];const kalan=Object.keys(TRM.t);trmSec(kalan.length?kalan[0]:"tg")}
-async function terminalAc(){$("#terminalSayfa").classList.add("on");$("#terminalUst").classList.add("on");trmMesaj("");
+async function terminalAc(){if($("#ayarlar").classList.contains("on")&&!ayarKapat())return;$("#terminalSayfa").classList.add("on");$("#terminalUst").classList.add("on");trmMesaj("");
   try{await xtYukle()}catch(x){trmMesaj("Terminal ekranı yüklenemedi: "+x.message);trmSekmeler();return}
   let d;try{d=await api("/api/terminal")}catch(x){trmMesaj(x.message);trmSekmeler();return}
   const kl=$("#trmKlasor");if(kl)kl.textContent=d.klasor||"";
@@ -1474,7 +1478,7 @@ async function opcuaBolumu(h){const d=await api("/api/opcua");
   if(!d.kurulu){h.append(e("div",{class:"badge b-warn",style:"white-space:normal",text:"asyncua kurulu değil. aktapokus-ai-studio klasöründe şunu çalıştırın: .venv\\Scripts\\python.exe -m pip install asyncua  (sonra uygulamayı yeniden başlatın)"}));return}
   const adres=e("input",{type:"text",value:d.test_adres,class:"mono",style:"flex:1;min-width:0"});
   /* UaExpert benzeri calisma alani: Adres alani (tembel agac) | Veri erisim gorunumu (canli) | Oznitelikler + Referanslar | Gunluk. Cubuklar surukleyerek boyutlanir. */
-  h.classList.add("genis");
+  $("#ayarIcerik").classList.add("genis");
   const izle=new Map();  // kimlik -> {ad, tdDeger, tdDurum}
   const gunluk=e("div",{class:"ua-ic mono mut3"});
   const log=m=>{gunluk.append(e("div",{text:new Date().toTimeString().slice(0,8)+"  "+m}));gunluk.scrollTop=gunluk.scrollHeight};
@@ -2076,6 +2080,7 @@ function otomasyonFormu(kap,d,o,yenile,mesaj){const eski=$("#otoForm");if(eski)e
   const proje=e("select",{title:"Proje",style:"max-width:200px"});for(const p of d.projeler.filter(x=>x.var)){const opt=e("option",{value:p.id,text:p.ad});if(p.id===o.proje)opt.selected=true;proje.append(opt)}
   const acik=e("input",{type:"checkbox",title:"Açık"});acik.checked=o.acik!==false;
   const tuval=e("div",{class:"oto-tuval"}),svg=document.createElementNS(NS,"svg");svg.setAttribute("class","oto-oklar");tuval.append(svg);
+  const kirlet=()=>{k.dataset.kirli="1"};k.addEventListener("input",kirlet);k.addEventListener("change",kirlet);tuval.addEventListener("pointermove",ev=>{if(ev.buttons)kirlet()});k.addEventListener("click",ev=>{if(ev.target.closest("button"))kirlet()});
   const panel=e("div",{class:"row oto-panel",style:"gap:6px;flex-wrap:wrap;margin-top:6px"});
   const etiket=n=>{if(n.tur==="zamanlayici")return zamanMetni(n.ayar.zamanlama);const m=n.tur==="gorev"?n.ayar.gorev:n.tur==="bildirim"?n.ayar.metin:n.tur==="google"?(n.ayar.servis||"")+(n.ayar.sorgu?" "+n.ayar.sorgu:""):n.tur==="web"?String((n.ayar.adresler||[])[0]||"").replace(/^https?:[/][/](www[.])?/,""):n.tur==="yayinla"?((n.ayar.depo||"")+(n.ayar.hedef_yol?" · "+n.ayar.hedef_yol:"")):"";return m?(m.length>18?m.slice(0,18)+"…":m):KISA[n.tur]};
   const yol=(a,b)=>{const x1=a.x+GEN,y1=a.y+YUK/2,x2=b.x,y2=b.y+YUK/2,c=Math.max(30,Math.abs(x2-x1)/2);return "M"+x1+" "+y1+" C"+(x1+c)+" "+y1+" "+(x2-c)+" "+y2+" "+x2+" "+y2};
