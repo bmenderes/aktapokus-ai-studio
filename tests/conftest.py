@@ -119,3 +119,6 @@ def mcp_ve_beceri_yalitimi(tmp_path_factory, monkeypatch):
     from aktapokus_ai_studio import baglam as _baglam
     _baglam._ACILIS.clear()  # "uygulama acilisinda bir kere oku" isaretleri testler arasinda sizmasin
     monkeypatch.setenv("AKTAPOKUS_GH_DIZIN", str(tmp_path_factory.mktemp("ghdizin") / "gh"))  # Aktapokus'un GitHub oturumlari (varsayilan + ek hesaplar) gercek ~/.aktapokus altindan okunmasin/yazilmasin
+    monkeypatch.setenv("AKTAPOKUS_GOOGLE_AYAR", str(tmp_path_factory.mktemp("googleayar") / "google-token.json"))  # Google token kaydi gercek ~/.aktapokus altina yazilmasin/okunmasin
+    monkeypatch.setenv("AKTAPOKUS_GOOGLE_ISTEMCI_DOSYASI", str(tmp_path_factory.mktemp("googleistemci") / "google-istemci.json"))  # gercek client JSON okunmasin
+    monkeypatch.delenv("AKTAPOKUS_GOOGLE_ISTEMCI_ID", raising=False)

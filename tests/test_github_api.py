@@ -259,6 +259,7 @@ def test_arayuz_github_sekmesi_ve_ayar_bolumunu_icerir_ve_onay_ister():
         assert parca in html, parca
     govde = html.split("const ghUrlGuvenli")[1].split("(async()=>{if(!T)")[0]
     assert govde.count("confirm(") >= 6  # commit, dal, push, PR, issue-gorev, issue-yorum, klonla: her yazan islemden once onay penceresi
+    govde = govde.replace("s.innerHTML=P[[...m[0]][0]]", "")  # sabit simge tablosu (P), sunucu metni degil
     assert "innerHTML" not in govde  # GitHub'dan gelen metinler (issue basligi, PR) yalniz textContent ile yazilir
     assert "ghUrlGuvenli" in govde  # baglantilar yalniz https://github.com/ adreslerine
 

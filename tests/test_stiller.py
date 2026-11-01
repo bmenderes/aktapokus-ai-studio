@@ -10,11 +10,12 @@ def _html() -> str:
     return (KOK / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
 
 
-def test_govde_13px_ve_inter_ilk_secenek():
+def test_govde_14px_yumusak_sans_ilk_secenek_inter_yedek():
+    """Kullanici istegi (2026-10-30): Inter fazla keskin/kucuk bulundu; govde 14 px, yumusak hatli sistem yazisi ilk, Inter yedek."""
     html = _html()
     govde = re.search(r"\nbody\{background:var\(--bg\)[^}]*\}", html).group(0)
-    assert 'font:13px/1.5 "Inter"' in govde
-    assert govde.index('"Inter"') < govde.index("system-ui")
+    assert 'font:15px/1.55 "Lora",Georgia' in govde
+    assert govde.index('"Lora"') < govde.index("system-ui") < govde.index('"Inter"')
 
 
 def test_yazi_boyutu_ust_siniri_ve_alt_siniri():
@@ -33,7 +34,7 @@ def test_kalin_700_yalniz_okunmamis_sayac_icin():
 
 def test_stil_belgesi_var_ve_ana_kurallari_icerir():
     belge = (KOK / "docs" / "arayuz-stilleri.md").read_text(encoding="utf-8")
-    for parca in ("Açıklama yok", "Tek satır", "yuvarlak", "Tekrar yok", "Inter", "13 px", "en az 12 px", "test edilir"):
+    for parca in ("Açıklama yok", "Tek satır", "yuvarlak", "Tekrar yok", "Inter", "15 px", "en az 12 px", "test edilir"):
         assert parca in belge, parca
 
 

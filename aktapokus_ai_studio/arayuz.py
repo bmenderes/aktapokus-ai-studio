@@ -29,11 +29,12 @@ import threading
 import time
 import urllib.parse
 from dataclasses import dataclass, field
+import socketserver
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import ag_araci, ag_profil, bootp, opcua, opcua_ayar, opcua_depo, opcua_toplayici, arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, oneriler, izinler, uyanik, otomatik_baslat, gonderme_kontrol, yayin
+from . import ag_araci, ag_profil, bootp, google_giris, opcua, opcua_ayar, opcua_depo, opcua_toplayici, arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, google_oku, oneriler, izinler, uyanik, otomatik_baslat, gonderme_kontrol, yayin
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_model_gecersiz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
@@ -102,8 +103,12 @@ def guvenli_goreli(klasor: Path, goreli: str) -> Path:
     if gizli_mi(parcalar):
         raise ValueError("Bu yol gizli/hassas; arayuz okumaz")
     hedef = (klasor / Path(*parcalar)).resolve()
-    if klasor.resolve() not in hedef.parents:
+    kok = klasor.resolve()
+    if kok not in hedef.parents:
         raise ValueError("Yol proje klasorunun disina cikiyor")
+    # Gizlilik COZULMUS yola da bakar: sembolik baglanti (x.txt -> .env), Windows 8.3 kisa adi (ENV~1) ve sondaki nokta/bosluk (x.pem.) istenen adla degil gercek adla denetlenir
+    if gizli_mi(list(hedef.relative_to(kok).parts)):
+        raise ValueError("Bu yol gizli/hassas; arayuz okumaz")
     return hedef
 
 
@@ -300,6 +305,7 @@ class Uygulama:
         saglayici_istemci_uret: Callable[[], object] | None = None,
     ):
         self.calistirici_uret = calistirici_uret
+        self._google = None  # google_giris.Yonetici: ilk kullanimda olusur
         self._opcua_toplayici = None
         self._bootp = None
         self._ag_kilit = threading.Lock()
@@ -1130,6 +1136,14 @@ class Uygulama:
                     kayit("hata", neden[:300])
                     raise UygulamaHatasi(neden[:300], 502)
                 metin += web_getir.veri_blogu(sonuclar)
+            google = otomasyon_akis.google_ayari(o.akis)
+            if google:  # 'Google' dugumu: e-posta/dosya/etkinlik metnini Aktapokus (salt okunur) okur; goreve VERI olarak eklenir
+                try:
+                    metin += google_oku.topla(self._google_yonetici(), google)
+                except google_giris.GoogleHatasi as hata:
+                    neden = f"google: {hata}"[:300]
+                    kayit("hata", neden)
+                    raise UygulamaHatasi(neden, 502) from None
             try:
                 # Plan onayi: varsayilan HER ZAMAN istenir; yalniz kullanicinin Ayarlar > Izinler'de bu otomasyona verdigi 'onaysiz' izni onayi kaldirir
                 plan = self.gorev_olustur(metin, otomatik_onay_izni=False, model_gecersiz=otomasyon_akis.gorev_modeli(o.akis), onaysiz=o.onaysiz)
@@ -1380,6 +1394,29 @@ class Uygulama:
         with self._opcua_kilit:
             return {"olcumler": self._opcua_depoyu_ac().son(kimlik if isinstance(kimlik, str) and kimlik else None, min(max(n, 1), 1000))}
 
+    # --- Google hesabi (Ayarlar > Baglayicilar): anahtarlar ARAYUZE VERILMEZ; yonetim yalniz bu bilgisayardan ---
+    def _google_yonetici(self):
+        if self._google is None:
+            self._google = google_giris.Yonetici()
+        return self._google
+
+    def google_islem(self, eylem: str, g: dict) -> dict:
+        y = self._google_yonetici()
+        try:
+            if eylem == "durum":
+                return y.durum()
+            if eylem == "istemci":
+                y.istemci_kaydet(g.get("istemci_id"), g.get("sir") or None)
+                return y.durum()
+            if eylem == "baglan":
+                return {"adres": y.baglan(g.get("baglayici"))}
+            if eylem == "cikis":
+                y.cikis()
+                return y.durum()
+        except google_giris.GoogleHatasi as hata:
+            raise UygulamaHatasi(str(hata), 400) from None
+        raise UygulamaHatasi("Bilinmeyen Google islemi", 404)
+
     def opcua_islem(self, eylem: str, g: dict) -> dict:
         adres = g.get("adres")
         if not isinstance(adres, str) or not adres.startswith("opc.tcp://") or len(adres) > 300:
@@ -1387,8 +1424,46 @@ class Uygulama:
         kimlik = g.get("kimlik")
         kimlikler = g.get("kimlikler")
         try:
+            with opcua.ayar_ile(self._opcua_baglanti_ayari(g.get("baglanti"))):
+                return self._opcua_islem_calistir(eylem, adres, kimlik, kimlikler, g)
+        except opcua.OpcUaHatasi as hata:
+            raise UygulamaHatasi(str(hata), 502) from None
+
+    @staticmethod
+    def _opcua_baglanti_ayari(b: object) -> dict | None:
+        """'Add Server' ayari (Guvenlik ilkesi/modu, kimlik dogrulama, istemci sertifikasi, oturum adi); gecersiz deger reddedilir."""
+        if not b:
+            return None
+        if not isinstance(b, dict):
+            raise UygulamaHatasi("Baglanti ayari gecersiz")
+        sonuc = {}
+        for alan in ("kullanici", "parola", "sertifika", "anahtar", "oturum_adi"):
+            deger = b.get(alan, "")
+            if not isinstance(deger, str) or len(deger) > 300:
+                raise UygulamaHatasi(f"Baglanti ayari gecersiz: {alan}")
+            sonuc[alan] = deger
+        politika, mod, kimlik = b.get("politika") or "None", b.get("mod") or "None", b.get("kimlik") or "anonim"
+        if politika not in opcua.POLITIKALAR or mod not in opcua.MODLAR or kimlik not in ("anonim", "kullanici"):
+            raise UygulamaHatasi("Guvenlik ilkesi, mod ya da kimlik dogrulama gecersiz")
+        sonuc.update(politika=politika, mod=mod, kimlik=kimlik)
+        return sonuc
+
+    def _opcua_islem_calistir(self, eylem: str, adres: str, kimlik, kimlikler, g: dict) -> dict:
+        try:
             if eylem == "agac":
                 return {"agac": opcua.agac(adres)}
+            if eylem == "goz":
+                if kimlik is not None and (not isinstance(kimlik, str) or len(kimlik) > 200):
+                    raise UygulamaHatasi("Dugum kimligi gecersiz")
+                return {"dugumler": opcua.goz(adres, kimlik or None)}
+            if eylem == "ozellik":
+                if not isinstance(kimlik, str) or not kimlik:
+                    raise UygulamaHatasi("Dugum kimligi gerekli")
+                return opcua.ozellik(adres, kimlik)
+            if eylem == "degerler":
+                if not isinstance(kimlikler, list) or not kimlikler or not all(isinstance(k, str) for k in kimlikler) or len(kimlikler) > 50:
+                    raise UygulamaHatasi("Dugum kimlikleri gerekli")
+                return {"degerler": opcua.degerler(adres, kimlikler)}
             if eylem == "oku":
                 if not isinstance(kimlik, str) or not kimlik:
                     raise UygulamaHatasi("Dugum kimligi gerekli")
@@ -1644,13 +1719,35 @@ class Uygulama:
 
     BAGLAM_PENCERESI = 200_000  # 'Baglam %' paydasi: sohbetin toplam token kullanimi bu pencereye oranlanir
 
+    @staticmethod
+    def _onizleme_sayfasi(klasor: Path, liste: list[dict]) -> str | None:
+        """Onizlenecek sayfa: once sohbetin kendi `index.html`'i, sonra degisen dosyanin yanindaki ya da ustundeki `index.html` (proje icinde),
+        en son yedek olarak en yeni html. Sohbetin urettigi yardimci sayfa (kopyalama araci gibi) asil siteyi golgelemez."""
+        yollar = [str(c.get("yol", "")).replace("\\", "/") for c in liste if c.get("yol")]
+        for y in yollar:
+            if y.rsplit("/", 1)[-1].lower() == "index.html":
+                return y
+        for y in yollar:
+            ust = y.rsplit("/", 1)[0] if "/" in y else ""
+            while True:
+                aday = (ust + "/index.html") if ust else "index.html"
+                try:
+                    if guvenli_goreli(klasor, aday).is_file():
+                        return aday
+                except ValueError:
+                    break
+                if not ust:
+                    break
+                ust = ust.rsplit("/", 1)[0] if "/" in ust else ""
+        return next((c["yol"] for c in liste if c.get("tur") == "html"), None)
+
     def sohbet_ozeti(self, sohbet: object = None) -> dict:
         """Aktif sohbetin ozeti (sag panel): onizlenecek son html, +/- satir, token ve baglam yuzdesi. Yalniz okur."""
         klasor = self._klasor()
         sohbet = self._sohbet_coz(klasor, sohbet)
         kayitlar = baglam_modulu.sohbet_kayitlari(klasor, sohbet)
         liste = ciktilar.topla(klasor, kayitlar, guvenli_goreli)
-        html = next((c["yol"] for c in liste if c.get("tur") == "html"), None)
+        html = self._onizleme_sayfasi(klasor, liste)
         if html is None:  # korunmamis/geri alinmis olsa da sohbetin son degistirdigi sayfa: yedek
             for k in reversed(kayitlar):
                 yol = next((y for y, d in reversed(list((k.get("degisen") or {}).items())) if d != "D" and ciktilar.tur_bul(y) == "html"), None)
@@ -2423,7 +2520,8 @@ def _origin_gecerli(origin: str | None, portlar: set[int]) -> bool:
 STATIK_DOSYALAR = {"/manifest.webmanifest": ("manifest.webmanifest", "application/manifest+json; charset=utf-8"), "/sw.js": ("sw.js", "text/javascript; charset=utf-8"),
     "/simge-192.png": ("simge-192.png", "image/png"), "/simge-512.png": ("simge-512.png", "image/png")}  # PWA: ana ekrana ekleme; token gerektirmez, ozel icerik yok
 VENDOR_DOSYALARI = {"xterm.js": "application/javascript; charset=utf-8", "xterm.css": "text/css; charset=utf-8", "addon-fit.js": "application/javascript; charset=utf-8",
-    "inter-latin-wght-normal.woff2": "font/woff2", "inter-latin-ext-wght-normal.woff2": "font/woff2"}
+    "inter-latin-wght-normal.woff2": "font/woff2", "inter-latin-ext-wght-normal.woff2": "font/woff2",
+    "Lora/Lora-VariableFont_wght.ttf": "font/ttf", "Lora/Lora-Italic-VariableFont_wght.ttf": "font/ttf"}  # Lora (Google Fonts, OFL; vendor/Lora/OFL.txt)
 
 
 def _host_gecerli(host: str | None, portlar: set[int]) -> bool:
@@ -2447,7 +2545,16 @@ class Dinleyici:
     https_host: str | None = None  # Tailscale `serve` aciksa MagicDNS adi: https://<ad> (portsuz) Host/Origin da kabul edilir
 
 
-class UzakSunucu(ThreadingHTTPServer):
+class YerelSunucu(ThreadingHTTPServer):
+    """http.server.HTTPServer.server_bind her baglanista socket.getfqdn() ile ters DNS sorgusu yapar; Windows'ta 127.0.0.1 disindaki adreslerde
+    (Tailscale 100.x, 127.0.0.2) bu sorgu saniyelerce surup dinleyiciyi kurarken arayuzu kilitler. Ad aramasi gerekmez: adres zaten bellidir."""
+
+    def server_bind(self):
+        socketserver.TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address[:2]
+
+
+class UzakSunucu(YerelSunucu):
     allow_reuse_address = False  # Windows'ta SO_REUSEADDR baska bir surecin ayni porta baglanmasina izin verir
 
 
@@ -2469,6 +2576,7 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
 
     class H(BaseHTTPRequestHandler):
         protocol_version = "HTTP/1.1"
+        timeout = 300 if dinleyici is not None else None  # uzak: bos/yavas baglanti sonsuza kadar iplik tutmaz (okuma zaman asimi; akislar yazma yonludur)
         _onbellek = None  # istek govdesi (politika denetimi govdeyi onceden okuyabilir)
 
         def log_message(self, *a):
@@ -2546,6 +2654,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 for ad, rol in (yeni.get("roller", {}) if isinstance(yeni, dict) and isinstance(yeni.get("roller"), dict) else {}).items():
                     if isinstance(rol, dict) and bool(rol.get("okuma_riski_kabul", False)) != bool((eski.get(ad) or {}).get("okuma_riski_kabul", False)):
                         return "okuma_riski_kabul uzaktan degistirilemez (gizli dosya korumasini kapatir)"
+            if yol.startswith("/api/google") and yontem != "GET":
+                return "Google hesabi uzaktan yonetilemez (yalniz bu bilgisayardan baglanir/koparilir)"
             if yol == "/api/otomasyonlar/izin":
                 return "Otomasyon izinleri uzaktan degistirilemez (plan onayini kaldirir)"
             if yontem == "POST" and yol == "/api/otomasyonlar":
@@ -2582,6 +2692,11 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 self.close_connection = True
 
         def _yol_ic(self, yontem: str):
+            # Istek cercevelemesi: negatif/yinelenen Content-Length ve govdede Transfer-Encoding (chunked govdeyi okumayiz; veri sonraki istek sanilirdi = request smuggling) reddedilir
+            cl = self.headers.get_all("Content-Length") or []
+            if self.headers.get("Transfer-Encoding") is not None or len(cl) > 1 or (cl and not (cl[0].strip().isascii() and cl[0].strip().isdigit())):
+                self.close_connection = True
+                return self._gonder(400, {"hata": "Gecersiz istek cercevesi"})
             if dinleyici is None:
                 if self.client_address[0] not in YEREL_ISTEMCILER:
                     return self._gonder(403, {"hata": "Yerel dinleyiciye yalniz bu bilgisayardan erisilir"})
@@ -2690,6 +2805,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.istatistik(q.get("kapsam", "proje")))
                 if yol == "/api/telegram":
                     return self._gonder(200, app.telegram_islem("durum", {}))
+                if yol == "/api/google":
+                    return self._gonder(200, app.google_islem("durum", {}))
                 if yol == "/api/mcp-sunuculari":
                     return self._gonder(200, app.mcp_listele())
                 if yol == "/api/opcua":
@@ -2884,11 +3001,13 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.ag_adaptor_dhcp(g.get("ad")))
                 if yol in ("/api/ag/bootp/baslat", "/api/ag/bootp/durdur", "/api/ag/bootp/ata", "/api/ag/bootp/kaldir"):
                     return self._gonder(200, app.bootp_islem(yol.rsplit("/", 1)[1], g))
+                if yol in ("/api/google/istemci", "/api/google/baglan", "/api/google/cikis"):
+                    return self._gonder(200, app.google_islem(yol.rsplit("/", 1)[1], g))
                 if yol == "/api/opcua/topla":
                     return self._gonder(200, app.opcua_topla(g))
                 if yol == "/api/opcua/durdur":
                     return self._gonder(200, app.opcua_durdur())
-                if yol in ("/api/opcua/agac", "/api/opcua/oku", "/api/opcua/abone"):
+                if yol in ("/api/opcua/agac", "/api/opcua/oku", "/api/opcua/abone", "/api/opcua/goz", "/api/opcua/ozellik", "/api/opcua/degerler"):
                     return self._gonder(200, app.opcua_islem(yol.rsplit("/", 1)[1], g))
                 if yol == "/api/mcp-sunuculari":
                     return self._gonder(200, app.mcp_kaydet(g))
@@ -3109,7 +3228,7 @@ class ArayuzSunucusu:
     def __init__(self, app: Uygulama, port: int = 0):
         self.app = app
         self.kapaniyor = threading.Event()
-        self.http = ThreadingHTTPServer(("127.0.0.1", port), yapi_arayuz(app, self))
+        self.http = YerelSunucu(("127.0.0.1", port), yapi_arayuz(app, self))
         self.http.daemon_threads = True
         self.port = self.http.server_address[1]
         self.onizlemeler: dict[str, ThreadingHTTPServer] = {}  # proje kimligi -> o projeyi sunan onizleme sunucusu (ilk istekte, ayri portta)
@@ -3224,7 +3343,7 @@ class ArayuzSunucusu:
                 raise UygulamaHatasi("Sunucu kapaniyor", 503)
             s = self.onizlemeler.get(proje)
             if s is None:
-                s = ThreadingHTTPServer(("127.0.0.1", 0), yapi_onizleme(self.app, self, proje))
+                s = YerelSunucu(("127.0.0.1", 0), yapi_onizleme(self.app, self, proje))
                 s.daemon_threads = True
                 threading.Thread(target=s.serve_forever, daemon=True).start()
                 self.onizlemeler[proje] = s

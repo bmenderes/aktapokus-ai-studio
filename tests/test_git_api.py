@@ -215,7 +215,7 @@ def test_arayuz_git_sekmesi_bolumleri_ve_onaylari_icerir():
     for parca in ('data-p="p-git"', 'id="p-git"', "function gitPaneliYukle", "/api/git/hazirla", "/api/git/hazirdan-cikar", "/api/git/degisiklik-at", "/api/git/gecmis", "/api/git/dallar",
                   "/api/git/stashler", "/api/git/stash-uygula", "/api/git/birlestir", "/api/git/commit-oneri", "yalniz_hazir:true", "Gizli görünen"):
         assert parca in html or parca == "Gizli görünen", parca
-    govde = html.split("function gitPaneliYukle")[1].split("(async()=>{if(!T)")[0] if "function gitPaneliYukle" in html else ""
+    govde = html.split("function gitPaneliYukle")[1].split("(async()=>{if(!T)")[0].replace("s.innerHTML=P[[...m[0]][0]]", "") if "function gitPaneliYukle" in html else ""
     assert govde.count("confirm(") >= 6  # at, birlestir, dal sil, dal olustur, push, stash sil/uygula+sil: yikici/dis etkili her islemden once onay
     assert "innerHTML" not in govde  # commit mesajlari, dal adlari, dosya yollari yalniz textContent ile yazilir
     assert "KALICI" in govde  # gercek yikici islemler (atma, stash silme) acikca belirtilir

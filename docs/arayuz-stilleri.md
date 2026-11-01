@@ -15,8 +15,8 @@ Her yeni arayüz parçası bu kurallara göre yapılır ve değiştirilir. Kural
 - Hata kırmızıdır, başka her şey sakin (gri/krem). Hata mesajı çözümü söyler (örn. desteklenen türleri sayar).
 
 ## Yazı
-- Yazı tipi **Inter** (ilk seçenek); Segoe UI / `system-ui` asla ilk seçenek olmaz, yalnızca yedek. Kod: Cascadia Mono.
-- Gövde **13 px**. İkincil metin **en az 12 px**. Başlık en çok 15 px (ayar başlığı), içerik başlıkları 13–14 px. Tek istisna: eşleştirme kodu (18 px). Ağırlık 400/500/600; 700 yok.
+- Yazı tipi: **Lora** (ilk seçenek; yoksa Georgia), **Inter** yedek (2026-10-30: kullanıcı Inter'i keskin ve küçük buldu, Lora istedi; önceki "Inter ilk, Segoe asla" kuralı bununla değişti). Lora dosyaları `web/vendor/Lora/` içinde (Google Fonts değişken TTF, OFL lisansı aynı klasörde). Kod: Cascadia Mono.
+- Gövde **15 px**. İkincil metin **en az 12 px**. Başlık en çok 15 px (ayar başlığı), içerik başlıkları 13–14 px. Tek istisna: eşleştirme kodu (18 px). Ağırlık 400/500/600; 700 yok.
 - Mobilde `input/textarea/select` 16 px kalır (iOS yakınlaştırmasını önler).
 
 ## Renk

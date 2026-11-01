@@ -3,6 +3,7 @@ import json
 import subprocess
 import threading
 import time
+import re
 from pathlib import Path
 
 import pytest
@@ -124,6 +125,7 @@ def test_token_ve_host_zorunlu(kur):
 
 def test_arayuz_dis_kaynak_yuklemez():
     html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
+    html = re.sub(r"data:image/[a-z+]+;base64,[A-Za-z0-9+/=]+", "", html)  # gomulu logonun base64'u dis kaynak degil
     assert "cdn" not in html.lower() and "googleapis" not in html and 'src="http' not in html and "https://" not in html.replace("rel=\"noopener", "")
 
 
