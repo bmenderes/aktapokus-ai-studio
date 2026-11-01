@@ -4,6 +4,9 @@
  "yerel": "en-US",
  "tam": {
   "Google ile bağlan": "Connect with Google",
+  "Kararlar": "Decisions",
+  "Bu sohbetin kararları": "Decisions for this chat",
+  "Örn: Veritabanı değişmeyecek.": "E.g. The database stays as it is.",
   "Ağ": "Network",
   "Cihazlar": "Devices",
   "Bilgisayar": "Computer",

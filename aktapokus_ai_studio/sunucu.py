@@ -377,6 +377,7 @@ class SunucuCalistirici(Calistirici):
 
     ad = "opencode-sunucu"
     OTURUM_OMRU_SN = 14 * 24 * 3600  # sohbetler kalici
+    oturum_surdurur = True
     oturum_kipi = "yeni"  # arayuz proje ayarindan (varsayilan "tek") atar; CLI/testlerde eski davranis
     sohbet = None  # verilirse oturum anahtari sohbet basina ayrilir
 
@@ -528,6 +529,12 @@ class SunucuCalistirici(Calistirici):
             return None  # proje klasorundeki dosya guvenilmez: yalniz kimlik bicimi URL'ye girer
         return sid
 
+    def _oturum_anahtari(self, model, agent) -> str:
+        return f"{self.sohbet + '#' if self.sohbet else ''}{model or ''}|{agent or ''}"  # oturum sohbet basina
+
+    def oturum_sifirla(self, klasor, model=None, agent=None) -> None:
+        self._oturum_yaz(klasor, self._oturum_anahtari(model, agent), None)
+
     def _oturum_yaz(self, klasor, anahtar: str, sid: str | None) -> None:
         try:
             yol = self.oturum_yolu(klasor)
@@ -571,7 +578,8 @@ class SunucuCalistirici(Calistirici):
 
     def calistir(self, istem, klasor, model=None, agent=None, zaman_asimi_sn=900, onayli=True):
         baslangic = time.monotonic()
-        anahtar = f"{self.sohbet + '#' if self.sohbet else ''}{model or ''}|{agent or ''}"  # oturum sohbet basina
+        anahtar = self._oturum_anahtari(model, agent)
+        self.hafiza_eklendi = False
         once_tokens: dict = {}
         once_mesajlar: set | None = None
         sid = None
@@ -596,6 +604,9 @@ class SunucuCalistirici(Calistirici):
                 sid = istemci.oturum_olustur(klasor, model=model, agent=agent, baslik="aktapokus")
                 if self.oturum_kipi == "tek":
                     self._oturum_yaz(klasor, anahtar, sid)
+                    if self.yeni_oturum_istemi:  # yeni oturum hafizasiz baslamasin
+                        istem = f"{self.yeni_oturum_istemi}\n\n{istem}"
+                        self.hafiza_eklendi = True
         except Exception as hata:
             return CalistirmaSonucu(False, hata=f"{type(hata).__name__}: {hata}", sure_sn=time.monotonic() - baslangic)
         durdur, bitti = threading.Event(), threading.Event()

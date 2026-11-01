@@ -185,7 +185,14 @@ def calistir_hat(
                 diger = baglam_modulu.diger_sohbetler_baglami(klasor, sohbet)
             except OSError:
                 diger = ""
-            hafiza = "\n\n".join(x for x in (hafiza, diger) if x)
+            try:  # hafiza eklenmediyse yedek: calistirici yeni oturum acarsa konusma hafizasiz baslamasin
+                yedek = "" if hafiza else baglam_modulu.oturum_hafizasi(klasor, sohbet)
+                kararlar = baglam_modulu.kararlar_istemi(klasor, sohbet)
+            except OSError:
+                yedek, kararlar = "", ""
+            hafiza = "\n\n".join(x for x in (kararlar, hafiza, diger) if x)
+        else:
+            yedek = ""
         istem = istem_olustur(rol, gorev, onceki, duzeltme_notu if idx == 0 else None, hafiza)
         bildir(f"-> {rol.ad} ({rol.calistirici}/{rol.model or 'varsayilan model'}) calisiyor...")
         olay({"tur": "adim-basladi", "sira": len(sonuc.adimlar) + 1, "rol": rol.ad, "calistirici": rol.calistirici, "model": rol.model})
@@ -193,9 +200,19 @@ def calistir_hat(
             ru = calistirici_uret(rol.calistirici)
             ru.dusunme = rol.dusunme or None  # rol basina dusunme seviyesi (Claude Code / Codex)
             ru.sohbet = sohbet  # CLI oturumu sohbet basina tutulur
+            ru.yeni_oturum_istemi = yedek
+            gonderilen = f"{yedek}\n\n{istem}" if yedek and getattr(ru, "oturum_surdurur", None) is False else istem  # oturumu olmayan arac: her cagri yeni
             r: CalistirmaSonucu = ru.calistir(
-                istem, klasor, model=rol.model, agent=rol.agent, zaman_asimi_sn=ayar.zaman_asimi_sn, onayli=True
+                gonderilen, klasor, model=rol.model, agent=rol.agent, zaman_asimi_sn=ayar.zaman_asimi_sn, onayli=True
             )
+            if not r.ok and not (iptal is not None and iptal.is_set()) and getattr(ru, "oturum_kipi", None) == "tek" and hasattr(ru, "oturum_sifirla") and baglam_modulu.baglam_tasti_mi(f"{r.hata} {r.metin}"):
+                sonuc.token_toplam += r.token_yeni  # yalniz bir kez: tasan oturum birakilir, gorev yeni oturumda surer
+                ru.oturum_sifirla(klasor, rol.model, rol.agent)
+                ru.yeni_oturum_istemi = "\n\n".join(x for x in (yedek, "[Onceki oturum baglam sinirina ulasti ve is yarim kalmis olabilir. Once dosyalarin mevcut durumuna bak.]") if x)
+                bildir(f"{rol.ad}: baglam doldu, sohbet hafizasiyla yeni oturumda yeniden deneniyor.")
+                r = ru.calistir(istem, klasor, model=rol.model, agent=rol.agent, zaman_asimi_sn=ayar.zaman_asimi_sn, onayli=True)
+            elif getattr(ru, "hafiza_eklendi", False):
+                bildir(f"{rol.ad}: yeni oturum acildi, sohbet hafizasi eklendi.")
         except Exception as hata:  # calistirici bulunamadi/istem gecersiz vb.
             r = CalistirmaSonucu(False, hata=f"{type(hata).__name__}: {hata}")
         sonuc.token_toplam += r.token_yeni

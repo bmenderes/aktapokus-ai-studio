@@ -1733,6 +1733,19 @@ class Uygulama:
                 ust = ust.rsplit("/", 1)[0] if "/" in ust else ""
         return next((c["yol"] for c in liste if c.get("tur") == "html"), None)
 
+    def sohbet_kararlari(self, sohbet: object = None) -> dict:
+        klasor = self._klasor()
+        return {"metin": baglam_modulu.kararlar_oku(klasor, self._sohbet_coz(klasor, sohbet)), "azami": baglam_modulu.AZAMI_KARAR}
+
+    def sohbet_kararlari_yaz(self, sohbet: object, metin: object) -> dict:
+        klasor = self._klasor()
+        if not isinstance(metin, str):
+            raise UygulamaHatasi("Kararlar metin olmali")
+        try:
+            return {"metin": baglam_modulu.kararlar_yaz(klasor, metin, self._sohbet_coz(klasor, sohbet))}
+        except ValueError as hata:
+            raise UygulamaHatasi(str(hata)) from None
+
     def sohbet_ozeti(self, sohbet: object = None) -> dict:
         """Aktif sohbetin ozeti (sag panel): onizlenecek son html, +/- satir, token ve baglam yuzdesi. Yalniz okur."""
         klasor = self._klasor()
@@ -2856,6 +2869,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.ciktilar(q.get("sohbet")))
                 if yol == "/api/sohbet-ozeti":
                     return self._gonder(200, app.sohbet_ozeti(q.get("sohbet")))
+                if yol == "/api/sohbet-kararlar":
+                    return self._gonder(200, app.sohbet_kararlari(q.get("sohbet")))
                 if yol == "/api/hesaplar":
                     return self._gonder(200, app.hesaplar())
                 if yol == "/api/gecmis":
@@ -3037,6 +3052,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.sohbet_sec(g.get("sohbet")))
                 if yol == "/api/sohbet-ad":
                     return self._gonder(200, app.sohbet_ad(g.get("sohbet"), g.get("ad")))
+                if yol == "/api/sohbet-kararlar":
+                    return self._gonder(200, app.sohbet_kararlari_yaz(g.get("sohbet"), g.get("metin")))
                 if yol == "/api/konusma-ozeti":
                     return self._gonder(200, app.konusma_ozeti(g.get("gorev")))
                 if yol == "/api/kuyruk/sil":

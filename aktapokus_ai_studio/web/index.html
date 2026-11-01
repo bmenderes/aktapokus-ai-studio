@@ -73,7 +73,7 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 .yuvarlak:not(.simge):not(.pri){padding:3px 14px}.yuvarlak.pri{padding:3px 16px}
 #orta{display:flex;flex-direction:column;min-width:0;min-height:0;border-right:1px solid var(--line);background:var(--panel)}
 #akis{flex:1;overflow:auto;padding:10px;overflow-anchor:none}
-#sohbetBaslik.duzenlenir{cursor:pointer}
+#sohbetBaslik.duzenlenir{cursor:pointer}.sohbet-karar{float:right;min-height:0;padding:0 10px;font-size:12px;line-height:18px;border-radius:999px}
 #sohbetBaslik{flex:none;padding:6px 12px;border-bottom:1px solid var(--line);font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #akis:empty{background:var(--maskot) center 34% no-repeat;background-size:132px auto;position:relative}#akis:empty::after{content:var(--bos-metin,"Bir görev yazın: ahtapot önce plan çıkarır, siz onaylayınca çalışır.");position:absolute;left:0;right:0;top:calc(34% + 120px);text-align:center;color:var(--tx3);padding:0 24px}
 /* yazma kutusu: tek yuvarlak kart (ince acik cizgi); icindeki alanin kendi koyu cercevesi yok, metin uzadikca kendiliginden buyur */
@@ -779,7 +779,7 @@ async function hakkindaBolumu(h){let cl=[];try{cl=await clilarYukle()}catch(x){}
       e("div",{class:"ayar-satir"},e("div",null,e("div",{text:"Kullanıcı verisi"}),e("div",{class:"mut3 mono",text:"~/.aktapokus  (clilar.json, telegram.json, uygulama.log)"}))),
       e("div",{class:"ayar-satir"},e("div",null,e("div",{text:"Proje ayarı ve kayıtlar"}),e("div",{class:"mut3 mono",text:(S.klasor||"<proje>")+"\\.aktapokus  (roller.json, kayit/)"})))))}
 
-$("#agDugme").onclick=()=>ayarAc("ag");$("#ayarDugme").onclick=()=>ayarAc();document.addEventListener("keydown",ev=>{if(ev.key!=="Escape")return;const m=[...document.querySelectorAll(".modal-arka")].pop();if(m){if(m.id==="uaSunucuForm")m.remove();return}  /* en ustteki katman once; digerleri kendi Esc'ini isler */
+$("#agDugme").onclick=()=>ayarAc("ag");$("#ayarDugme").onclick=()=>ayarAc();document.addEventListener("keydown",ev=>{if(ev.key!=="Escape")return;const m=[...document.querySelectorAll(".modal-arka")].pop();if(m){if(m.id==="uaSunucuForm"||m.dataset.esc)m.remove();return}  /* en ustteki katman once; digerleri kendi Esc'ini isler */
   if([...document.querySelectorAll(".rd-arka,.resim-ust,#yardimPaneli,#modelMenu,#ortamMenu,#sekmeMenu,#baglamMenu")].some(x=>getComputedStyle(x).display!=="none"))return;
   const yan=$("#otoYan.on");if(yan){yan.classList.remove("on");try{localStorage.setItem("aktapokus.otoYan","")}catch(x){}return}
   const of=$("#otoForm");if(of){if(otoFormTerk()&&of.isConnected)of.remove();return}
@@ -854,7 +854,12 @@ function sohbetBasligiCiz(){const b=$("#sohbetBaslik");if(!b)return;const g=S.gr
   if(!ad&&S.kosu&&S.kosu.gorev&&S.kosuAktif)ad=S.kosu.gorev.slice(0,60);
   const grup=g&&S.gecmisGorev&&!S.sohbetYeni?konusmaGruplari(g).find(x=>x.some(y=>y.id===S.gecmisGorev)):null,t=grup?konusmaOzeti(grup,g):null;
   b.title=proje+(ad?" · "+ad:"");b.append(e("b",{text:proje}),e("span",{class:"mut",text:" · "+(ad||"Yeni görev")}));
-  b.classList.toggle("duzenlenir",!!t);b.onclick=t?()=>sohbetAdiDegistir(g,t):null;if(t){b.title="✎ Yeniden adlandır";b.append(e("span",{class:"mut3",text:" ✎"}))}}
+  b.classList.toggle("duzenlenir",!!t);b.onclick=t?()=>sohbetAdiDegistir(g,t):null;if(t){b.title="✎ Yeniden adlandır";b.append(e("span",{class:"mut3",text:" ✎"}))}
+  b.prepend(e("button",{class:"sohbet-karar",title:"Bu sohbetin kararları","aria-label":"Bu sohbetin kararları",text:"Kararlar",onclick:ev=>{ev.stopPropagation();kararlarAc()}}))}
+async function kararlarAc(){let d;try{d=await api("/api/sohbet-kararlar")}catch(x){alert(x.message);return}
+  const arka=e("div",{id:"kararPenceresi",class:"modal-arka","data-esc":"1"}),k=e("div",{class:"modal"});arka.append(k);const kapat=()=>arka.remove();
+  const alan=e("textarea",{rows:"9",style:"width:100%",maxlength:String(d.azami),placeholder:"Örn: Veritabanı değişmeyecek."});alan.value=d.metin;const hata=e("div",{class:"badge b-err",style:"display:none;white-space:normal;margin-top:6px"});
+  k.append(e("b",{text:"Bu sohbetin kararları"}),e("div",{style:"margin-top:8px"},alan),hata,e("div",{class:"row",style:"justify-content:flex-end;gap:6px;margin-top:8px"},e("button",{text:"Vazgeç",onclick:kapat}),e("button",{class:"pri",text:"Kaydet",onclick:async()=>{try{await api("/api/sohbet-kararlar",{method:"POST",body:{metin:alan.value}});kapat()}catch(x){hata.textContent=x.message;hata.style.display=""}}})));document.body.append(arka);alan.focus()}
 async function sohbetAdiDegistir(g,t){const yeni=prompt("Sohbet adı (boş bırakırsanız ilk istem kullanılır):",t.ozel_ad||t.gorev||"");if(yeni===null)return;try{if(t.sohbet)await api("/api/p/"+g.id+"/sohbet-ad",{method:"POST",body:{sohbet:t.sohbet,ad:yeni}});if(t.id)await api("/api/p/"+g.id+"/gorev-meta",{method:"POST",body:{id:t.id,ad:yeni}});
     if(!yeni.trim())for(const o of g.gorevler.filter(x=>x.ozel_ad&&x.id!==t.id&&(t.idler||[]).includes(x.id)))await api("/api/p/"+g.id+"/gorev-meta",{method:"POST",body:{id:o.id,ad:""}});  /* ad temizlenince sohbetteki eski adlar da gider: yoksa eski bir ad geri gelirdi */
     await kenarCubugu()}catch(x){alert(x.message)}}

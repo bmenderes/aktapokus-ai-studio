@@ -46,6 +46,9 @@ class CalistirmaSonucu:
 
 class Calistirici:
     ad = ""
+    oturum_surdurur = False  # kendi oturumunu surdurebilen arac (Claude Code, OpenCode sunucu); digerleri her cagrida sifirdan baslar
+    yeni_oturum_istemi = ""  # yeni oturum acilirsa isteme eklenecek sohbet hafizasi (pipeline verir)
+    hafiza_eklendi = False  # son cagrida yeni_oturum_istemi gercekten eklendi mi
     mcp: tuple = ()  # bu calismada ETKIN MCP sunuculari (mcptanim.McpTanim); Uygulama her adimdan once projeye gore atar
 
     def calistir(
@@ -268,6 +271,7 @@ class ClaudeCodeCalistirici(Calistirici):
     'hic' = konusma kaydedilmez (--no-session-persistence)."""
 
     ad = "claude"
+    oturum_surdurur = True
     oturum_kipi = "yeni"  # CLI/testlerde eski davranis; arayuz proje ayarindan (varsayilan 'tek') atar
     sohbet = None  # verilirse oturum SOHBET basina tutulur (proje+sohbet); None: eski proje basina tek oturum
     ilerleme = None  # canli olay geri cagrisi: {"tur": "metin"|"arac"|"arac-sonuc", ...} (OpenCode sunucu calistiricisiyla ayni bicim)
@@ -350,6 +354,9 @@ class ClaudeCodeCalistirici(Calistirici):
             yol.write_text(json.dumps({"oturum": kimlik, "zaman": time.time()}), encoding="utf-8")
         except OSError:
             pass
+
+    def oturum_sifirla(self, klasor, model=None, agent=None) -> None:
+        self._oturum_sil(klasor)
 
     def _oturum_sil(self, klasor) -> None:
         try:
@@ -490,7 +497,9 @@ class ClaudeCodeCalistirici(Calistirici):
             oturum = self._oturum_oku(klasor) if self.oturum_kipi == "tek" else None
             while True:
                 komut = self.komut(str(ayar), model, onayli, mcp_dosyasi, tuple(t.ad for t in self.mcp), oturum=oturum, kalici=self.oturum_kipi != "hic", sistem_dosyasi=sistem_dosyasi)
-                kod, olay, hata_metni, asildi = self._akis(komut, kullanici, klasor, zaman_asimi_sn)
+                self.hafiza_eklendi = bool(self.oturum_kipi == "tek" and not oturum and self.yeni_oturum_istemi)  # yeni konusma hafizasiz baslamasin
+                gonderilen = f"{self.yeni_oturum_istemi}\n\n{kullanici}" if self.hafiza_eklendi else kullanici
+                kod, olay, hata_metni, asildi = self._akis(komut, gonderilen, klasor, zaman_asimi_sn)
                 kayip = oturum and "no conversation found" in (hata_metni + str((olay or {}).get("result", ""))).lower()
                 if kayip:  # konusma silinmis: yeni baslat (bir kez)
                     self._oturum_sil(klasor)
