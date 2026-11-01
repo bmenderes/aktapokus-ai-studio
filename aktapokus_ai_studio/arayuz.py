@@ -34,7 +34,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import ag_araci, ag_profil, bootp, google_giris, opcua, opcua_ayar, opcua_depo, opcua_toplayici, arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, google_oku, oneriler, izinler, uyanik, otomatik_baslat, gonderme_kontrol, yayin
+from . import nodered, ag_araci, ag_profil, bootp, google_giris, opcua, opcua_ayar, opcua_depo, opcua_toplayici, arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, google_oku, oneriler, izinler, uyanik, otomatik_baslat, gonderme_kontrol, yayin
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_model_gecersiz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
@@ -2813,6 +2813,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.opcua_durum())
                 if yol == "/api/ag/adaptorler":
                     return self._gonder(200, app.ag_adaptorler())
+                if yol == "/api/nodered":
+                    return self._gonder(200, nodered.YONETICI.durum())
                 if yol == "/api/ag/bootp":
                     return self._gonder(200, app.bootp_durum())
                 if yol == "/api/ag/profiller":
@@ -3050,6 +3052,11 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.yeni_konusma(g.get("ust")))
                 if yol == "/api/sohbet-sec":
                     return self._gonder(200, app.sohbet_sec(g.get("sohbet")))
+                if yol in ("/api/nodered/kur", "/api/nodered/baslat", "/api/nodered/durdur"):
+                    try:
+                        return self._gonder(200, getattr(nodered.YONETICI, yol.rsplit("/", 1)[1])())
+                    except nodered.NodeRedHatasi as hata:
+                        raise UygulamaHatasi(str(hata)) from None
                 if yol == "/api/sohbet-ad":
                     return self._gonder(200, app.sohbet_ad(g.get("sohbet"), g.get("ad")))
                 if yol == "/api/sohbet-kararlar":

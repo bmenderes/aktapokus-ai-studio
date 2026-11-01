@@ -658,7 +658,7 @@ async function istatistikYukle(hedef){const p=hedef||S.istHedef||$("#ayarIcerik"
   p.append(e("div",{class:"mut3",style:"margin-top:10px;white-space:normal",text:"Not: abonelik kotanızın (Claude Pro, ChatGPT/Codex) kalan miktarı CLI'lardan güvenilir okunamıyor; burada harcanan token, limite takılma anı ve girdiğiniz tavana göre tahmini kalan görünür."}))}
 function kapsamSecici(){const b=(ad,v)=>e("button",{class:S.istKapsam===v?"pri":"",text:ad,onclick:()=>{S.istKapsam=v;istatistikYukle()}});return e("div",{class:"row"},b("Bu proje","proje"),b("Tüm projeler","tum"),e("button",{text:"Yenile",onclick:()=>istatistikYukle()}))}
 /* ---- AYARLAR: sol menulu tam sayfa . Bolumler: Genel, Saglayicilar, Modeller, CLI'lar, Roller, Kullanim, Hakkinda ---- */
-const AYAR_BOLUMLERI=[["hesaplar","Hesaplar"],["genel","Genel"],["saglayicilar","Sağlayıcılar"],["modeller","Modeller"],["clilar","CLI'lar"],["baglayicilar","Bağlayıcılar"],["mcp","MCP sunucuları"],["opcua","OPC UA"],["ag","Ağ"],["beceriler","Beceriler"],["onerilenler","Önerilenler"],["github","GitHub"],["roller","Roller"],["telegram","Telegram"],["otomasyon","Otomasyonlar"],["izinler","İzinler"],["uzak","Uzak erişim"],["kullanim","Kullanım"],["hakkinda","Hakkında"]];
+const AYAR_BOLUMLERI=[["hesaplar","Hesaplar"],["genel","Genel"],["saglayicilar","Sağlayıcılar"],["modeller","Modeller"],["clilar","CLI'lar"],["baglayicilar","Bağlayıcılar"],["mcp","MCP sunucuları"],["opcua","OPC UA"],["ag","Ağ"],["nodered","Node-RED"],["beceriler","Beceriler"],["onerilenler","Önerilenler"],["github","GitHub"],["roller","Roller"],["telegram","Telegram"],["otomasyon","Otomasyonlar"],["izinler","İzinler"],["uzak","Uzak erişim"],["kullanim","Kullanım"],["hakkinda","Hakkında"]];
 function ayarAc(id){terminalKapat();$("#ayarlar").classList.add("on");$("#ayarUst").classList.add("on");ayarGit(id||S.ayarBolum||"genel")}
 function otoFormTerk(){const f=$("#otoForm");if(!f||!f.dataset.kirli)return true;if(!confirm("Kaydedilmemiş otomasyon değişiklikleri silinsin mi?"))return false;f.remove();return true}
 function ayarKapat(){if(!otoFormTerk())return false;if(S.telegramZ){clearInterval(S.telegramZ);S.telegramZ=null}$("#ayarlar").classList.remove("on");$("#ayarUst").classList.remove("on");hesapOzetYukle();return true}
@@ -666,7 +666,7 @@ async function clilarYukle(){S.clilar=(await api("/api/clilar")).clilar;return S
 async function canliModelleriYukle(){try{S.canliModeller=(await api("/api/modeller")).modeller;(S.modelListeleri||[]).forEach(x=>modelOnerileri(x.liste,x.sel.value))}catch(x){}}
 function ayarMenusuCiz(){const m=$("#ayarMenu");m.textContent="";m.append(e("button",{class:"geri",text:"← Uygulamaya dön",onclick:ayarKapat}));
   for(const [id,ad] of AYAR_BOLUMLERI)m.append(e("button",{class:"ayar-oge"+(S.ayarBolum===id?" on":""),text:ad,onclick:()=>ayarGit(id)}))}
-async function ayarGit(id){if(id!==S.ayarBolum&&!otoFormTerk())return;if(S.telegramZ){clearInterval(S.telegramZ);S.telegramZ=null}S.ayarBolum=id;ayarMenusuCiz();const ic=$("#ayarIcerik");ic.textContent="";ic.scrollTop=0;ic.classList.remove("genis");const h=e("div");ic.append(h);  /* yavas bolumun gec gelen icerigi kopuk kaba gider, yeni bolume karismaz */
+async function ayarGit(id){if(id!==S.ayarBolum&&!otoFormTerk())return;if(S.telegramZ){clearInterval(S.telegramZ);S.telegramZ=null}S.ayarBolum=id;ayarMenusuCiz();const ic=$("#ayarIcerik");ic.textContent="";ic.scrollTop=0;ic.classList.remove("genis");ic.style.padding="";const h=e("div");ic.append(h);  /* yavas bolumun gec gelen icerigi kopuk kaba gider, yeni bolume karismaz */
   const baslik=(ad,alt)=>{h.append(e("h2",{class:"ayar-baslik",text:ad}));if(alt)h.append(e("div",{class:"mut3 ayar-alt",text:alt}))};
   try{
     if(id==="hesaplar"){baslik("Hesaplar","Hangi hizmette kim olarak giriş yapıldı. Aktapokus'un kendi kullanıcı hesabı yoktur; kimlikler aşağıdaki araçların kendi oturumlarıdır.");await hesaplarBolumu(h)}
@@ -678,6 +678,7 @@ async function ayarGit(id){if(id!==S.ayarBolum&&!otoFormTerk())return;if(S.teleg
     else if(id==="mcp"){baslik("MCP sunucuları","Modellere ek araç ve bilgi veren sunucular. Bir kez tanımlayın, hangi projelerde açılacağını seçin; OpenCode, Claude Code ve Codex'e kendiliğinden aktarılır.");await mcpBolumu(h)}
     else if(id==="opcua"){baslik("OPC UA");await opcuaBolumu(h)}
     else if(id==="ag"){baslik("Ağ");await agBolumu(h)}
+    else if(id==="nodered"){baslik("Node-RED");await noderedBolumu(h)}
     else if(id==="beceriler"){baslik("Beceriler","Modelin gerektiğinde yüklediği talimat paketleri. Sizin oluşturduklarınız ~/.agents/skills klasöründe durur; başka yerlerden bulunanlar yalnızca gösterilir.");await beceriBolumu(h)}
     else if(id==="onerilenler"){baslik("Önerilenler");await onerilenlerBolumu(h)}
     else if(id==="github"){baslik("GitHub","Bilgisayardaki gh (GitHub CLI) girişini kullanır; uygulama token'ı görmez ya da saklamaz. Depo klonlama burada; commit, push, pull request ve issue işlemleri proje panelindeki GitHub sekmesinde.");await githubBolumu(h)}
@@ -2079,6 +2080,17 @@ async function agBolumu(h){const post=(y,g)=>api(y,g?{method:"POST",body:g}:unde
       e("button",{class:"pri",text:"Uygula",onclick:()=>{if(confirm(q.adaptor+" adaptörüne "+q.ad+" uygulansın mı?"))dene(async()=>{await post("/api/ag/profil-uygula",{ad:q.ad});git("profiller")})}}),
       e("button",{class:"oto-ib",text:"✕",title:"Sil",onclick:()=>dene(async()=>{await post("/api/ag/profil-sil",{ad:q.ad});git("profiller")})})))};
   await git("cihazlar")}
+/* Node-RED (Ayarlar > Node-RED): yerel kurulum, arayuz icinde cerceve. Akislari plan onayi ve geri alma korumasinin disindadir. */
+async function noderedBolumu(h){const kap=e("div");h.append(kap);const dur=()=>{if(S.telegramZ){clearInterval(S.telegramZ);S.telegramZ=null}};
+  const islem=async(y,b)=>{if(b)b.disabled=true;try{await api("/api/nodered/"+y,{method:"POST",body:{}})}catch(x){alert(x.message)}await ciz()};
+  const ciz=async()=>{if(!kap.isConnected){dur();return}let d;try{d=await api("/api/nodered")}catch(x){kap.textContent=x.message;return}kap.textContent="";dur();$("#ayarIcerik").classList.toggle("genis",!!d.calisiyor);$("#ayarIcerik").style.padding=d.calisiyor?"8px":"";
+    if(d.hata)kap.append(e("div",{class:"badge b-err",style:"white-space:normal;margin-bottom:8px",text:d.hata}));
+    if(!d.node||!d.npm){kap.append(e("div",{class:"mut",text:"Node.js gerekli. nodejs.org adresinden kurup uygulamayı yeniden başlatın."}));return}
+    if(d.kuruluyor){kap.append(e("div",{class:"mut",text:"Kuruluyor…"}));S.telegramZ=setInterval(ciz,3000);return}
+    if(!d.kurulu){const b=e("button",{class:"pri",text:"Kur ("+d.surum+")",onclick:()=>islem("kur",b)});kap.append(b);return}
+    if(!d.calisiyor){const b=e("button",{class:"pri",text:"Başlat",onclick:()=>{b.textContent="Başlatılıyor…";islem("baslat",b)}});kap.append(b);return}
+    const b=e("button",{text:"Durdur",onclick:()=>islem("durdur",b)});kap.append(e("div",{class:"row",style:"justify-content:flex-end;margin-bottom:6px"},b),e("iframe",{title:"Node-RED",src:d.adres,style:"width:100%;height:calc(100vh - 130px);border:1px solid var(--line);border-radius:8px;background:#fff"}))};
+  await ciz()}
 function yardimPaneli(bolum){const adres=(DIL.kod==="en"?"/yardim/otomasyon-en.html":"/yardim/otomasyon.html")+(bolum?"#"+bolum:"");let p=$("#yardimPaneli");
   if(p){p.querySelector("iframe").src=adres;return}
   p=e("aside",{id:"yardimPaneli",style:"position:fixed;top:0;right:0;bottom:0;width:min(480px,92vw);z-index:60;background:var(--bg);border-left:1px solid var(--line);box-shadow:-6px 0 24px rgba(0,0,0,.12);display:flex;flex-direction:column"},

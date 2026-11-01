@@ -4,6 +4,9 @@
  "yerel": "en-US",
  "tam": {
   "Google ile bağlan": "Connect with Google",
+  "Kuruluyor…": "Installing…",
+  "Başlatılıyor…": "Starting…",
+  "Node.js gerekli. nodejs.org adresinden kurup uygulamayı yeniden başlatın.": "Node.js is required. Install it from nodejs.org and restart the app.",
   "Yardım, çıktılar ve belgeler": "Help, outputs and documents",
   "Bu dosya metin değil, burada okunamaz.": "This file is not text and cannot be read here.",
   "Kararlar": "Decisions",

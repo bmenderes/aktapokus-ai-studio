@@ -269,6 +269,7 @@ YONETIM_KAPALIYKEN_YASAK = (
 # Uzaktan degerlendirilen uclar: listede olmayan uc uzaktan REDDEDILIR (yeni uc eklenince kendiliginden acik kalmasin).
 # Yeni uc eklerken once uzaktan guvenli mi diye karar verin: tests/test_uzak.py eksik siniflandirmayi yakalar.
 UZAK_BILINEN_UCLAR = frozenset({
+    "/api/nodered", "/api/nodered/kur", "/api/nodered/baslat", "/api/nodered/durdur",  # politika her zaman reddeder
     "/api/ag/adaptor-dhcp", "/api/ag/adaptor-ip", "/api/ag/adaptorler", "/api/ag/bootp", "/api/ag/bootp/ata", "/api/ag/bootp/baslat",
     "/api/ag/bootp/durdur", "/api/ag/bootp/kaldir", "/api/ag/profil", "/api/ag/profil-sil", "/api/ag/profil-uygula", "/api/ag/profiller",
     "/api/ag/tara", "/api/ayar", "/api/beceri-kaynak", "/api/beceri-kaynak/onizle", "/api/beceriler", "/api/beceriler/indir", "/api/beceriler/sil",
@@ -296,6 +297,8 @@ def politika(yontem: str, yol: str, ayar: Ayar) -> str | None:
     """Uzak istek icin ret sebebi (Turkce) ya da izinliyse None. Cagri oncesi /api/p/<id>/ oneki ve sorgu ayiklanmis olmali."""
     if yol == "/api/uzak" or yol.startswith("/api/uzak/"):
         return "Uzak erisim ayarlari yalnizca bu bilgisayardan degistirilebilir"
+    if yol == "/api/nodered" or yol.startswith("/api/nodered/"):
+        return "Node-RED yalnizca bu bilgisayardan yonetilir (duzenleyicisi kod calistirabilir)"
     if yol == "/api/otomatik-baslat":
         return "Otomatik baslatma yalnizca bu bilgisayardan degistirilebilir (Windows acilisina program ekler)"
     if yol == "/api/izinler":
