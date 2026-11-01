@@ -24,7 +24,7 @@ def test_yardim_sayfalari_tutarli_resimli_ve_dis_kaynaksiz():
         for bolum in bolumler[d]:  # icindekiler baglantilari gecerli
             assert f'href="#{bolum}"' in s
     # arayuzun yardim dugmeleri bu bolumlere gider
-    for parca in ('yardimDugmesi("ilk")', 'yardimDugmesi("dugum")'):
+    for parca in ('yardimDugmesi("ilk")', '"/yardim/otomasyon.html")+"#dugum"'):  # dugum yardimi duzenleyicinin yan cercevesinde
         assert parca in HTML
     assert {"ilk", "dugum"} <= set(bolumler["tr"])
 
