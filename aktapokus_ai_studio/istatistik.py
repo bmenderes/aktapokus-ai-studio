@@ -148,6 +148,8 @@ def ozet(kayitlar: list[dict], simdi: datetime | None = None, gun_sayisi: int = 
     hatalar: dict[str, int] = defaultdict(int)
     son_hatalar: list[dict] = []
     guncel_limit: dict[tuple, dict] = {}
+    # Kota havuzu = calistirici (ayni abonelik/anahtar altindaki tum modeller kotayi PAYLASIR): son 5 saat / bugun / hafta harcamasi + son limit anı
+    havuzlar: dict[str, dict] = defaultdict(lambda: {"son5sa": 0, "bugun": 0, "hafta": 0, "toplam": 0, "son_limit": None})
 
     for k in sorted(kayitlar, key=lambda x: str(x.get("zaman"))):
         z = _zaman(k)
@@ -161,7 +163,15 @@ def ozet(kayitlar: list[dict], simdi: datetime | None = None, gun_sayisi: int = 
             _topla(roller[str(a.get("rol"))], a)
             _topla(projeler[k.get("_proje", "-")], a)
             yeni = _int(a.get("token_girdi")) + _int(a.get("token_cikti"))
+            havuz = havuzlar[anahtar[0]]
+            havuz["toplam"] += yeni
             if z:
+                if simdi - z <= timedelta(hours=5):
+                    havuz["son5sa"] += yeni
+                if z >= bugun_basi:
+                    havuz["bugun"] += yeni
+                if z >= hafta_basi:
+                    havuz["hafta"] += yeni
                 if z >= bugun_basi:
                     _topla(bugun, a)
                 if z >= hafta_basi:
@@ -170,6 +180,8 @@ def ozet(kayitlar: list[dict], simdi: datetime | None = None, gun_sayisi: int = 
             sinif = hata_sinifi(a.get("hata")) if not a.get("ok", True) else None
             if sinif:
                 hatalar[sinif] += 1
+                if sinif == "limit":
+                    havuz["son_limit"] = k.get("zaman")
                 son_hatalar.append({"zaman": k.get("zaman"), "proje": k.get("_proje", "-"), "calistirici": anahtar[0], "model": anahtar[1], "rol": a.get("rol"),
                                     "sinif": sinif, "mesaj": str(a.get("hata"))[:160]})
                 if sinif == "limit" and z and simdi - z <= timedelta(hours=LIMIT_PENCERESI_SA):
@@ -186,6 +198,7 @@ def ozet(kayitlar: list[dict], simdi: datetime | None = None, gun_sayisi: int = 
         "modeller": sorted(({"calistirici": c, "model": m, **_bitir(v)} for (c, m), v in modeller.items()), key=lambda x: -x["yeni"]),
         "roller": sorted(({"rol": r, **_bitir(v)} for r, v in roller.items()), key=lambda x: -x["yeni"]),
         "projeler": sorted(({"proje": p, **_bitir(v)} for p, v in projeler.items()), key=lambda x: -x["yeni"]),
+        "havuzlar": sorted(({"calistirici": c, "modeller": sorted({m for (cc, m) in modeller if cc == c and m}), **v} for c, v in havuzlar.items()), key=lambda x: -x["hafta"]),
         "durumlar": dict(durumlar),
         "hatalar": {SINIF_ADLARI[s]: n for s, n in sorted(hatalar.items(), key=lambda x: -x[1])},
         "son_hatalar": son_hatalar[-8:][::-1],
