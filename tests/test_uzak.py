@@ -441,7 +441,7 @@ def test_arayuz_uzak_erisim_bolumu_ve_telefon_duzeni():
     for parca in ('["uzak","Uzak erişim"]', "function uzakBolumu", "function uzakDuzen", "/api/uzak/anahtar-yenile", 'id="mobilGezinme"', "function mobilGoster", "@media (max-width:900px)",
                   'data-m="sol"', 'data-m="orta"', 'data-m="sag"', 'id="motorUyari"'):
         assert parca in html, parca
-    govde = html.split("function uzakBolumu")[1].split("(async()=>{if(!T)")[0]
+    govde = html.split("function uzakBolumu")[1].split("/* ---- Telefon / dar ekran")[0]  # yalniz uzakBolumu govdesi (sonraki bolumlerdeki sabit simge tablosu innerHTML kullanir)
     # terminal ve yonetim anahtarlari acilirken ortak degistir(govde, onay) onay penceresi gosterir; anahtar yenileme ayrica onaylidir
     assert "confirm(onay)" in govde and govde.count("Yine de açılsın mı?") == 2 and "Uzak anahtar yenilensin mi?" in govde and "innerHTML" not in govde
     assert "TAM komut" in govde and "KAPALI" in govde  # riskli anahtarlar acikca anlatilir
@@ -451,3 +451,20 @@ def test_arayuz_uzak_erisim_bolumu_ve_telefon_duzeni():
 def test_politika_tablosu_politika_uygulanmadan_once_govdeyi_tuketir():
     kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "arayuz.py").read_text(encoding="utf-8")
     assert "_govdeyi_bosalt" in kaynak and "def _yol_ic" in kaynak
+
+
+def test_dinleyici_kurarken_ters_dns_sorgusu_yapilmaz(monkeypatch):
+    """Regresyon: http.server.HTTPServer.server_bind socket.getfqdn() cagirir; Windows'ta 127.0.0.1 disi adreslerde saniyelerce surup arayuzu kilitliyordu."""
+    from aktapokus_ai_studio.arayuz import UzakSunucu, YerelSunucu
+    from http.server import BaseHTTPRequestHandler
+
+    def yasak(*a, **k):
+        raise AssertionError("getfqdn cagrildi")
+
+    monkeypatch.setattr(socket, "getfqdn", yasak)
+    for sinif, adres in ((UzakSunucu, "127.0.0.2"), (YerelSunucu, "127.0.0.1")):
+        s = sinif((adres, 0), BaseHTTPRequestHandler)
+        try:
+            assert s.server_address[0] == adres and s.server_name == adres and s.server_port == s.server_address[1]
+        finally:
+            s.server_close()

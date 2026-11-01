@@ -73,17 +73,24 @@ def kaynak_coz(proje_klasoru: Path, goreli: object) -> Path:
     return cozulmus
 
 
+def _kacak(yol: Path, kok: str) -> bool:
+    """Sembolik baglanti VEYA Windows junction (is_symlink() junction'i gormez) ile kaynak disina cikan yol mu."""
+    gercek = os.path.realpath(yol)
+    return gercek != kok and not gercek.startswith(kok + os.sep)
+
+
 def dosyalari_listele(kaynak: Path) -> tuple[list[tuple[str, Path]], list[str]]:
     """[(goreli_yol, dosya)] ve atlananlar. Sinirlari asarsa hata verir (sessizce eksik yayinlamaz)."""
     dosyalar: list[tuple[str, Path]] = []
     atlanan: list[str] = []
     toplam = 0
+    gercek_kok = os.path.realpath(kaynak)
     for kok, klasorler, adlar in os.walk(kaynak, followlinks=False):
-        klasorler[:] = sorted(d for d in klasorler if not (d.startswith(".") or d in ATLANAN_KLASORLER or (Path(kok) / d).is_symlink()))
+        klasorler[:] = sorted(d for d in klasorler if not (d.startswith(".") or d in ATLANAN_KLASORLER or (Path(kok) / d).is_symlink() or _kacak(Path(kok) / d, gercek_kok)))
         for ad in sorted(adlar):
             p = Path(kok) / ad
             rel = p.relative_to(kaynak).as_posix()
-            if p.is_symlink() or (ad.startswith(".") and ad not in IZINLI_NOKTALI) or github.gizli_yol_mu(rel):
+            if p.is_symlink() or _kacak(p, gercek_kok) or (ad.startswith(".") and ad not in IZINLI_NOKTALI) or github.gizli_yol_mu(rel):
                 atlanan.append(rel)
                 continue
             boyut = p.stat().st_size

@@ -193,7 +193,7 @@ def eklenenler(diff: str) -> list[tuple[str, int, str]]:
 def _git_cikti(klasor: Path, *args: str) -> tuple[str, bool]:
     """HAM git ciktisi: github._git ciktidaki belirtec desenlerini '***' yapar (gunluk korumasi); tarayici ise sirri GORMELIDIR. Cikti hicbir yere yazilmaz."""
     try:
-        s = subprocess.run(["git", "-C", str(klasor), "-c", "core.quotepath=off", *args], capture_output=True, text=True, encoding="utf-8", errors="replace", env=github._ortam(),
+        s = subprocess.run(["git", "-C", str(klasor), "-c", "core.quotepath=off", "-c", "core.fsmonitor=false", *args], capture_output=True, text=True, encoding="utf-8", errors="replace", env=github._ortam(),
                            stdin=subprocess.DEVNULL, timeout=120, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     except (OSError, subprocess.TimeoutExpired) as hata:
         raise github.GithubHatasi(f"git calistirilamadi: {type(hata).__name__}") from None

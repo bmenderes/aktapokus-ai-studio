@@ -152,7 +152,7 @@ def _git(klasor: Path, *args: str, env: dict | None = None, kontrol: bool = True
         ortam.update(env)
     try:
         sonuc = subprocess.run(
-            ["git", "-C", str(klasor), "-c", "core.quotepath=off", *args],
+            ["git", "-C", str(klasor), "-c", "core.quotepath=off", "-c", "core.fsmonitor=false", *args],
             capture_output=True,
             text=True,
             encoding="utf-8",

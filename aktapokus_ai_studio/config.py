@@ -89,7 +89,7 @@ def ayar_model_gecersiz(ayar: Ayar, calistirici: str, model: str | None) -> Ayar
     talimat/dogrulama/okuma_riski_kabul AYNEN korunur (gizli dosya onayi projenin ayarinda kalir, genisletilmez); agent ve dusunme motor degisince gecersiz olacagi icin sifirlanir."""
     if calistirici not in OTOMASYON_MOTORLARI:
         raise AyarHatasi(f"Model icin calistirici su degerlerden biri olmali: {', '.join(OTOMASYON_MOTORLARI)}")
-    if model is not None and (not isinstance(model, str) or not model.strip() or len(model) > 120 or any(ord(c) < 32 for c in model)):
+    if model is not None and (not isinstance(model, str) or not model.strip() or len(model) > 120 or model.strip().startswith("-") or any(ord(c) < 32 for c in model)):
         raise AyarHatasi("Model adi gecersiz")
     return replace(ayar, roller={ad: replace(r, calistirici=calistirici, model=model or None, agent=None, dusunme="") for ad, r in ayar.roller.items()})
 
@@ -103,6 +103,11 @@ def _tam_sayi(veri: dict, ad: str, alt: int, ust: int) -> int:
     if isinstance(deger, bool) or not isinstance(deger, int) or not alt <= deger <= ust:
         raise AyarHatasi(f"'{ad}' {alt} ile {ust} arasinda bir tam sayi olmali (bulunan: {deger!r})")
     return deger
+
+
+def _arguman_degeri_gecerli(deger: str) -> bool:
+    """CLI'ya `--model <deger>` / `--agent <deger>` diye verilir: '-' ile baslayan ya da kontrol karakteri iceren deger secenek enjeksiyonu olurdu."""
+    return len(deger) <= 200 and not deger.strip().startswith("-") and not any(ord(c) < 32 for c in deger)
 
 
 def ayar_coz(veri: object) -> Ayar:
@@ -125,12 +130,16 @@ def ayar_coz(veri: object) -> Ayar:
         model = r.get("model")
         if model is not None and (not isinstance(model, str) or not model.strip()):
             raise AyarHatasi(f"Rol '{ad}': 'model' bos olmayan metin ya da null olmali")
+        if model is not None and not _arguman_degeri_gecerli(model):
+            raise AyarHatasi(f"Rol '{ad}': 'model' '-' ile baslayamaz ve kontrol karakteri iceremez")
         talimat = r.get("talimat")
         if not isinstance(talimat, str) or not talimat.strip():
             raise AyarHatasi(f"Rol '{ad}': 'talimat' bos olmayan metin olmali")
         agent = r.get("agent")
         if agent is not None and (not isinstance(agent, str) or not agent.strip()):
             raise AyarHatasi(f"Rol '{ad}': 'agent' bos olmayan metin ya da null olmali")
+        if agent is not None and not _arguman_degeri_gecerli(agent):
+            raise AyarHatasi(f"Rol '{ad}': 'agent' '-' ile baslayamaz ve kontrol karakteri iceremez")
         dogrulama = r.get("dogrulama", False)
         if not isinstance(dogrulama, bool):
             raise AyarHatasi(f"Rol '{ad}': 'dogrulama' true/false olmali")

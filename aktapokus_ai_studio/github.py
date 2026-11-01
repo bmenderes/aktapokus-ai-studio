@@ -144,6 +144,8 @@ def _ortam(dizin: Path | None = None) -> dict:
 
 def _calistir(argv: list[str], klasor: Path | None = None, zaman_asimi: int = 60, girdi: str | None = None) -> tuple[int, str, str]:
     ortam = _ortam(_dizin_sec(argv, klasor))
+    if argv[:1] == ["git"] and "core.fsmonitor=false" not in argv:  # depo yapilandirmasi guvenilmez: .git/config'teki core.fsmonitor=<komut> her git status'ta calisirdi
+        argv = [argv[0], "-c", "core.fsmonitor=false", *argv[1:]]
     bayrak = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     try:
         s = subprocess.run(
@@ -158,7 +160,7 @@ def _calistir(argv: list[str], klasor: Path | None = None, zaman_asimi: int = 60
 
 
 def _git(klasor: Path, *args: str, zaman_asimi: int = 60, girdi: str | None = None, kontrol: bool = True) -> str:
-    kod, cikti, hata = _calistir(["git", "-C", str(klasor), "-c", "core.quotepath=off", *args], None, zaman_asimi, girdi)
+    kod, cikti, hata = _calistir(["git", "-C", str(klasor), "-c", "core.quotepath=off", "-c", "core.fsmonitor=false", *args], None, zaman_asimi, girdi)
     if kontrol and kod != 0:
         raise GithubHatasi((hata.strip() or cikti.strip() or f"git {args[0]} basarisiz")[:600])
     return cikti

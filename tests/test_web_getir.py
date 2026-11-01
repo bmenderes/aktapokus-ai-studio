@@ -145,7 +145,7 @@ def test_web_dugumu_dogrulanir_ve_adresler_okunur():
             oto.kaydet({"ad": "kotu", "proje": P1, "akis": kotu})
     iki = _akis(["https://a.com/"])
     iki["dugumler"].append({"id": "w2", "tur": "web", "x": 0, "y": 80, "ayar": {"adresler": ["https://c.com/"]}})
-    with pytest.raises(oto.OtomasyonHatasi, match="en cok bir web"):
+    with pytest.raises(oto.OtomasyonHatasi, match="en cok bir veri"):
         oto.kaydet({"ad": "iki", "proje": P1, "akis": iki})
     kopuk = _akis(["https://a.com/"])
     kopuk["oklar"] = [{"kaynak": "t1", "hedef": "w1"}]  # web -> gorev eksik
@@ -236,7 +236,7 @@ def test_arayuz_web_dugumu_ve_izinler_sayfasi_var():
     html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     assert '["izinler","İzinler"]' in html and "async function izinlerBolumu(h)" in html and '"/api/otomasyonlar/izin"' in html
     assert 'confirm("\'"+o.ad+"\' sizin onayınız olmadan çalışacak' in html  # izin verirken onay istenir
-    assert 'const webEkle=()=>' in html and 'tur:"web"' in html and "onaysiz:o.onaysiz||false" in html
+    assert 'const webEkle=(tur="web")=>' in html and 'webEkle("web")' in html and "onaysiz:o.onaysiz||false" in html
 
 
 def test_veri_blogu_her_kaynaga_esit_pay_verir_sondakiler_atlanmaz():
