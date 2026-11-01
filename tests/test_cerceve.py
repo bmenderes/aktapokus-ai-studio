@@ -42,3 +42,14 @@ def test_ayarlar_kapaninca_sayac_durur():
 def test_gec_gelen_bolum_yeni_bolume_karismaz():
     g = _govde("async function ayarGit(id){")
     assert 'const h=e("div");ic.append(h)' in g and 'ic.textContent=""' in g
+
+
+def test_otomasyon_duzenleyici_tam_ekran_ve_yakinlastirilir():
+    assert '#otoForm.oto-tam{position:fixed;inset:0' in HTML and "height:300px" not in HTML.split(".oto-tuval{")[1][:80]
+    assert "sahne.style.zoom=oran" in HTML and "ev.ctrlKey" in HTML and "sigdir()" in HTML
+    assert "m.clientX/oran-dx" in HTML and "(m.clientX-r.left+tuval.scrollLeft)/oran" in HTML  # surukleme ve baglama oranla uyumlu
+
+
+def test_esc_acik_duzenleyiciyi_ayarlardan_once_kapatir():
+    i = HTML.index('const of=$("#otoForm");if(of){if(otoFormTerk()')
+    assert HTML.index('if($("#ayarlar").classList.contains("on"))ayarKapat()});') > i

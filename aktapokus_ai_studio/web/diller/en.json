@@ -4,6 +4,9 @@
  "yerel": "en-US",
  "tam": {
   "Google ile bağlan": "Connect with Google",
+  "Uzaklaştır": "Zoom out",
+  "Yakınlaştır": "Zoom in",
+  "Sığdır": "Fit",
   "Kaydedilmemiş otomasyon değişiklikleri silinsin mi?": "Discard unsaved automation changes?",
   "Google": "Google",
   "Bağlayıcılar": "Connectors",
