@@ -53,3 +53,13 @@ def test_otomasyon_duzenleyici_tam_ekran_ve_yakinlastirilir():
 def test_esc_acik_duzenleyiciyi_ayarlardan_once_kapatir():
     i = HTML.index('const of=$("#otoForm");if(of){if(otoFormTerk()')
     assert HTML.index('if($("#ayarlar").classList.contains("on"))ayarKapat()});') > i
+
+
+def test_otomasyon_yan_cercevesi_acilip_kapanir():
+    assert 'id:"otoYan"' in HTML and "yanDegis" in HTML and '"/api/dosyalar"' in HTML and "Otomasyon yardımı" in HTML
+    assert HTML.index('const yan=$("#otoYan.on")') < HTML.index('const of=$("#otoForm");if(of){')  # Esc once yan cerceveyi kapatir
+
+
+def test_klon_satiri_kalkti_ag_popup_acmaz():
+    assert 'id="klon"' not in HTML and "klon_bekleyen" not in HTML
+    assert 'window.open("/ag' not in HTML

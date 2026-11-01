@@ -1,6 +1,7 @@
-"""Ag araci HTTP uclari ve ayri /ag sayfasi. Gercek ag/adaptor ASLA degistirilmez: netsh ve tarama sahtelenir, BOOTP bos porta baglanir."""
+"""Ag araci HTTP uclari (arayuz: Ayarlar > Ag). Gercek ag/adaptor ASLA degistirilmez: netsh ve tarama sahtelenir, BOOTP bos porta baglanir."""
 
 import http.client
+from pathlib import Path
 
 import pytest
 
@@ -35,14 +36,13 @@ def test_belirec_ister(api):
         assert istek(yontem, yol, {} if yontem == "POST" else None, token=None)[0] == 401, yol
 
 
-def test_ag_sayfasi_ayri_ve_belirtecsiz_statik(api):
+def test_ag_araci_arayuzun_icinde_ayri_sayfa_yok(api):
     _, _, sv = api
     c = http.client.HTTPConnection("127.0.0.1", sv.port, timeout=10)
     c.request("GET", "/ag")
-    r = c.getresponse()
-    govde = r.read().decode("utf-8")
-    assert r.status == 200 and "Aktapokus Ağ" in govde and "frame-ancestors 'none'" in r.getheader("Content-Security-Policy")
-    assert "/api/ag/tara" in govde and sv.app.token not in govde  # belirtec sayfaya gomulu degil
+    assert c.getresponse().status != 200
+    html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
+    assert '["ag","Ağ"]' in html and 'ayarAc("ag")' in html and "/api/ag/tara" in html
 
 
 def test_tara_ve_hatalar(api):

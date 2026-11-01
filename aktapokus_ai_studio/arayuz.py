@@ -479,16 +479,8 @@ class Uygulama:
             "claude_oturum": a.claude_oturum,
         }
 
-    def klon_bekleyen(self) -> int | None:
-        try:
-            from aktapokus_klon.depo import Depo  # opsiyonel paket
-
-            return len(list(Depo().bekleyen.glob("*/*.md")))
-        except Exception:
-            return None
-
     def durum(self) -> dict:
-        d: dict = {"yerel": hesaplar.yerel(), "klasor": str(self.klasor) if self.klasor else None, "proje": self.secili.kimlik if self.secili else None, "ayar": self.ayar_ozeti(), "klon_bekleyen": self.klon_bekleyen()}
+        d: dict = {"yerel": hesaplar.yerel(), "klasor": str(self.klasor) if self.klasor else None, "proje": self.secili.kimlik if self.secili else None, "ayar": self.ayar_ozeti(), }
         if self.klasor:
             d["git"] = snapshot.hazir_mi(self.klasor)  # geri alma hazir (gercek git deposu YA DA golge yedek)
             d["golge"] = snapshot.golge_mi(self.klasor)
@@ -2722,11 +2714,6 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if not dosya.is_file():
                     return self._gonder(500, {"hata": "web/index.html yok"})
                 return self._gonder(200, dosya.read_bytes(), "text/html; charset=utf-8", {"Content-Security-Policy": f"default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; frame-src 'self' http://127.0.0.1:* http://localhost:*; img-src 'self' data: blob:"})
-            if yontem in ("GET", "HEAD") and yol == "/ag":  # ayri ag araci sayfasi (statik, belirtecsiz; veriyi /api/ag/* ile belirtecle ister)
-                sayfa = WEB / "ag.html"
-                if not sayfa.is_file():
-                    return self._gonder(500, {"hata": "web/ag.html yok"})
-                return self._gonder(200, sayfa.read_bytes(), "text/html; charset=utf-8", {"Content-Security-Policy": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; font-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"})
             if yontem in ("GET", "HEAD") and (ym := re.fullmatch(r"/yardim/(otomasyon|otomasyon-en)\.html", yol)):  # yardim sayfalari (statik, belirteçsiz; yalniz izin listesi); arayuzde yan cercevede acilir
                 yardim = WEB / "yardim" / f"{ym.group(1)}.html"
                 if yardim.is_file():
