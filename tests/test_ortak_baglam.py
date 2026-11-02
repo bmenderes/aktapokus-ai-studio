@@ -32,20 +32,15 @@ def test_istem_baglami_durum_varsa_kurallar_ve_onceki_calismalari_verir_yoksa_bo
     assert b.startswith("[Aktapokus ortak bağlam") and "ilk gorev" in b and "ilk yanit" in b and "Türkçe" in b and b.endswith("\n\n")
 
 
-def test_vibe_istemin_basina_ortak_baglami_koyar_baglam_kapaliysa_istem_aynen(tmp_path, monkeypatch):
+def test_vibe_istemin_basina_ortak_baglami_koyar_baglam_kapaliysa_istem_aynen(tmp_path):
     gorulen = []
 
-    class Islem:
-        returncode = 0
-        stdout = b"tamam"
-        stderr = b""
-
-    def sahte_run(komut, **k):
+    def sahte_akis(komut, klasor, zaman_asimi_sn):
         gorulen.append(Path(komut[komut.index("--prompt-file") + 1]).read_text(encoding="utf-8"))
-        return Islem()
+        return 0, "tamam", "", "", None
 
-    monkeypatch.setattr(runners.subprocess, "run", sahte_run)
     v = runners.VibeCalistirici(komut_oneki=["vibe"])
+    v._akis = sahte_akis
     v.calistir("yeni istek", tmp_path)
     assert gorulen[-1] == "yeni istek"  # DURUM.md yok: degisiklik yok
     _kayit(tmp_path, "a1", "onceki gorev", "onceki yanit", "opencode-sunucu")
