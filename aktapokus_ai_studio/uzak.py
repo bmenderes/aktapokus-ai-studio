@@ -273,7 +273,7 @@ UZAK_BILINEN_UCLAR = frozenset({
     "/api/ag/kablo-adaptorler", "/api/ag/kablo-dinle",  # politika her zaman reddeder
     "/api/ag/adaptor-dhcp", "/api/ag/adaptor-ip", "/api/ag/adaptorler", "/api/ag/bootp", "/api/ag/bootp/ata", "/api/ag/bootp/baslat",
     "/api/ag/bootp/durdur", "/api/ag/bootp/kaldir", "/api/ag/profil", "/api/ag/profil-sil", "/api/ag/profil-uygula", "/api/ag/profiller",
-    "/api/ag/tara", "/api/ayar", "/api/beceri-kaynak", "/api/beceri-kaynak/onizle", "/api/beceriler", "/api/beceriler/indir", "/api/beceriler/sil",
+    "/api/ag/ada-gore", "/api/ag/tara", "/api/ayar", "/api/beceri-kaynak", "/api/beceri-kaynak/onizle", "/api/beceriler", "/api/beceriler/indir", "/api/beceriler/sil",
     "/api/ciktilar", "/api/claude-devam", "/api/claude-konusma", "/api/claude-oturumlari", "/api/claude-surdur", "/api/clilar", "/api/clilar/dene",
     "/api/clilar/sil", "/api/dosya", "/api/dosyalar", "/api/durum", "/api/ek", "/api/fark", "/api/gecmis", "/api/git/birlestir", "/api/git/cek",
     "/api/git/commit", "/api/git/commit-oneri", "/api/git/dal-gec", "/api/git/dal-sil", "/api/git/dallar", "/api/git/degisiklik-at", "/api/git/fark",

@@ -179,3 +179,23 @@ def test_yoklama_apipa_ve_kendi_adresini_atlar(monkeypatch):
     goruldu = []
     monkeypatch.setattr(ag_araci, "tara", lambda ag: goruldu.append(ag) or [{"ip": "192.168.100.250"}, {"ip": "192.168.100.5"}])
     assert [c["ip"] for c in ag_araci._agi_yokla(["192.168.100.250/24", "169.254.96.252/16"])] == ["192.168.100.5"] and goruldu == ["192.168.100.0/24"]
+
+
+def test_ada_gore_bul_ip_portlar_ve_opc_adresi(monkeypatch):
+    monkeypatch.setattr(ag_araci, "_arp", lambda: {"10.0.0.7": "00:80:F4:00:00:01"})
+    monkeypatch.setattr(ag_araci, "_acik_portlar", lambda ip: [4840])
+    c = ag_araci.ada_gore_bul("plc-1", lambda *a: [(2, 1, 6, "", ("10.0.0.7", 0))])
+    assert c == [{"ip": "10.0.0.7", "mac": "00:80:F4:00:00:01", "uretici": "Schneider", "portlar": [{"no": 4840, "ad": "OPC UA"}], "opc": "opc.tcp://plc-1:4840"}]
+
+
+def test_ada_gore_bul_gecersiz_bulunamayan_ve_uzun_suren_ad(monkeypatch):
+    for kotu in ("", "a b", "x;del", "-a", "a" * 300, None):
+        with pytest.raises(ag_araci.AgHatasi, match="gecersiz"):
+            ag_araci.ada_gore_bul(kotu)
+
+    def yok(*a):
+        raise socket.gaierror("yok")
+    with pytest.raises(ag_araci.AgHatasi, match="bulunamadi"):
+        ag_araci.ada_gore_bul("plc", yok)
+    with pytest.raises(ag_araci.AgHatasi, match="bulunamadi"):
+        ag_araci.ada_gore_bul("plc", lambda *a: time.sleep(1), sure=0.05)

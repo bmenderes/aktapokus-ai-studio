@@ -4,6 +4,9 @@
  "yerel": "en-US",
  "tam": {
   "Google ile bağlan": "Connect with Google",
+  "Cihaz adı": "Device name",
+  "Ada göre bul": "Find by name",
+  "Aranıyor…": "Searching…",
   "Aralık": "Range",
   "Kablodaki cihazı bul": "Find device on cable",
   "Dinleniyor (60 sn): kabloyu çıkarıp takın…": "Listening (60 s): unplug and replug the cable…",

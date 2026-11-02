@@ -2070,7 +2070,7 @@ async function agBolumu(h){const post=(y,g)=>api(y,g?{method:"POST",body:g}:unde
   const cihazlar=async k=>{const liste=e("div",{style:"margin-top:8px"});
     /* Bilgi gerektirmez: Ethernet dinlenir ve kendi agi yoklanir. Aralik yalniz istenirse acilir; Wi-Fi agi kendiliginden taranmaz. */
     const yaz=r=>{liste.textContent="";if(!r.cihazlar.length)liste.append(e("div",{class:"mut",text:"Cihaz bulunamadı"}));
-      for(const c of r.cihazlar){const ipler=c.ipler||[c.ip];liste.append(e("div",{class:"ag-satir"},e("span",{class:"mono",style:"width:150px",text:ipler.join(", ")||"IP yok"}),e("span",{class:"mono mut",style:"width:140px",text:c.mac||"—"}),e("span",{style:"width:110px",text:c.uretici||""}),e("span",{class:"mut ag-ge",text:[(c.portlar||[]).map(x=>x.ad).join(", "),c.ag_disi?"farklı ağ":""].filter(Boolean).join(" · ")}),c.mac?e("button",{text:"IP ata",onclick:()=>{D.mac=c.mac;git("bootp")}}):null))}};
+      for(const c of r.cihazlar){const ipler=c.ipler||[c.ip];liste.append(e("div",{class:"ag-satir"},e("span",{class:"mono",style:"width:150px",text:ipler.join(", ")||"IP yok"}),e("span",{class:"mono mut",style:"width:140px",text:c.mac||"—"}),e("span",{style:"width:110px",text:c.uretici||""}),e("span",{class:"mut ag-ge",text:[(c.portlar||[]).map(x=>x.ad).join(", "),c.opc||"",c.ag_disi?"farklı ağ":""].filter(Boolean).join(" · ")}),c.mac?e("button",{text:"IP ata",onclick:()=>{D.mac=c.mac;git("bootp")}}):null))}};
     let kablolar=[];try{kablolar=(await post("/api/ag/kablo-adaptorler",{})).adaptorler}catch(x){}
     const yerel=kablolar.flatMap(a=>a.agler).find(x=>!x.startsWith("169.254.")&&x.endsWith("/24"));
     if(!kablolar.length)await adaptorleriAl();
@@ -2080,7 +2080,9 @@ async function agBolumu(h){const post=(y,g)=>api(y,g?{method:"POST",body:g}:unde
     if(kablolar.length){const sec=e("select",kablolar.length>1?null:{style:"display:none"},...kablolar.map(a=>e("option",{value:a.ad,text:a.ad})));
       const bul=e("button",{class:"pri",text:"Kablodaki cihazı bul",onclick:async()=>{bul.disabled=true;liste.textContent="Dinleniyor (60 sn): kabloyu çıkarıp takın…";const r=await dene(()=>post("/api/ag/kablo-dinle",{ad:sec.value}));bul.disabled=false;liste.textContent="";if(r)yaz(r)}});
       k.append(e("div",{class:"ag-satir",style:"border:0"},sec,bul,e("button",{text:"Aralık",onclick:()=>{aralik.style.display=aralik.style.display==="none"?"":"none"}})))}
-    k.append(aralik,liste)};
+    const adKutu=e("input",{class:"mono ag-ge",placeholder:"Cihaz adı"});
+    const adBul=e("button",{text:"Ada göre bul",onclick:async()=>{if(!adKutu.value.trim())return;adBul.disabled=true;liste.textContent="Aranıyor…";const r=await dene(()=>post("/api/ag/ada-gore",{ad:adKutu.value.trim()}));adBul.disabled=false;liste.textContent="";if(r)yaz(r)}});
+    k.append(e("div",{class:"ag-satir",style:"border:0"},adKutu,adBul),aralik,liste)};
   const bootp=async k=>{let kablolar=[];try{kablolar=(await post("/api/ag/kablo-adaptorler",{})).adaptorler}catch(x){}let kabloAd=kablolar.length?kablolar[0].ad:"";
     const ciz=async()=>{if(!k.isConnected){durdur();return}let d;try{d=await post("/api/ag/bootp")}catch(x){hataGoster(x.message);return}
       if(document.activeElement&&k.contains(document.activeElement)&&/^(INPUT|SELECT)$/.test(document.activeElement.tagName))return;  /* yazarken yenileme */

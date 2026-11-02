@@ -364,3 +364,29 @@ def _yonetici_calistir(betik: str, zaman_asimi: float) -> int:
         return _calistir(["powershell", "-NoProfile", "-NonInteractive", "-Command", komut], zaman_asimi).returncode
     except (OSError, subprocess.SubprocessError) as hata:
         raise AgHatasi(f"Dinleme baslatilamadi: {hata}") from None
+
+
+# --- Ada gore bulma: cihaz adi (DNS, .local, NetBIOS) Windows'un ad cozumlemesiyle IP'ye cevrilir, portlari sinanir ---
+AD_DESENI = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9._-]{0,251}[A-Za-z0-9])?")
+
+
+def ada_gore_bul(ad: object, cozucu=None, sure: float = 8) -> list[dict]:
+    """[{ip, mac, uretici, portlar, opc}]. `opc` yalniz 4840 aciksa dolu; adres IP yerine adla yazilir. Ad bir bilgisayardaki ayni ada cevrilir: sonuc cihazin kimligini kanitlamaz."""
+    ad = str(ad or "").strip()
+    if not AD_DESENI.fullmatch(ad):
+        raise AgHatasi("Cihaz adi gecersiz")
+    havuz = ThreadPoolExecutor(1)  # getaddrinfo'nun kendi sure siniri yok
+    try:
+        kayitlar = havuz.submit(cozucu or socket.getaddrinfo, ad, None, socket.AF_INET, socket.SOCK_STREAM).result(sure)
+    except (OSError, TimeoutError):
+        raise AgHatasi(f"'{ad}' adi bulunamadi") from None
+    finally:
+        havuz.shutdown(wait=False)
+    ipler = sorted({k[4][0] for k in kayitlar})
+    mac = _arp()
+    sonuc = []
+    for ip in ipler:
+        acik = _acik_portlar(ip)
+        sonuc.append({"ip": ip, "mac": mac.get(ip), "uretici": uretici(mac.get(ip)), "portlar": [{"no": p, "ad": PORTLAR[p]} for p in acik],
+                      "opc": f"opc.tcp://{ad}:4840" if 4840 in acik else None})
+    return sonuc
