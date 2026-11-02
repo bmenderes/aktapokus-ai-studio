@@ -148,6 +148,7 @@ def test_kablo_dinle_gercek_yetki_istemeden_sonuc_ve_hatalar(monkeypatch):
         assert "pktmon" in betik and "C4[-:]EF" in betik
         klasor = re.search(r"\$d = '([^']+)'", betik).group(1)
         Path(klasor, "k.pcapng").write_bytes(_pcapng(_arp(PLC, bytes([190, 201, 100, 100]))))
+        Path(re.search(r"\$d = '([^']+)'", betik).group(1), "bitti.txt").write_text("0")
         return 0
     assert ag_araci.kablo_dinle("Ethernet", 1, sahte, liste)[0]["ipler"] == ["190.201.100.100"]
     with pytest.raises(ag_araci.AgHatasi, match="izni"):
@@ -167,6 +168,7 @@ def test_dinleme_kendi_agini_da_yoklar_ve_birlestirir():
 
     def sahte(betik, sure):
         Path(re.search(r"\$d = '([^']+)'", betik).group(1), "k.pcapng").write_bytes(_pcapng(_arp(PLC, bytes([190, 201, 100, 100]))))
+        Path(re.search(r"\$d = '([^']+)'", betik).group(1), "bitti.txt").write_text("0")
         return 0
     yoklanan = [{"ip": "192.168.100.100", "mac": "00:80:1F:11:22:33", "uretici": None, "portlar": [{"no": 4840, "ad": "OPC UA"}]}, {"ip": "192.168.100.7", "mac": None, "uretici": None, "portlar": []}]
     c = ag_araci.kablo_dinle("Ethernet", 1, sahte, liste, lambda agler: yoklanan)

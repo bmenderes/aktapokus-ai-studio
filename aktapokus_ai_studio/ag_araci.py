@@ -9,13 +9,17 @@ import base64
 import ipaddress
 import json
 import re
+import secrets
+import shutil
 import socket
 import struct
 import subprocess
 import sys
 import tempfile
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 
 AZAMI_ADRES = 512  # /23'ten buyuk tarama reddedilir
@@ -252,16 +256,17 @@ def cerceveleri_coz(paketler: list[bytes], kendi_mac: str, agler: list[str] | No
 def _dinleme_betigi(mac: str, klasor: str, sure: int) -> str:
     desen = "[-:]".join(mac.split(":"))
     return f"""$p = "$env:WINDIR\\System32\\pktmon.exe"; $d = '{klasor.replace("'", "''")}'
+function son($k) {{ Set-Content "$d\\bitti.txt" $k; exit $k }}
 & $p stop *> $null
 $l = & $p list 2>&1 | Out-String
 $ids = @([regex]::Matches($l, '(?mi)^\\s*(\\d+)\\s+{desen}\\b') | ForEach-Object {{ $_.Groups[1].Value }})
-if (-not $ids.Count) {{ exit 3 }}
+if (-not $ids.Count) {{ son 3 }}
 & $p start --capture --comp $ids --pkt-size 128 --file-name "$d\\k.etl" *> "$d\\baslat.txt"
-if ($LASTEXITCODE -ne 0) {{ exit 4 }}
+if ($LASTEXITCODE -ne 0) {{ son 4 }}
 Start-Sleep -Seconds {int(sure)}
 & $p stop *> "$d\\dur.txt"
 & $p etl2pcap "$d\\k.etl" --out "$d\\k.pcapng" *> "$d\\cevir.txt"
-exit $LASTEXITCODE
+son $LASTEXITCODE
 """
 
 
@@ -294,6 +299,25 @@ def _birlestir(dinlenen: list[dict], yoklanan: list[dict]) -> list[dict]:
     return sorted(sonuc, key=lambda c: (not c["ipler"], -c["adet"]))
 
 
+@contextmanager
+def _cikti_klasoru():
+    """mkdtemp KULLANILMAZ: Python 3.12+ Windows'ta klasoru 'sahip'e kisitlar; yukseltilmis islemin yazdigi dosyalarin sahibi Yoneticiler olur, normal kullanici okuyamaz (gercek hata)."""
+    klasor = Path(tempfile.gettempdir()) / f"aktapokus-kablo-{secrets.token_hex(8)}"
+    klasor.mkdir()
+    try:
+        yield str(klasor)
+    finally:
+        shutil.rmtree(klasor, ignore_errors=True)
+
+
+def _metin_oku(yol: Path) -> str:
+    try:
+        b = yol.read_bytes()
+    except OSError:
+        return ""
+    return b.decode("utf-16" if b[:2] == b"\xff\xfe" else "utf-8", "replace").strip()
+
+
 def kablo_dinle(ad: object, sure: int = KABLO_SURE_SN, calistir=None, adaptor_listesi=None, yokla=None) -> list[dict]:
     """Secili Ethernet adaptorunu `sure` saniye dinler. Yonetici izni ister (UAC); betik acik metin dosyasi olarak birakilmaz, tek kullanimlik gecici klasore yalniz cikti yazilir."""
     a = next((x for x in (adaptor_listesi or kablo_adaptorleri)() if x["ad"] == ad), None)
@@ -307,15 +331,25 @@ def kablo_dinle(ad: object, sure: int = KABLO_SURE_SN, calistir=None, adaptor_li
         yoklanan: list[dict] = []
         yoklayici = threading.Thread(target=lambda: yoklanan.extend((yokla or _agi_yokla)(a["agler"])), daemon=True)
         yoklayici.start()
-        with tempfile.TemporaryDirectory(prefix="aktapokus-kablo-") as klasor:
+        with _cikti_klasoru() as klasor:
             kod = (calistir or _yonetici_calistir)(_dinleme_betigi(a["mac"], klasor, sure), sure + 120)
             if kod == 1223:
                 raise AgHatasi("Yonetici izni verilmedi")
+            # Yukseltilmis islem her zaman beklenemiyor (Start-Process -Wait erken donuyor, gercek denemede): bitis isareti dosyadan okunur
+            bitti, son = Path(klasor) / "bitti.txt", time.monotonic() + sure + 90
+            while not bitti.is_file() and time.monotonic() < son:
+                time.sleep(0.5)
+            time.sleep(0.3)
+            try:
+                kod = int(bitti.read_text(encoding="utf-8", errors="replace").strip())
+            except (OSError, ValueError):
+                raise AgHatasi("Dinleme bitmedi (zaman asimi)") from None
             if kod == 3:
                 raise AgHatasi("pktmon bu adaptoru listelemedi")
             yol = Path(klasor) / "k.pcapng"
             if kod != 0 or not yol.is_file():
-                raise AgHatasi(f"Dinleme tamamlanamadi (kod {kod})")
+                ayrinti = " ".join(_metin_oku(Path(klasor) / d) for d in ("baslat.txt", "cevir.txt"))[:300]
+                raise AgHatasi(f"Dinleme tamamlanamadi (kod {kod}): {ayrinti}")
             dinlenen = cerceveleri_coz(_pcapng_paketleri(yol.read_bytes()), a["mac"], a["agler"])
             yoklayici.join(60)
             return _birlestir(dinlenen, list(yoklanan))
