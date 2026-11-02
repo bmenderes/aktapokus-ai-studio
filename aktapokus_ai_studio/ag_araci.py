@@ -29,7 +29,7 @@ PORTLAR = {44818: "EtherNet/IP", 2222: "EtherNet/IP", 102: "S7", 502: "Modbus", 
 URETICILER = {
     "00:00:BC": "Rockwell", "00:1D:9C": "Rockwell", "5C:88:16": "Rockwell",
     "00:0E:8C": "Siemens", "08:00:06": "Siemens", "00:1B:1B": "Siemens", "28:63:36": "Siemens",
-    "00:80:F4": "Schneider", "00:00:54": "Schneider", "00:00:0A": "Omron", "00:01:05": "Beckhoff",
+    "00:80:F4": "Schneider", "00:00:54": "Schneider", "00:04:17": "Schneider (ELAU)", "00:00:0A": "Omron", "00:01:05": "Beckhoff",
     "00:A0:45": "Phoenix Contact", "00:90:E8": "Moxa", "00:30:DE": "WAGO", "00:60:65": "B&R",
 }
 _CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
@@ -167,7 +167,7 @@ def adaptor_dhcp_yap(ad: object) -> None:
 
 
 # --- Kablodaki cihazi bulma: farkli agdaki (adresi bilinmeyen) cihaz taramada gorunmez; Ethernet dinlenir, cihaz konusursa IP'si paketten okunur ---
-KABLO_SURE_SN = 60  # sessiz cihaz seyrek konusur (gercek durum: 30 sn'de 1 yayin)
+KABLO_SURE_SN = 120  # PLC adresini seyrek duyurur (gercek durum: PacDrive LMC 100C yaklasik 80 sn'de bir)
 _kablo_kilit = threading.Lock()
 
 
@@ -218,6 +218,16 @@ def _kullanilir_ip(b: bytes) -> str | None:
     return None if ip.is_unspecified or ip.is_multicast or ip.is_loopback or str(ip) == "255.255.255.255" else str(ip)
 
 
+def _yayindan_maske(ip: str, hedef: bytes) -> str | None:
+    """Cihaz kendi agina yayin yapiyorsa maske hedef adresten okunur: 190.201.100.100 > 190.201.255.255 ise 255.255.0.0."""
+    h = str(ipaddress.IPv4Address(hedef))
+    for onek in (24, 16, 8):
+        ag = ipaddress.IPv4Network(f"{ip}/{onek}", strict=False)
+        if str(ag.broadcast_address) == h:
+            return str(ag.netmask)
+    return None
+
+
 def cerceveleri_coz(paketler: list[bytes], kendi_mac: str, agler: list[str] | None = None) -> list[dict]:
     """Cercevelerden cihazlar: [{mac, uretici, ipler, adet, ag_disi}]. Kendi kartimiz ve grup adresleri elenir; IP'si okunamayan cihaz da MAC'iyle listelenir."""
     kendi = kendi_mac.upper().replace("-", ":")
@@ -231,7 +241,7 @@ def cerceveleri_coz(paketler: list[bytes], kendi_mac: str, agler: list[str] | No
         mac = _mac_metni(kaynak)
         if mac == kendi or kaynak[0] & 1 or kaynak == bytes(6):
             continue
-        k = cihaz.setdefault(mac, {"arp": [], "ip": [], "adet": 0})
+        k = cihaz.setdefault(mac, {"arp": [], "ip": [], "adet": 0, "maske": None})
         k["adet"] += 1
         if tip == b"\x08\x06" and len(p) >= ofs + 28 and p[ofs + 2:ofs + 6] == b"\x08\x00\x06\x04":
             ip = _kullanilir_ip(p[ofs + 14:ofs + 18]) or (_kullanilir_ip(p[ofs + 24:ofs + 28]) if p[ofs + 7] == 1 else None)  # 0.0.0.0 gonderen: sahiplenmek istedigi adres
@@ -241,6 +251,8 @@ def cerceveleri_coz(paketler: list[bytes], kendi_mac: str, agler: list[str] | No
             ip = _kullanilir_ip(p[ofs + 12:ofs + 16])
             if ip and ip not in k["ip"] and len(k["ip"]) < 8:
                 k["ip"].append(ip)
+            if ip and k["maske"] is None:
+                k["maske"] = _yayindan_maske(ip, p[ofs + 16:ofs + 20])
     aglar = []
     for a in agler or []:
         try:
@@ -250,7 +262,7 @@ def cerceveleri_coz(paketler: list[bytes], kendi_mac: str, agler: list[str] | No
     sonuc = []
     for mac, k in cihaz.items():
         ipler = k["arp"] or k["ip"]  # ARP cihazin kendi adresidir; IP basligi yonlendiriciden gecen baskasinin adresi olabilir
-        sonuc.append({"mac": mac, "uretici": uretici(mac), "ipler": ipler, "adet": k["adet"], "portlar": [], "ag_disi": bool(ipler) and not any(ipaddress.IPv4Address(ip) in n for ip in ipler for n in aglar)})
+        sonuc.append({"mac": mac, "uretici": uretici(mac), "ipler": ipler, "adet": k["adet"], "maske": k["maske"], "portlar": [], "ag_disi": bool(ipler) and not any(ipaddress.IPv4Address(ip) in n for ip in ipler for n in aglar)})
     return sorted(sonuc, key=lambda c: (not c["ipler"], -c["adet"]))
 
 

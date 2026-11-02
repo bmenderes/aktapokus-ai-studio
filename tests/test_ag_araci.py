@@ -248,3 +248,11 @@ def test_plc_sor_ethernet_yoksa_hata(monkeypatch):
     monkeypatch.setattr(ag_araci, "kablo_adaptorleri", lambda: [])
     with pytest.raises(ag_araci.AgHatasi, match="Ethernet"):
         ag_araci.plc_sor_adaptor(None)
+
+
+def test_plc_duyurusundan_ip_maske_ve_uretici_okunur():
+    # Gercek paket: PacDrive LMC 100C, UDP 1740 > 190.201.255.255:1740
+    ip = bytes.fromhex("450000 2e0000 0000 4011 0000".replace(" ", "")) + bytes([190, 201, 100, 100]) + bytes([190, 201, 255, 255])
+    p = b"\xff" * 6 + bytes.fromhex("000417072B34") + b"\x08\x00" + ip + bytes.fromhex("06CC06CC001A0000c50b40010020000064640000000000000000")
+    c = ag_araci.cerceveleri_coz([p], KENDI, ["192.168.100.250/24"])[0]
+    assert c["ipler"] == ["190.201.100.100"] and c["maske"] == "255.255.0.0" and c["uretici"] == "Schneider (ELAU)" and c["ag_disi"] is True
