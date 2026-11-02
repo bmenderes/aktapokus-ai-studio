@@ -18,6 +18,7 @@ def api(proje, monkeypatch):
     netsh = []
     monkeypatch.setattr(ag_araci, "_netsh", lambda a: netsh.append(a))
     monkeypatch.setattr(ag_araci, "adaptorler", lambda: [{"ad": "Ethernet", "ip": "10.0.0.2", "onek": 24, "maske": "255.255.255.0", "dhcp": False}])
+    monkeypatch.setattr(ag_araci, "kablo_adaptorleri", lambda: [{"ad": "Ethernet", "mac": "00:11:22:33:44:55", "agler": ["169.254.1.1/16", "127.0.0.1/8"]}])
     monkeypatch.setattr(ag_araci, "_ping", lambda ip: ip == "10.0.0.7")
     monkeypatch.setattr(ag_araci, "_acik_portlar", lambda ip: [502])
     monkeypatch.setattr(ag_araci, "_arp", lambda: {"10.0.0.7": "00:80:F4:00:00:01"})
@@ -92,3 +93,13 @@ def test_profil_kaydet_uygula_sil(api):
     assert istek("POST", "/api/ag/profil-uygula", {"ad": "Ofis"})[0] == 200 and netsh[-1][-1] == "source=dhcp"
     assert istek("POST", "/api/ag/profil-uygula", {"ad": "Yok"})[0] == 400
     assert [p["ad"] for p in istek("POST", "/api/ag/profil-sil", {"ad": "PLC"})[1]["profiller"]] == ["Ofis"]
+
+
+def test_bootp_yalniz_ethernet_adresine_baglanir_ve_eski_istekleri_siler(api, monkeypatch):
+    istek, _, sv = api
+    sv.app._bootp.istekler["00:00:00:00:00:01"] = {"adet": 1, "yanit": 0, "ilk": 0.0, "son": 0.0, "tur": "DHCP"}
+    d = istek("POST", "/api/ag/bootp/baslat", {"ad": "Ethernet"})[1]
+    assert d["adaptor"] == "Ethernet" and d["istekler"] == [] and sv.app._bootp._soket.getsockname()[0] == "127.0.0.1"
+    istek("POST", "/api/ag/bootp/durdur", {})
+    monkeypatch.setattr(ag_araci, "kablo_adaptorleri", lambda: [])
+    assert istek("POST", "/api/ag/bootp/baslat", {})[0] == 400

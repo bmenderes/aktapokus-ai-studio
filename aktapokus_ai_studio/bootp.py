@@ -93,6 +93,8 @@ class Sunucu:
         self.atamalar: dict[str, dict] = {}
         self.istekler: dict[str, dict] = {}
         self.hata: str | None = None
+        self.yerel_ip: str | None = None  # dinlenen adaptorun adresi: Wi-Fi'daki cihazlarin istekleri gelmez, yanit da bu adaptorden cikar
+        self.adaptor: str | None = None
         self._kilit = threading.Lock()
         self._dur = threading.Event()
         self._soket: socket.socket | None = None
@@ -102,18 +104,20 @@ class Sunucu:
     def calisiyor(self) -> bool:
         return self._is is not None and self._is.is_alive()
 
-    def baslat(self) -> None:
+    def baslat(self, yerel_ip: str | None = None, adaptor: str | None = None) -> None:
         if self.calisiyor:
             return
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            s.bind(("", self.port))
+            s.bind((yerel_ip or "", self.port))
         except OSError as h:
             s.close()
             raise BootpHatasi(f"{self.port}. port acilamadi (baska bir DHCP/BOOTP programi acik olabilir): {h}") from None
         s.settimeout(0.5)
-        self._soket, self.hata = s, None
+        self._soket, self.hata, self.yerel_ip, self.adaptor = s, None, yerel_ip, adaptor
+        with self._kilit:
+            self.istekler.clear()  # onceki oturumun (baska adaptorun) istekleri yanlis cihaz sectirmesin
         self._dur.clear()
         self._is = threading.Thread(target=self._dongu, daemon=True, name="bootp")
         self._is.start()
@@ -148,7 +152,7 @@ class Sunucu:
 
     def durum(self) -> dict:
         with self._kilit:
-            return {"calisiyor": self.calisiyor, "hata": self.hata,
+            return {"calisiyor": self.calisiyor, "hata": self.hata, "adaptor": self.adaptor if self.calisiyor else None,
                     "atamalar": [{"mac": m, **a} for m, a in self.atamalar.items()],
                     "istekler": sorted(({"mac": m, **v} for m, v in self.istekler.items()), key=lambda x: -x["son"])[:50]}
 
@@ -170,7 +174,7 @@ class Sunucu:
                 atama = self.atamalar.get(istek["mac"])
             if atama is None:
                 continue
-            paket = yanit_uret(istek, atama["ip"], atama["maske"], atama["gecit"], _yerel_ip(atama["ip"]))
+            paket = yanit_uret(istek, atama["ip"], atama["maske"], atama["gecit"], self.yerel_ip or _yerel_ip(atama["ip"]))
             if paket is None:
                 continue
             try:

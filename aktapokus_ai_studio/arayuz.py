@@ -1319,7 +1319,14 @@ class Uygulama:
     def bootp_islem(self, eylem: str, g: dict) -> dict:
         s = self._bootp_sunucu()
         if eylem == "baslat":
-            self._ag_hata(s.baslat)
+            ad = g.get("ad")
+            kablolar = ag_araci.kablo_adaptorleri()
+            a = next((x for x in kablolar if x["ad"] == ad), None) if ad else (kablolar[0] if kablolar else None)
+            ipler = [i.split("/")[0] for i in (a or {}).get("agler", [])]
+            ip = next((i for i in ipler if not i.startswith("169.254.")), ipler[0] if ipler else None)
+            if ip is None:
+                raise UygulamaHatasi("Bagli Ethernet adaptoru yok")
+            self._ag_hata(s.baslat, ip, a["ad"])
         elif eylem == "durdur":
             s.durdur()
         elif eylem == "ata":
