@@ -1,6 +1,7 @@
 from pathlib import Path
 import re
 import socket
+import threading
 import time
 
 import pytest
@@ -199,3 +200,51 @@ def test_ada_gore_bul_gecersiz_bulunamayan_ve_uzun_suren_ad(monkeypatch):
         ag_araci.ada_gore_bul("plc", yok)
     with pytest.raises(ag_araci.AgHatasi, match="bulunamadi"):
         ag_araci.ada_gore_bul("plc", lambda *a: time.sleep(1), sure=0.05)
+
+
+def _enip_yanit(ad=b"1769-L33ER", satici=1):
+    import struct
+    govde = struct.pack("<H", 1) + struct.pack(">HH4s8s", 2, 44818, bytes([10, 0, 0, 9]), bytes(8)) + struct.pack("<HHHBBHI", satici, 14, 95, 20, 1, 0, 123) + bytes([len(ad)]) + ad + b"\x03"
+    return struct.pack("<HHII8sI", 0x63, len(govde) + 6, 0, 0, bytes(8), 0) + struct.pack("<HHH", 1, 0x0C, len(govde)) + govde
+
+
+def _ads_yanit(ad=b"CX-1234\0"):
+    import struct
+    return b"\x03\x66\x14\x71" + bytes(4) + struct.pack("<I", 0x80000001) + bytes(8) + struct.pack("<I", 1) + struct.pack("<HH", 5, len(ad)) + ad
+
+
+def test_kesif_yanitlari_cozulur_bozuk_paket_elenir():
+    c = ag_araci.enip_coz(_enip_yanit(), "10.0.0.9")
+    assert c["ad"] == "1769-L33ER" and c["uretici"] == "Rockwell" and c["protokol"] == "EtherNet/IP"
+    assert ag_araci.ads_coz(_ads_yanit(), "10.0.0.8")["ad"] == "CX-1234"
+    for bozuk in (b"", b"\x63" * 10, _enip_yanit()[:40], b"\x03\x66\x14\x71" + bytes(30)):
+        assert ag_araci.enip_coz(bozuk, "1.1.1.1") is None and ag_araci.ads_coz(bozuk, "1.1.1.1") is None
+    assert ag_araci.ads_coz(_ads_yanit()[:26], "1.1.1.1")["ad"] == ""
+
+
+def test_plc_sor_soru_gonderir_yanitlari_toplar(monkeypatch):
+    monkeypatch.setattr(ag_araci, "_arp", lambda: {"127.0.0.1": "00:80:F4:00:00:01"})
+    enip = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    enip.bind(("127.0.0.1", 0))
+    enip.settimeout(2)
+    ads = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    ads.bind(("127.0.0.1", 0))
+
+    def yanitla():
+        v, k = enip.recvfrom(100)
+        assert v[:2] == b"\x63\x00"
+        enip.sendto(_enip_yanit(), k)
+    t = threading.Thread(target=yanitla, daemon=True)
+    t.start()
+    try:
+        c = ag_araci.plc_sor(["127.0.0.1"], 0.5, "127.0.0.1", (enip.getsockname()[1], ads.getsockname()[1]))
+    finally:
+        enip.close()
+        ads.close()
+    assert len(c) == 1 and c[0]["ad"] == "1769-L33ER" and c[0]["mac"] == "00:80:F4:00:00:01"
+
+
+def test_plc_sor_ethernet_yoksa_hata(monkeypatch):
+    monkeypatch.setattr(ag_araci, "kablo_adaptorleri", lambda: [])
+    with pytest.raises(ag_araci.AgHatasi, match="Ethernet"):
+        ag_araci.plc_sor_adaptor(None)

@@ -10,6 +10,7 @@ import ipaddress
 import json
 import re
 import secrets
+import select
 import shutil
 import socket
 import struct
@@ -390,3 +391,83 @@ def ada_gore_bul(ad: object, cozucu=None, sure: float = 8) -> list[dict]:
         sonuc.append({"ip": ip, "mac": mac.get(ip), "uretici": uretici(mac.get(ip)), "portlar": [{"no": p, "ad": PORTLAR[p]} for p in acik],
                       "opc": f"opc.tcp://{ad}:4840" if 4840 in acik else None})
     return sonuc
+
+
+# --- Ureticiye ozel kesif: "agda kim var" sorusu yalniz secili Ethernet'ten yayinlanir (yalniz kullanici dugmeye basinca); cihazin adi/modeli de gelir. PLC'ye yazmaz. ---
+ENIP_PORT, ADS_PORT = 44818, 48899
+ENIP_SORU = struct.pack("<HHII8sI", 0x63, 0, 0, 0, b"aktapoks", 0)  # ListIdentity
+
+
+def _ads_sorusu(ip: str) -> bytes:
+    return b"\x03\x66\x14\x71" + bytes(4) + struct.pack("<I", 1) + socket.inet_aton(ip) + b"\x01\x01" + struct.pack("<HI", 10000, 0)
+
+
+def _ad_metni(b: bytes) -> str:
+    return "".join(ch for ch in b.decode("latin-1") if ch.isprintable()).strip()[:64]
+
+
+def enip_coz(veri: bytes, kaynak_ip: str) -> dict | None:
+    """ListIdentity yaniti (CIP Identity): cihazin adi, EtherNet/IP uretici kodu. Bozuk paket: None."""
+    if len(veri) < 63 or struct.unpack_from("<H", veri)[0] != 0x63 or struct.unpack_from("<H", veri, 26)[0] != 0x0C:
+        return None
+    satici = struct.unpack_from("<H", veri, 48)[0]
+    uzunluk = veri[62]
+    if len(veri) < 63 + uzunluk:
+        return None
+    return {"ip": kaynak_ip, "uretici": "Rockwell" if satici == 1 else None, "ad": _ad_metni(veri[63:63 + uzunluk]), "protokol": "EtherNet/IP"}
+
+
+def ads_coz(veri: bytes, kaynak_ip: str) -> dict | None:
+    """Beckhoff ADS kesif yaniti: etiketlerden cihaz adi (etiket 5)."""
+    if len(veri) < 24 or veri[:4] != b"\x03\x66\x14\x71" or struct.unpack_from("<I", veri, 8)[0] != 0x80000001:
+        return None
+    adet, i, ad = struct.unpack_from("<I", veri, 20)[0], 24, ""
+    for _ in range(min(adet, 32)):
+        if i + 4 > len(veri):
+            break
+        etiket, uzunluk = struct.unpack_from("<HH", veri, i)
+        if etiket == 5:
+            ad = _ad_metni(veri[i + 4:i + 4 + uzunluk].split(b"\0")[0])
+        i += 4 + uzunluk
+    return {"ip": kaynak_ip, "uretici": "Beckhoff", "ad": ad, "protokol": "ADS"}
+
+
+def plc_sor(yerel_ipler: list[str], sure: float = 3, hedef: str = "255.255.255.255", portlar: tuple[int, int] = (ENIP_PORT, ADS_PORT)) -> list[dict]:
+    """Her yerel adresten yayinlar ve `sure` saniye yaniti toplar. Kendi adreslerimizden gelen yanit elenir (hedef testte degistirilir)."""
+    soketler: dict[socket.socket, object] = {}
+    try:
+        for ip in yerel_ipler:
+            for port, paket, coz in ((portlar[0], ENIP_SORU, enip_coz), (portlar[1], _ads_sorusu(ip), ads_coz)):
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                soketler[s] = coz
+                try:
+                    s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+                    s.bind((ip, 0))
+                    s.sendto(paket, (hedef, port))
+                except OSError:
+                    continue  # bu adaptor/port gonderemedi; digerleri denenir
+        bulunan: dict[str, dict] = {}
+        son = time.monotonic() + sure
+        while soketler and (kalan := son - time.monotonic()) > 0:
+            hazir = select.select(list(soketler), [], [], kalan)[0]
+            for s in hazir:
+                try:
+                    veri, kaynak = s.recvfrom(1500)
+                except OSError:
+                    continue
+                c = soketler[s](veri, kaynak[0])
+                if c and (kaynak[0] not in yerel_ipler or hedef != "255.255.255.255"):
+                    bulunan.setdefault(kaynak[0], c)
+    finally:
+        for s in soketler:
+            s.close()
+    mac = _arp()
+    return [{**c, "mac": mac.get(c["ip"]), "portlar": []} for _, c in sorted(bulunan.items(), key=lambda x: ipaddress.IPv4Address(x[0]))]
+
+
+def plc_sor_adaptor(ad: object) -> list[dict]:
+    a = [x for x in kablo_adaptorleri() if not ad or x["ad"] == ad]
+    ipler = [i.split("/")[0] for x in a for i in x["agler"]]
+    if not ipler:
+        raise AgHatasi("Bagli Ethernet adaptoru yok")
+    return plc_sor(ipler)

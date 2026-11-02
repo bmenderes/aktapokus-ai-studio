@@ -1287,6 +1287,9 @@ class Uygulama:
     def ag_ada_gore_bul(self, ad: object) -> dict:
         return {"cihazlar": self._ag_hata(ag_araci.ada_gore_bul, ad)}
 
+    def ag_plc_sor(self, ad: object) -> dict:
+        return {"cihazlar": self._ag_hata(ag_araci.plc_sor_adaptor, ad)}
+
     def ag_tara(self, ag: object) -> dict:
         return {"cihazlar": self._ag_hata(ag_araci.tara, ag)}
 
@@ -3016,6 +3019,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.ag_kablo_dinle(g.get("ad")))
                 if yol == "/api/ag/ada-gore":
                     return self._gonder(200, app.ag_ada_gore_bul(g.get("ad")))
+                if yol == "/api/ag/plc-sor":
+                    return self._gonder(200, app.ag_plc_sor(g.get("ad")))
                 if yol == "/api/ag/tara":
                     return self._gonder(200, app.ag_tara(g.get("ag")))
                 if yol == "/api/ag/adaptor-ip":
