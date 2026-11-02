@@ -321,6 +321,12 @@ def mesajlardan_metin(mesajlar: list[dict]) -> str:
     return "\n".join(parcalar)
 
 
+def arac_calisiyor(mesajlar: list[dict]) -> bool:
+    """Bitmemis arac var mi: uzun test/derleme token sayacini oynatmaz ama model takilmis demek degildir."""
+    return any(isinstance(c, dict) and c.get("type") == "tool" and (c.get("state") or {}).get("status") in ("pending", "running")
+               for m in mesajlar if m.get("type") == "assistant" for c in m.get("content") or [])
+
+
 def mesajlardan_beceriler(mesajlar: list[dict]) -> list[str]:
     """Asistan mesajlarinda cagrilan `skill` aracinin beceri kimlikleri (sirayla, tekrarsiz)."""
     bulunan: list[str] = []
@@ -636,6 +642,12 @@ class SunucuCalistirici(Calistirici):
                         istemci.izin_yanitla(sid, izin["id"], self.izin_karari, "Aktapokus: izin istegi otomatik yanitlandi")
                 if sid not in istemci.aktif_oturumlar():
                     break
+                if son_hareket + zaman_asimi_sn < simdi <= mutlak:
+                    try:
+                        if arac_calisiyor(istemci.mesajlar(sid, limit=20)):  # gercek durum: tam test takimi 900 sn sessiz kaldi, gorev bosuna olduruldu
+                            son_hareket = simdi
+                    except SunucuHatasi:
+                        pass
                 if simdi > son_hareket + zaman_asimi_sn or simdi > mutlak:
                     try:
                         istemci.durdur(sid)

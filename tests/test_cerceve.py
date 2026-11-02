@@ -72,3 +72,8 @@ def test_bos_ekran_yeni_simgeyi_kullanir():
 
 def test_ayarlar_sol_menusu_acilip_kapanir():
     assert 'id="ayarMenuDugme"' in HTML and "#ayarlar.menu-kapali #ayarMenu{display:none}" in HTML and "aktapokus.ayarMenu" in HTML
+
+
+def test_secili_proje_pencereye_ozel():
+    assert "function pencereYol(y)" in HTML and "fetch(pencereYol(yol)," in HTML and "pencereProjeYaz(S.projeId)" in HTML
+    assert "g.secili" not in HTML

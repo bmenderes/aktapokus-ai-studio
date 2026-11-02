@@ -390,3 +390,9 @@ def test_sunucu_istemi_komut_satiri_sinirina_takilmaz_ama_ust_siniri_vardir():
     runners._istemi_denetle(uzun, sunucu_modulu.AZAMI_SUNUCU_ISTEMI)  # sunucu: HTTP govdesi
     with pytest.raises(runners.CalistiriciHatasi):
         runners._istemi_denetle("a" * (sunucu_modulu.AZAMI_SUNUCU_ISTEMI + 1), sunucu_modulu.AZAMI_SUNUCU_ISTEMI)
+
+
+def test_calisan_arac_hareketsizlik_sayilmaz():
+    arac = lambda durum: [{"type": "assistant", "content": [{"type": "tool", "name": "shell", "state": {"status": durum}}]}]
+    assert sunucu_modulu.arac_calisiyor(arac("running")) and sunucu_modulu.arac_calisiyor(arac("pending"))
+    assert not sunucu_modulu.arac_calisiyor(arac("completed")) and not sunucu_modulu.arac_calisiyor([])
