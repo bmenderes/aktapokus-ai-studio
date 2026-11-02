@@ -420,6 +420,30 @@ def test_ciktisiz_komut_arac_durumu_olmadan_zaman_asimina_duser_token_sifir_kalm
         s.kapat()
 
 
+def test_model_soru_sorarsa_gorev_beklemez_yaziyla_sormasi_istenir(tmp_path):
+    s = SahteSunucu(davranis="soru", gecikme=0)
+    try:
+        olaylar = []
+        c = SunucuCalistirici(istemci=Istemci(s.taban, "p", zaman_asimi=5), yoklama_sn=0.05, ilerleme=olaylar.append)
+        r = c.calistir("g", tmp_path, zaman_asimi_sn=5)
+        assert r.ok and r.sure_sn < 4
+        (tur, govde), = s.durum.form_yanitlari
+        assert tur == "yanit" and govde["answer"]["q0"] == sunucu_modulu.SORU_NOTU and govde["answer"]["q1"] == []  # coklu secim metin kabul etmez
+        assert {"tur": "durum", "durum": "soru"} in olaylar
+    finally:
+        s.kapat()
+
+
+def test_soru_olmayan_form_iptal_edilir(tmp_path):
+    s = SahteSunucu(davranis="form", gecikme=0)
+    try:
+        assert calistirici(s).calistir("g", tmp_path, zaman_asimi_sn=5).ok
+        (tur, sorgu), = s.durum.form_yanitlari
+        assert tur == "iptal" and sorgu["message"] == [sunucu_modulu.SORU_NOTU]
+    finally:
+        s.kapat()
+
+
 def test_ekrana_dusunce_ve_komutun_son_satiri_gider(tmp_path):
     for davranis, beklenen in (("dusunuyor", "dusunce"), ("komut", "kabuk")):
         s = SahteSunucu(davranis=davranis, gecikme=0)

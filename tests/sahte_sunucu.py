@@ -22,6 +22,8 @@ class Durum:
         self.parola, self.davranis, self.metin, self.gecikme, self.dosya = parola, davranis, metin, gecikme, dosya
         self.oturumlar: dict[str, dict] = {}
         self.izinler: dict[str, list] = {}
+        self.formlar: dict[str, list] = {}
+        self.form_yanitlari: list = []
         self.yanitlar: list = []
         self.cagrilar: list = []
         self.olaylar: list[dict] = []
@@ -50,6 +52,11 @@ def _isle_bitir(d: Durum, sid: str) -> None:
                 if d.davranis == "komut":
                     d.kabuk_cikti += f"satir {i}\r\n"
             d.olaylar.append({"id": "k1", "type": "shell.exited", "data": {"id": "sh_1", "exit": 0}})
+    if d.davranis in ("soru", "form"):  # kapatilmayan form oturumu sonsuza dek bekletir (gercek sunucu gibi)
+        alanlar = [{"key": "q0", "type": "string", "options": [{"value": "A", "label": "A"}], "custom": True}, {"key": "q1", "type": "multiselect", "options": [{"value": "B", "label": "B"}]}]
+        d.formlar[sid] = [{"id": "frm_1", "sessionID": sid, "title": "Questions", "metadata": {"kind": "question"} if d.davranis == "soru" else {"kind": "mcp"}, "fields": alanlar}]
+        while d.formlar[sid]:
+            time.sleep(0.05)
     if d.davranis == "izin":
         d.izinler[sid] = [{"id": "per_1", "action": "external_directory"}]
         for _ in range(100):
@@ -162,6 +169,13 @@ def yapi(d: Durum):
                 ]})
             if yontem == "GET" and alt == "permission":
                 return self._gonder(200, {"data": list(d.izinler.get(sid, []))})
+            if yontem == "GET" and alt == "form":
+                return self._gonder(200, {"data": list(d.formlar.get(sid, []))})
+            m4 = re.match(r"^form/([^/]+)(/reply)?$", alt or "")
+            if m4 and yontem in ("POST", "DELETE"):
+                d.form_yanitlari.append(("yanit", self._oku()) if m4.group(2) else ("iptal", parse_qs(urlsplit(self.path).query)))
+                d.formlar[sid] = []
+                return self._gonder(204)
             m2 = re.match(r"^permission/([^/]+)/reply$", alt or "")
             if yontem == "POST" and m2:
                 g = self._oku()

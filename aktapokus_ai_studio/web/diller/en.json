@@ -664,6 +664,7 @@
   "model yanıtı bekleniyor": "waiting for the model",
   "araç hazırlanıyor": "preparing tool",
   "konuşma özetleniyor": "summarizing the conversation",
+  "model soru soruyor, yazıyla sorması istendi": "the model has a question; asked to write it as text",
   "yeniden deneniyor": "retrying",
   "başlıklar: ": "headers: ",
   "beceriler taranıyor…": "scanning skills…",

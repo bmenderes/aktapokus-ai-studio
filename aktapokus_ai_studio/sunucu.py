@@ -203,6 +203,18 @@ class Istemci:
             govde["message"] = mesaj
         self._istek("POST", f"/api/session/{sid}/permission/{istek_kimligi}/reply", govde)
 
+    def formlar(self, sid: str) -> list[dict]:
+        """Yanit bekleyen formlar. Modelin `question` araci da form acar: {id, metadata: {kind: "question"}, fields: [{key, type, ...}]}."""
+        return self._veri(self._istek("GET", f"/api/session/{sid}/form")) or []
+
+    def form_yanitla(self, sid: str, form: str, cevap: dict) -> None:
+        self._istek("POST", f"/api/session/{sid}/form/{form}/reply", {"answer": cevap})
+
+    def form_iptal(self, sid: str, form: str, mesaj: str) -> None:
+        import urllib.parse
+
+        self._istek("DELETE", f"/api/session/{sid}/form/{form}?message=" + urllib.parse.quote(mesaj, safe=""))
+
     def olaylar(self, zaman_asimi: float = 3600.0) -> Iterator[Olay]:
         """SSE akisi. Baglanti kopunca ya da zaman asiminda biter. Bilinmeyen olay tipleri de dondurulur."""
         r = urllib.request.Request(self.taban + "/api/event", headers={"Authorization": self._kimlik, "Accept": "text/event-stream"})
@@ -357,6 +369,10 @@ def olay_ilerlemesi(olay: Olay) -> dict | None:
     return None
 
 
+# Aktapokus'ta form cizilmez, gorev de tek yonludur: soru kutusu acik kalirsa model sonsuza dek bekler (gercek durum: yanit hazirken 1 saat takildi, toplam sinira carpti).
+SORU_NOTU = "Bu arac burada kullanilamaz, yanit alinamadi; bu kullanicinin secimi degildir. Yapabildigin isi bitir. Karar gerekiyorsa soruyu ve secenekleri son mesajinda duz metin olarak yaz: kullanici bir sonraki mesajinda yanitlar."
+
+
 def _kabuk_olayi(olay: Olay, sid: str, etkinlik: dict) -> None:
     """Komut baslayinca/bitince izlenecek kabuk listesini gunceller. shell.* olaylari ust duzeyde oturum tasimaz."""
     v, kabuklar = olay.veri, etkinlik["kabuklar"]
@@ -500,6 +516,30 @@ class SunucuCalistirici(Calistirici):
         t = threading.Thread(target=calis, daemon=True)
         t.start()
         return t
+
+    def _formlari_kapat(self, istemci: Istemci, sid: str, islenen: set) -> None:
+        """Bekleyen formu kapatir. Soru iptal edilmez, yanitlanir: iptalde model yanit yazmadan bitiyor (gercek denemede goruldu)."""
+        try:
+            formlar = istemci.formlar(sid)
+        except SunucuHatasi:
+            return
+        for form in formlar:
+            kimlik = form.get("id")
+            if not isinstance(kimlik, str) or kimlik in islenen or not re.fullmatch(r"frm_[A-Za-z0-9_-]{1,80}", kimlik):
+                continue
+            islenen.add(kimlik)
+            soru = (form.get("metadata") or {}).get("kind") == "question"
+            if soru and self.ilerleme:
+                self.ilerleme({"tur": "durum", "durum": "soru"})
+            try:
+                if not soru:
+                    raise SunucuHatasi("soru degil")
+                istemci.form_yanitla(sid, kimlik, {a["key"]: [] if a.get("type") == "multiselect" else SORU_NOTU for a in form.get("fields") or [] if a.get("key")})
+            except SunucuHatasi:
+                try:
+                    istemci.form_iptal(sid, kimlik, SORU_NOTU)
+                except SunucuHatasi:
+                    pass
 
     def _kabuklari_izle(self, istemci: Istemci, klasor, etkinlik: dict) -> None:
         """Calisan komutlarin yeni ciktisi etkinlik sayilir, son satiri ekrana gider. Ciktisi olmayan komut da gecen sureyle gorunur."""
@@ -698,6 +738,7 @@ class SunucuCalistirici(Calistirici):
             mutlak = baslangic + min(zaman_asimi_sn * 4, 14400)
             son_hareket, son_belirti, sonraki_yoklama = baslangic, None, 0.0
             islenen_izinler: set[str] = set()
+            islenen_formlar: set[str] = set()
             while True:
                 time.sleep(self.yoklama_sn)
                 simdi = time.monotonic()
@@ -715,6 +756,7 @@ class SunucuCalistirici(Calistirici):
                     if izin.get("id") and izin["id"] not in islenen_izinler:
                         islenen_izinler.add(izin["id"])
                         istemci.izin_yanitla(sid, izin["id"], self.izin_karari, "Aktapokus: izin istegi otomatik yanitlandi")
+                self._formlari_kapat(istemci, sid, islenen_formlar)
                 if sid not in istemci.aktif_oturumlar():
                     break
                 if son_hareket + zaman_asimi_sn < simdi <= mutlak:

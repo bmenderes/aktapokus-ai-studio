@@ -853,16 +853,88 @@ def _vibe_okunur_ajan(program: list[str]) -> str:
 
 
 class VibeCalistirici(Calistirici):
-    """Mistral Vibe CLI (`vibe -p`). Istem gecici bir dosyadan verilir (--prompt-file; komut satiri uzunlugu/tirnak sorunu yok), cikti duz metin.
-    Onayli calisma `--agent accept-edits` (yalniz dosya duzenlemeleri otomatik onaylanir; baska arac cagrilari programli kipte onay bekler/reddedilir),
-    salt okunur `--agent plan` (Vibe 3'te `ask`: bkz. _vibe_okunur_ajan). Model secimi Vibe'in kendi ayarindadir (active_model): rolde model verilirse hata. KORUYUCUSUZ.
-    Token kullanimi `--output-dir` ile yazilan export.json'dan okunur (sema belgelenmemis: bulunamazsa 0).
-    BELGEYE GORE yazildi; kurulu olmadigi icin gercek CLI ile denenmedi."""
+    """Mistral Vibe CLI (`vibe -p`; 3.0.3 ile GERCEK denendi). Istem gecici bir dosyadan verilir (--prompt-file; komut satiri uzunlugu/tirnak sorunu yok).
+    Cikti `--output streaming`: tamamlanan her kayit bir JSON satiri (type: message | reasoning | effect); kayitlar parca parca gelmez, arac bitince yazilir.
+    Onayli calisma `--agent accept-edits`, salt okunur `--agent plan` (Vibe 3'te `ask`: bkz. _vibe_okunur_ajan). Model secimi Vibe'in kendi ayarindadir (active_model): rolde model verilirse hata. KORUYUCUSUZ.
+    Token kullanimi `--output-dir` ile yazilan export.json'dan okunur; surec zorla kesilirse dosya yazilmaz, token bilinmez (0)."""
 
     ad = "mistral"
+    ilerleme = None  # canli olay geri cagrisi (Claude ve OpenCode sunucu calistiricisiyla ayni bicim)
 
     def __init__(self, komut_oneki: list[str] | None = None):
         self.komut_oneki = komut_oneki
+        self._islem = None
+        self._durduruldu = False
+
+    def durdur(self) -> bool:
+        islem = self._islem
+        if islem is None or islem.poll() is not None:
+            return False
+        self._durduruldu = True
+        ClaudeCodeCalistirici._surec_oldur(islem)
+        return True
+
+    def _olay_bildir(self, olay: dict) -> None:
+        bildir = self.ilerleme
+        if bildir is None:
+            return
+        try:  # arayuz geri cagrisi (ve olay bicimi) hicbir zaman calistirmayi bozmaz
+            tip = olay.get("type")
+            if tip == "reasoning" and olay.get("text"):
+                bildir({"tur": "dusunce", "parca": str(olay["text"]) + "\n"})
+            elif tip == "message" and olay.get("role") == "assistant":
+                for c in olay.get("content") or []:
+                    if c.get("type") == "text" and c.get("text"):
+                        bildir({"tur": "metin", "parca": str(c["text"]) + "\n"})
+            elif tip == "effect":
+                ayrinti, durum = olay.get("detail") or {}, olay.get("state") or {}
+                bildir({"tur": "arac", "ad": str(ayrinti.get("toolName") or "").rsplit(".", 1)[-1] or None, "girdi": ClaudeCodeCalistirici._girdi_ozeti(ayrinti.get("input"))})
+                bildir({"tur": "arac-sonuc", "hata": (durum.get("display") or {}).get("success") is False})
+        except Exception:
+            pass
+
+    def _akis(self, komut, klasor, zaman_asimi_sn: int):
+        """Vibe'i baslatir, stdout'u satir satir okuyup canli bildirir. (cikis_kodu, yanit_metni, duz_cikti, stderr, asim: None | 'hareketsiz' | 'toplam')."""
+        islem = subprocess.Popen(komut, cwd=str(klasor), env=_alt_surec_ortami(Path(klasor)), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        self._islem = islem
+        hatalar: list[bytes] = []
+        threading.Thread(target=lambda: hatalar.append(islem.stderr.read()), daemon=True).start()  # stderr dolup tikamasin
+        son_hareket = [time.monotonic()]  # her kayit sureyi yeniden baslatir
+        asim: list = [None]
+        bitti = threading.Event()
+
+        def bekci() -> None:
+            mutlak = time.monotonic() + min(zaman_asimi_sn * 4, 14400)  # mutlak ust sinir: 4 kat (en cok 4 saat)
+            while not bitti.wait(min(2.0, max(0.05, zaman_asimi_sn / 4))):
+                simdi = time.monotonic()
+                if simdi - son_hareket[0] > zaman_asimi_sn or simdi > mutlak:
+                    asim[0] = "toplam" if simdi > mutlak else "hareketsiz"
+                    ClaudeCodeCalistirici._surec_oldur(islem)
+                    return
+
+        threading.Thread(target=bekci, daemon=True).start()
+        yanitlar: list[str] = []
+        duz: list[str] = []
+        try:
+            for ham in islem.stdout:
+                son_hareket[0] = time.monotonic()
+                satir = ham.decode("utf-8", errors="replace").strip()
+                try:
+                    olay = json.loads(satir) if satir.startswith("{") else None
+                except ValueError:
+                    olay = None
+                if not isinstance(olay, dict):
+                    if satir:
+                        duz.append(satir)
+                    continue
+                self._olay_bildir(olay)
+                if olay.get("type") == "message" and olay.get("role") == "assistant":
+                    yanitlar += [str(c["text"]).strip() for c in olay.get("content") or [] if isinstance(c, dict) and c.get("type") == "text" and c.get("text")]
+            islem.wait()
+        finally:
+            bitti.set()
+            self._islem = None
+        return islem.returncode, "\n".join(yanitlar), "\n".join(duz), b"".join(hatalar).decode("utf-8", errors="replace"), asim[0]
 
     def komut(self, istem_dosyasi: str, cikti_klasoru: str, model: str | None, onayli: bool) -> list[str]:
         program = self.komut_oneki or ([vibe_bul()] if vibe_bul() else None)
@@ -870,7 +942,7 @@ class VibeCalistirici(Calistirici):
             raise CalistiriciHatasi("Mistral Vibe bulunamadi (uv tool install mistral-vibe) ya da AKTAPOKUS_VIBE ile yol verin.")
         if model:
             raise CalistiriciHatasi("Mistral Vibe'de model Vibe'in kendi ayarindan (~/.vibe/config.toml active_model) secilir; rolde 'model'i bos birakin")
-        return [*program, "--prompt-file", istem_dosyasi, "--output", "text", "--agent", "accept-edits" if onayli else (_vibe_okunur_ajan(program) if not self.komut_oneki else "plan"), "--output-dir", cikti_klasoru]
+        return [*program, "--prompt-file", istem_dosyasi, "--output", "streaming", "--agent", "accept-edits" if onayli else (_vibe_okunur_ajan(program) if not self.komut_oneki else "plan"), "--output-dir", cikti_klasoru]
 
     def calistir(self, istem, klasor, model=None, agent=None, zaman_asimi_sn=900, onayli=True):
         if not istem.strip():
@@ -880,6 +952,7 @@ class VibeCalistirici(Calistirici):
         import tempfile
 
         baslangic = time.monotonic()
+        self._durduruldu = False
         with tempfile.TemporaryDirectory(prefix="aktapokus-vibe-") as gecici:
             istem_yolu = Path(gecici) / "istem.txt"
             from . import baglam as _baglam
@@ -887,9 +960,7 @@ class VibeCalistirici(Calistirici):
             istem_yolu.write_bytes((_baglam.istem_baglami(klasor) + istem).encode("utf-8"))  # Vibe guvenilmeyen klasorde AGENTS.md'yi yok sayar: baglam istemle gider
             komut = self.komut(str(istem_yolu), str(Path(gecici) / "cikti"), model, onayli)
             try:
-                islem = subprocess.run(komut, cwd=str(klasor), env=_alt_surec_ortami(Path(klasor)), capture_output=True, stdin=subprocess.DEVNULL, timeout=zaman_asimi_sn)
-            except subprocess.TimeoutExpired:
-                return CalistirmaSonucu(False, hata=f"Zaman asimi ({zaman_asimi_sn} sn)", sure_sn=time.monotonic() - baslangic)
+                kod, yanit, duz, stderr, asim = self._akis(komut, klasor, zaman_asimi_sn)
             except OSError as hata:
                 return CalistirmaSonucu(False, hata=f"Mistral Vibe baslatilamadi: {hata}", sure_sn=time.monotonic() - baslangic)
             girdi = cikti_t = 0
@@ -899,13 +970,18 @@ class VibeCalistirici(Calistirici):
                 cikti_t = _sayi_bul(disa, ("completion_tokens", "output_tokens", "session_completion_tokens"))
             except (OSError, ValueError):
                 pass
-        stdout, stderr = _metin(islem.stdout), _metin(islem.stderr)
         sure = time.monotonic() - baslangic
+        metin = (yanit or duz).strip()
+        if asim:
+            neden = f"Zaman asimi ({zaman_asimi_sn} sn)" if asim == "hareketsiz" else f"Zaman asimi (toplam sure siniri {min(zaman_asimi_sn * 4, 14400)} sn)"
+            return CalistirmaSonucu(False, metin=metin, token_girdi=girdi, token_cikti=cikti_t, sure_sn=sure, hata=neden)
+        if self._durduruldu:
+            return CalistirmaSonucu(False, metin=metin, token_girdi=girdi, token_cikti=cikti_t, sure_sn=sure, hata="Durduruldu")
         # cikis kodlari (belgeye gore): 0 bitti; 1 kullanim/ayar hatasi; 2 altyapi hatasi; 3 ajan bitirmeden durdu (tur/token/fiyat siniri...)
-        if islem.returncode != 0:
-            return CalistirmaSonucu(False, metin=stdout.strip(), token_girdi=girdi, token_cikti=cikti_t, sure_sn=sure,
-                                    hata=f"Mistral Vibe cikis kodu {islem.returncode}: {(stderr or stdout).strip()[-300:]}")
-        return CalistirmaSonucu(True, metin=stdout.strip(), token_girdi=girdi, token_cikti=cikti_t, sure_sn=sure)
+        if kod != 0:
+            return CalistirmaSonucu(False, metin=metin, token_girdi=girdi, token_cikti=cikti_t, sure_sn=sure,
+                                    hata=f"Mistral Vibe cikis kodu {kod}: {(stderr or duz or yanit).strip()[-300:]}")
+        return CalistirmaSonucu(True, metin=metin, token_girdi=girdi, token_cikti=cikti_t, sure_sn=sure)
 
 
 CALISTIRICILAR = {"opencode": OpenCodeCalistirici, "claude": ClaudeCodeCalistirici, "codex": CodexCalistirici, "gemini": GeminiCalistirici, "mistral": VibeCalistirici}

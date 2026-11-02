@@ -1,7 +1,9 @@
-"""Gemini CLI ve Mistral Vibe calistiricilari (sahte CLI'larla; gercek CLI'lar bu makinede kurulu degil, belgeye gore yazildi)."""
+"""Gemini CLI ve Mistral Vibe calistiricilari (sahte CLI'larla; Gemini belgeye gore yazildi, Vibe akis bicimi gercek 3.0.3 ciktisindan alindi)."""
 
 import json
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -96,7 +98,7 @@ def test_gemini_ciktisi_log_satirlariyla_karisik_olsa_da_cozulur():
 def test_vibe_komut_ajan_ve_model_kurali():
     v = vibe()
     k = v.komut("istem.txt", "cikti", None, True)
-    assert k[2:] == ["--prompt-file", "istem.txt", "--output", "text", "--agent", "accept-edits", "--output-dir", "cikti"]
+    assert k[2:] == ["--prompt-file", "istem.txt", "--output", "streaming", "--agent", "accept-edits", "--output-dir", "cikti"]
     assert v.komut("istem.txt", "cikti", None, False)[k.index("--agent")] == "--agent" and "plan" in v.komut("istem.txt", "cikti", None, False)
     with pytest.raises(CalistiriciHatasi, match="model"):
         v.komut("istem.txt", "cikti", "mistral-large", True)
@@ -113,7 +115,39 @@ def test_vibe_istem_dosyadan_gider_token_exporttan_okunur(tmp_path, log):
 def test_vibe_sinir_cikis_kodu_hata_sayilir(tmp_path, monkeypatch):
     monkeypatch.setenv("SAHTE_VIBE_MOD", "sinir")
     s = vibe().calistir("x", tmp_path)
-    assert not s.ok and "cikis kodu 3" in s.hata
+    assert not s.ok and "cikis kodu 3" in s.hata and "tur siniri" in s.hata
+
+
+def test_vibe_canli_olaylar_arayuz_bicimiyle_gelir(tmp_path):
+    v, gelen = vibe(), []
+    v.ilerleme = gelen.append
+    s = v.calistir("gorev", tmp_path)
+    assert s.ok and s.metin == "Bitti: gorev"  # kullanicinin istemi yanit sayilmaz
+    assert {"tur": "dusunce", "parca": "dusunuyorum\n"} in gelen
+    assert {"tur": "arac", "ad": "bash", "girdi": {"command": "echo merhaba"}} in gelen
+    assert {"tur": "arac-sonuc", "hata": True} in gelen and {"tur": "arac-sonuc", "hata": False} in gelen
+    assert {"tur": "metin", "parca": "Bitti: gorev\n"} in gelen
+
+
+def test_vibe_hareket_surdukce_zaman_asimi_olmaz_durursa_kesilir(tmp_path, monkeypatch):
+    monkeypatch.setenv("SAHTE_VIBE_MOD", "yavas")
+    assert vibe().calistir("x", tmp_path, zaman_asimi_sn=1).ok  # toplam ~2.5 sn ama her kayit sureyi yeniler
+    monkeypatch.setenv("SAHTE_VIBE_MOD", "takili")
+    s = vibe().calistir("x", tmp_path, zaman_asimi_sn=1)
+    assert not s.ok and s.hata == "Zaman asimi (1 sn)" and s.sure_sn < 30
+
+
+def test_vibe_durdurulur(tmp_path, monkeypatch):
+    monkeypatch.setenv("SAHTE_VIBE_MOD", "takili")
+    v, sonuc = vibe(), {}
+    t = threading.Thread(target=lambda: sonuc.update(s=v.calistir("x", tmp_path)))
+    t.start()
+    son = time.monotonic() + 20
+    while v._islem is None and time.monotonic() < son:
+        time.sleep(0.05)
+    assert v.durdur()
+    t.join(30)
+    assert sonuc["s"].hata == "Durduruldu"
 
 
 # ---------- hesap/giris durumu ----------
