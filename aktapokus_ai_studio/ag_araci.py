@@ -162,7 +162,7 @@ def adaptor_dhcp_yap(ad: object) -> None:
 
 
 # --- Kablodaki cihazi bulma: farkli agdaki (adresi bilinmeyen) cihaz taramada gorunmez; Ethernet dinlenir, cihaz konusursa IP'si paketten okunur ---
-KABLO_SURE_SN = 30
+KABLO_SURE_SN = 60  # sessiz cihaz seyrek konusur (gercek durum: 30 sn'de 1 yayin)
 _kablo_kilit = threading.Lock()
 
 

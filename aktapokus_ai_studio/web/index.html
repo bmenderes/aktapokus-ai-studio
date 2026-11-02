@@ -2078,7 +2078,7 @@ async function agBolumu(h){const post=(y,g)=>api(y,g?{method:"POST",body:g}:unde
     const tara=e("button",{class:kablolar.length?"":"pri",text:"Tara",onclick:async()=>{tara.disabled=true;liste.textContent="Taranıyor…";const r=await dene(()=>post("/api/ag/tara",{ag:ag.value.trim()}));tara.disabled=false;liste.textContent="";if(r)yaz(r)}});
     const aralik=e("div",{class:"ag-satir",style:"border:0"+(kablolar.length?";display:none":"")},ag,tara);
     if(kablolar.length){const sec=e("select",kablolar.length>1?null:{style:"display:none"},...kablolar.map(a=>e("option",{value:a.ad,text:a.ad})));
-      const bul=e("button",{class:"pri",text:"Kablodaki cihazı bul",onclick:async()=>{bul.disabled=true;liste.textContent="Dinleniyor (30 sn): kabloyu çıkarıp takın…";const r=await dene(()=>post("/api/ag/kablo-dinle",{ad:sec.value}));bul.disabled=false;liste.textContent="";if(r)yaz(r)}});
+      const bul=e("button",{class:"pri",text:"Kablodaki cihazı bul",onclick:async()=>{bul.disabled=true;liste.textContent="Dinleniyor (60 sn): kabloyu çıkarıp takın…";const r=await dene(()=>post("/api/ag/kablo-dinle",{ad:sec.value}));bul.disabled=false;liste.textContent="";if(r)yaz(r)}});
       k.append(e("div",{class:"ag-satir",style:"border:0"},sec,bul,e("button",{text:"Aralık",onclick:()=>{aralik.style.display=aralik.style.display==="none"?"":"none"}})))}
     k.append(aralik,liste)};
   const bootp=async k=>{let kablolar=[];try{kablolar=(await post("/api/ag/kablo-adaptorler",{})).adaptorler}catch(x){}let kabloAd=kablolar.length?kablolar[0].ad:"";
