@@ -2067,17 +2067,20 @@ async function agBolumu(h){const post=(y,g)=>api(y,g?{method:"POST",body:g}:unde
   const ornekAg=()=>{const a=D.adaptorler.find(x=>x.onek>=23&&x.onek<=30)||D.adaptorler.find(x=>x.onek<32);if(!a)return"192.168.1.0/24";const q=a.ip.split(".").map(Number),m=a.maske.split(".").map(Number);return q.map((b,i)=>b&m[i]).join(".")+"/"+a.onek};
   const git=async id=>{sekme=id;durdur();hataGoster("");sek.textContent="";for(const [k,ad] of [["cihazlar","Cihazlar"],["bootp","BOOTP"],["bilgisayar","Bilgisayar"],["profiller","Profiller"]])sek.append(e("button",{class:"ag-sekme"+(k===sekme?" on":""),text:ad,onclick:()=>git(k)}));ic.textContent="";const kap=e("div");ic.append(kap);
     if(id==="cihazlar")await cihazlar(kap);else if(id==="bootp")await bootp(kap);else if(id==="bilgisayar")await bilgisayar(kap);else await profiller(kap)};
-  const cihazlar=async k=>{await adaptorleriAl();const ag=e("input",{class:"mono ag-ge",value:ornekAg()}),liste=e("div",{class:"mut",style:"margin-top:8px",text:"Taranacak ağı girip Tara deyin."});
-    const tara=e("button",{class:"pri",text:"Tara",onclick:async()=>{tara.disabled=true;liste.textContent="Taranıyor…";const r=await dene(()=>post("/api/ag/tara",{ag:ag.value.trim()}));tara.disabled=false;liste.textContent="";if(!r)return;if(!r.cihazlar.length)liste.append(e("div",{class:"mut",text:"Cihaz bulunamadı"}));
-      for(const c of r.cihazlar)liste.append(e("div",{class:"ag-satir"},e("span",{class:"mono",style:"width:120px",text:c.ip}),e("span",{class:"mono mut",style:"width:140px",text:c.mac||"—"}),e("span",{style:"width:110px",text:c.uretici||""}),e("span",{class:"mut ag-ge",text:c.portlar.map(x=>x.ad).join(", ")}),c.mac?e("button",{text:"IP ata",onclick:()=>{D.mac=c.mac;git("bootp")}}):null))}});
-    k.append(e("div",{class:"ag-satir",style:"border:0"},ag,tara));
-    /* Kablodaki cihaz: adresi bilinmeyen/farkli agdaki cihaz Ethernet dinlenerek bulunur. Yonetici izni ister. */
+  const cihazlar=async k=>{const liste=e("div",{style:"margin-top:8px"});
+    /* Bilgi gerektirmez: Ethernet dinlenir ve kendi agi yoklanir. Aralik yalniz istenirse acilir; Wi-Fi agi kendiliginden taranmaz. */
+    const yaz=r=>{liste.textContent="";if(!r.cihazlar.length)liste.append(e("div",{class:"mut",text:"Cihaz bulunamadı"}));
+      for(const c of r.cihazlar){const ipler=c.ipler||[c.ip];liste.append(e("div",{class:"ag-satir"},e("span",{class:"mono",style:"width:150px",text:ipler.join(", ")||"IP yok"}),e("span",{class:"mono mut",style:"width:140px",text:c.mac||"—"}),e("span",{style:"width:110px",text:c.uretici||""}),e("span",{class:"mut ag-ge",text:[(c.portlar||[]).map(x=>x.ad).join(", "),c.ag_disi?"farklı ağ":""].filter(Boolean).join(" · ")}),c.mac?e("button",{text:"IP ata",onclick:()=>{D.mac=c.mac;git("bootp")}}):null))}};
     let kablolar=[];try{kablolar=(await post("/api/ag/kablo-adaptorler",{})).adaptorler}catch(x){}
-    if(kablolar.length){const sec=e("select",null,...kablolar.map(a=>e("option",{value:a.ad,text:a.ad})));
-      const bul=e("button",{text:"Kablodaki cihazı bul",onclick:async()=>{bul.disabled=true;liste.textContent="Dinleniyor (30 sn): kabloyu çıkarıp takın…";const r=await dene(()=>post("/api/ag/kablo-dinle",{ad:sec.value}));bul.disabled=false;liste.textContent="";if(!r)return;if(!r.cihazlar.length)liste.append(e("div",{class:"mut",text:"Cihaz konuşmadı"}));
-        for(const c of r.cihazlar)liste.append(e("div",{class:"ag-satir"},e("span",{class:"mono",style:"width:150px",text:c.ipler.join(", ")||"IP yok"}),e("span",{class:"mono mut",style:"width:140px",text:c.mac}),e("span",{style:"width:110px",text:c.uretici||""}),e("span",{class:"mut ag-ge",text:c.ag_disi?"farklı ağ":""}),e("button",{text:"IP ata",onclick:()=>{D.mac=c.mac;git("bootp")}})))}});
-      k.append(e("div",{class:"ag-satir",style:"border:0"},sec,bul))}
-    k.append(liste)};
+    const yerel=kablolar.flatMap(a=>a.agler).find(x=>!x.startsWith("169.254.")&&x.endsWith("/24"));
+    if(!kablolar.length)await adaptorleriAl();
+    const ag=e("input",{class:"mono ag-ge",placeholder:"192.168.0.0/24",value:yerel?yerel.split(".").slice(0,3).join(".")+".0/24":kablolar.length?"":ornekAg()});
+    const tara=e("button",{class:kablolar.length?"":"pri",text:"Tara",onclick:async()=>{tara.disabled=true;liste.textContent="Taranıyor…";const r=await dene(()=>post("/api/ag/tara",{ag:ag.value.trim()}));tara.disabled=false;liste.textContent="";if(r)yaz(r)}});
+    const aralik=e("div",{class:"ag-satir",style:"border:0"+(kablolar.length?";display:none":"")},ag,tara);
+    if(kablolar.length){const sec=e("select",kablolar.length>1?null:{style:"display:none"},...kablolar.map(a=>e("option",{value:a.ad,text:a.ad})));
+      const bul=e("button",{class:"pri",text:"Kablodaki cihazı bul",onclick:async()=>{bul.disabled=true;liste.textContent="Dinleniyor (30 sn): kabloyu çıkarıp takın…";const r=await dene(()=>post("/api/ag/kablo-dinle",{ad:sec.value}));bul.disabled=false;liste.textContent="";if(r)yaz(r)}});
+      k.append(e("div",{class:"ag-satir",style:"border:0"},sec,bul,e("button",{text:"Aralık",onclick:()=>{aralik.style.display=aralik.style.display==="none"?"":"none"}})))}
+    k.append(aralik,liste)};
   const bootp=async k=>{const ciz=async()=>{if(!k.isConnected){durdur();return}let d;try{d=await post("/api/ag/bootp")}catch(x){hataGoster(x.message);return}
       if(document.activeElement&&k.contains(document.activeElement)&&document.activeElement.tagName==="INPUT")return;  /* yazarken yenileme */
       k.textContent="";k.append(e("div",{class:"ag-satir",style:"border:0"},e("button",{class:d.calisiyor?"pri":"",text:d.calisiyor?"Durdur":"Başlat",onclick:()=>dene(async()=>{await post("/api/ag/bootp/"+(d.calisiyor?"durdur":"baslat"),{});ciz()})}),e("span",{class:"mut",text:d.calisiyor?"dinliyor (67)":"durdu"}),d.hata?e("span",{class:"badge b-err",text:d.hata}):null));

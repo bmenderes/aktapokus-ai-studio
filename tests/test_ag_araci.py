@@ -160,3 +160,20 @@ def test_kablo_dinleme_uzaktan_kapali():
     from aktapokus_ai_studio import uzak
     for a in (uzak.Ayar(yonetim=False), uzak.Ayar(yonetim=True)):
         assert uzak.politika("POST", "/api/ag/kablo-dinle", a) and uzak.politika("POST", "/api/ag/kablo-adaptorler", a)
+
+
+def test_dinleme_kendi_agini_da_yoklar_ve_birlestirir():
+    liste = lambda: [{"ad": "Ethernet", "mac": KENDI, "agler": ["192.168.100.250/24"]}]
+
+    def sahte(betik, sure):
+        Path(re.search(r"\$d = '([^']+)'", betik).group(1), "k.pcapng").write_bytes(_pcapng(_arp(PLC, bytes([190, 201, 100, 100]))))
+        return 0
+    yoklanan = [{"ip": "192.168.100.100", "mac": "00:80:1F:11:22:33", "uretici": None, "portlar": [{"no": 4840, "ad": "OPC UA"}]}, {"ip": "192.168.100.7", "mac": None, "uretici": None, "portlar": []}]
+    c = ag_araci.kablo_dinle("Ethernet", 1, sahte, liste, lambda agler: yoklanan)
+    assert len(c) == 2 and c[0]["ipler"] == ["192.168.100.100", "190.201.100.100"] and c[0]["portlar"][0]["ad"] == "OPC UA" and c[1]["ipler"] == ["192.168.100.7"]
+
+
+def test_yoklama_apipa_ve_kendi_adresini_atlar(monkeypatch):
+    goruldu = []
+    monkeypatch.setattr(ag_araci, "tara", lambda ag: goruldu.append(ag) or [{"ip": "192.168.100.250"}, {"ip": "192.168.100.5"}])
+    assert [c["ip"] for c in ag_araci._agi_yokla(["192.168.100.250/24", "169.254.96.252/16"])] == ["192.168.100.5"] and goruldu == ["192.168.100.0/24"]

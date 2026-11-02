@@ -245,7 +245,7 @@ def cerceveleri_coz(paketler: list[bytes], kendi_mac: str, agler: list[str] | No
     sonuc = []
     for mac, k in cihaz.items():
         ipler = k["arp"] or k["ip"]  # ARP cihazin kendi adresidir; IP basligi yonlendiriciden gecen baskasinin adresi olabilir
-        sonuc.append({"mac": mac, "uretici": uretici(mac), "ipler": ipler, "adet": k["adet"], "ag_disi": bool(ipler) and not any(ipaddress.IPv4Address(ip) in n for ip in ipler for n in aglar)})
+        sonuc.append({"mac": mac, "uretici": uretici(mac), "ipler": ipler, "adet": k["adet"], "portlar": [], "ag_disi": bool(ipler) and not any(ipaddress.IPv4Address(ip) in n for ip in ipler for n in aglar)})
     return sorted(sonuc, key=lambda c: (not c["ipler"], -c["adet"]))
 
 
@@ -265,7 +265,36 @@ exit $LASTEXITCODE
 """
 
 
-def kablo_dinle(ad: object, sure: int = KABLO_SURE_SN, calistir=None, adaptor_listesi=None) -> list[dict]:
+def _agi_yokla(agler: list[str]) -> list[dict]:
+    """Adaptorun kendi agini tarar (APIPA ve cok genis aglar haric); bilgisayarin kendi adresi elenir."""
+    kendi, sonuc = set(), []
+    for a in agler:
+        try:
+            i = ipaddress.IPv4Interface(a)
+            kendi.add(str(i.ip))
+            if not i.network.is_link_local and i.network.num_addresses <= AZAMI_ADRES:
+                sonuc += tara(str(i.network))
+        except (ValueError, AgHatasi):
+            continue
+    return [c for c in sonuc if c["ip"] not in kendi]
+
+
+def _birlestir(dinlenen: list[dict], yoklanan: list[dict]) -> list[dict]:
+    """Ayni cihaz iki kaynaktan gelirse tek satir: MAC'e gore birlesir, IP ve portlar eklenir."""
+    sonuc = list(dinlenen)
+    for c in yoklanan:
+        var = next((x for x in sonuc if c.get("mac") and x["mac"] == c["mac"]), None)
+        if var is None:
+            sonuc.append({"mac": c.get("mac"), "uretici": c.get("uretici"), "ipler": [c["ip"]], "adet": 0, "portlar": c.get("portlar") or [], "ag_disi": False})
+        else:
+            var["portlar"] = c.get("portlar") or []
+            var["ag_disi"] = False
+            if c["ip"] not in var["ipler"]:
+                var["ipler"].insert(0, c["ip"])
+    return sorted(sonuc, key=lambda c: (not c["ipler"], -c["adet"]))
+
+
+def kablo_dinle(ad: object, sure: int = KABLO_SURE_SN, calistir=None, adaptor_listesi=None, yokla=None) -> list[dict]:
     """Secili Ethernet adaptorunu `sure` saniye dinler. Yonetici izni ister (UAC); betik acik metin dosyasi olarak birakilmaz, tek kullanimlik gecici klasore yalniz cikti yazilir."""
     a = next((x for x in (adaptor_listesi or kablo_adaptorleri)() if x["ad"] == ad), None)
     if a is None:
@@ -275,6 +304,9 @@ def kablo_dinle(ad: object, sure: int = KABLO_SURE_SN, calistir=None, adaptor_li
     if not _kablo_kilit.acquire(blocking=False):
         raise AgHatasi("Dinleme zaten suruyor")
     try:
+        yoklanan: list[dict] = []
+        yoklayici = threading.Thread(target=lambda: yoklanan.extend((yokla or _agi_yokla)(a["agler"])), daemon=True)
+        yoklayici.start()
         with tempfile.TemporaryDirectory(prefix="aktapokus-kablo-") as klasor:
             kod = (calistir or _yonetici_calistir)(_dinleme_betigi(a["mac"], klasor, sure), sure + 120)
             if kod == 1223:
@@ -284,7 +316,9 @@ def kablo_dinle(ad: object, sure: int = KABLO_SURE_SN, calistir=None, adaptor_li
             yol = Path(klasor) / "k.pcapng"
             if kod != 0 or not yol.is_file():
                 raise AgHatasi(f"Dinleme tamamlanamadi (kod {kod})")
-            return cerceveleri_coz(_pcapng_paketleri(yol.read_bytes()), a["mac"], a["agler"])
+            dinlenen = cerceveleri_coz(_pcapng_paketleri(yol.read_bytes()), a["mac"], a["agler"])
+            yoklayici.join(60)
+            return _birlestir(dinlenen, list(yoklanan))
     finally:
         _kablo_kilit.release()
 
