@@ -14,6 +14,7 @@ import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import parse_qs, urlsplit
 
 
 class Durum:
@@ -24,6 +25,7 @@ class Durum:
         self.yanitlar: list = []
         self.cagrilar: list = []
         self.olaylar: list[dict] = []
+        self.kabuk_cikti = ""
         self.kilit = threading.Lock()
 
 
@@ -36,6 +38,18 @@ def _isle_bitir(d: Durum, sid: str) -> None:
         for i in range(12):
             time.sleep(0.2)
             o["sayac"] = i + 1
+    if d.davranis in ("dusunuyor", "komut", "sessiz-komut"):  # token sayaci oynamaz: sinyal yalniz olaylarda ve komut ciktisinda
+        if d.davranis == "dusunuyor":
+            for i in range(12):
+                time.sleep(0.2)
+                d.olaylar.append({"id": f"d{i}", "type": "session.reasoning.delta", "data": {"sessionID": sid, "delta": f"adim {i}\n"}})
+        else:
+            d.olaylar.append({"id": "k0", "type": "shell.created", "data": {"info": {"id": "sh_1", "metadata": {"sessionID": sid}}}})
+            for i in range(12):
+                time.sleep(0.2)
+                if d.davranis == "komut":
+                    d.kabuk_cikti += f"satir {i}\r\n"
+            d.olaylar.append({"id": "k1", "type": "shell.exited", "data": {"id": "sh_1", "exit": 0}})
     if d.davranis == "izin":
         d.izinler[sid] = [{"id": "per_1", "action": "external_directory"}]
         for _ in range(100):
@@ -109,6 +123,13 @@ def yapi(d: Durum):
                 except OSError:
                     pass
                 return
+            m3 = re.match(r"^/api/shell/([^/]+)/output$", yol)
+            if yontem == "GET" and m3:
+                sorgu = parse_qs(urlsplit(self.path).query)
+                if not sorgu.get("location[directory]"):  # gercek sunucu klasorsuz sorguda kabugu bulamaz
+                    return self._gonder(404, {"_tag": "ShellNotFoundError", "message": "yok"})
+                imlec = int(sorgu.get("cursor", ["0"])[0])
+                return self._gonder(200, {"data": {"output": d.kabuk_cikti[imlec:], "cursor": len(d.kabuk_cikti), "size": len(d.kabuk_cikti), "truncated": False}})
             m = re.match(r"^/api/session/([^/]+)(?:/(.+))?$", yol)
             if not m:
                 return self._gonder(404, {"_tag": "NotFound", "message": yol})

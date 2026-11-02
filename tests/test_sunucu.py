@@ -396,3 +396,95 @@ def test_calisan_arac_hareketsizlik_sayilmaz():
     arac = lambda durum: [{"type": "assistant", "content": [{"type": "tool", "name": "shell", "state": {"status": durum}}]}]
     assert sunucu_modulu.arac_calisiyor(arac("running")) and sunucu_modulu.arac_calisiyor(arac("pending"))
     assert not sunucu_modulu.arac_calisiyor(arac("completed")) and not sunucu_modulu.arac_calisiyor([])
+
+
+@pytest.mark.parametrize("davranis", ["dusunuyor", "komut"])
+def test_token_oynamasa_da_olay_ya_da_komut_ciktisi_gelen_gorev_zaman_asimina_dusmez(tmp_path, monkeypatch, davranis):
+    monkeypatch.setattr(sunucu_modulu, "arac_calisiyor", lambda m: False)  # yalniz canli sinyal denensin
+    s = SahteSunucu(davranis=davranis, gecikme=0)
+    try:
+        r = calistirici(s).calistir("g", tmp_path, zaman_asimi_sn=1)  # gorev ~2.4 sn, aralarda 0.2 sn sinyal
+        assert r.ok, r.hata
+    finally:
+        s.kapat()
+
+
+def test_ciktisiz_komut_arac_durumu_olmadan_zaman_asimina_duser_token_sifir_kalmaz(tmp_path, monkeypatch):
+    monkeypatch.setattr(sunucu_modulu, "arac_calisiyor", lambda m: False)
+    s = SahteSunucu(davranis="sessiz-komut", gecikme=0)
+    try:
+        r = calistirici(s).calistir("g", tmp_path, zaman_asimi_sn=1)
+        assert not r.ok and "Zaman asimi (1 sn)" in r.hata
+        assert r.token_girdi == 100 and r.token_cikti == 25  # kesilen gorevin harcamasi kaybolmaz
+    finally:
+        s.kapat()
+
+
+def test_ekrana_dusunce_ve_komutun_son_satiri_gider(tmp_path):
+    for davranis, beklenen in (("dusunuyor", "dusunce"), ("komut", "kabuk")):
+        s = SahteSunucu(davranis=davranis, gecikme=0)
+        try:
+            olaylar = []
+            c = SunucuCalistirici(istemci=Istemci(s.taban, "p", zaman_asimi=5), yoklama_sn=0.05, ilerleme=olaylar.append)
+            assert c.calistir("g", tmp_path, zaman_asimi_sn=2).ok
+            gelen = [o for o in olaylar if o["tur"] == beklenen]
+            assert gelen, olaylar
+            if beklenen == "kabuk":
+                assert any(o["satir"].startswith("satir ") for o in gelen) and "sh_1" not in str(gelen)
+            else:
+                assert gelen[0]["parca"] == "adim 0\n"
+        finally:
+            s.kapat()
+
+
+def test_baska_oturumun_komutu_izlenmez_gecersiz_kimlik_url_ye_girmez():
+    etkinlik = {"zaman": 0, "kabuklar": {}}
+    Olay = sunucu_modulu.Olay
+    sunucu_modulu._kabuk_olayi(Olay("shell.created", {"info": {"id": "sh_b", "metadata": {"sessionID": "baska"}}}, {}), "ben", etkinlik)
+    sunucu_modulu._kabuk_olayi(Olay("session.tool.progress", {"sessionID": "ben", "metadata": {"shellID": "../../gizli"}}, {}), "ben", etkinlik)
+    assert etkinlik["kabuklar"] == {}
+    sunucu_modulu._kabuk_olayi(Olay("session.tool.progress", {"sessionID": "ben", "metadata": {"shellID": "sh_1"}}, {}), "ben", etkinlik)
+    assert list(etkinlik["kabuklar"]) == ["sh_1"]
+    sunucu_modulu._kabuk_olayi(Olay("shell.exited", {"id": "sh_1"}, {}), "ben", etkinlik)
+    assert etkinlik["kabuklar"] == {}
+
+
+def test_satir_sonu_vermeyen_cikti_birikir_tamamlanan_satir_kalir():
+    gelen = iter(["..", "..\nbitti\r\n", "ya"])
+    imlec = iter([2, 11, 13])
+
+    class Kabuk:
+        def kabuk_cikti(self, kabuk, klasor, i):
+            return {"output": next(gelen), "cursor": next(imlec)}
+
+    etkinlik = {"zaman": 0, "kabuklar": {}}
+    sunucu_modulu._kabuk_olayi(sunucu_modulu.Olay("session.tool.progress", {"sessionID": "ben", "metadata": {"shellID": "sh_1"}}, {}), "ben", etkinlik)
+    olaylar = []
+    c = SunucuCalistirici(istemci=object(), ilerleme=olaylar.append)
+    for _ in range(3):
+        c._kabuklari_izle(Kabuk(), "k", etkinlik)
+    assert [o["satir"] for o in olaylar] == ["..", "bitti", "ya"]
+    assert etkinlik["zaman"] > 0
+
+
+def test_arac_adi_hazirlanirken_gelen_olaydan_alinir():
+    Olay = sunucu_modulu.Olay
+    d = {"sessionID": "ben", "id": "call_1"}
+
+    class Akis:
+        def olaylar(self):
+            yield Olay("session.tool.input.started", {**d, "name": "shell"}, {})
+            yield Olay("session.tool.called", {**d, "input": {"command": "x"}}, {})
+
+    olaylar = []
+    durdur, bitti = threading.Event(), threading.Event()
+    SunucuCalistirici(istemci=object(), ilerleme=olaylar.append)._dinleyici(Akis(), "ben", durdur, bitti, {"zaman": 0, "kabuklar": {}}).join(5)
+    assert olaylar[-1] == {"tur": "arac", "ad": "shell", "girdi": {"command": "x"}}
+
+
+def test_yeniden_deneme_ve_ozetleme_ekrana_yansir():
+    Olay = sunucu_modulu.Olay
+    o = sunucu_modulu.olay_ilerlemesi(Olay("session.retry.scheduled", {"attempt": 2, "error": {"message": "rate  limit"}}, {}))
+    assert o == {"tur": "durum", "durum": "yeniden", "deneme": 2, "hata": "rate limit"}
+    assert sunucu_modulu.olay_ilerlemesi(Olay("session.compaction.started", {}, {}))["durum"] == "ozetleniyor"
+    assert sunucu_modulu.olay_ilerlemesi(Olay("session.step.streamed", {}, {})) is None

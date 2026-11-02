@@ -188,6 +188,10 @@ class Istemci:
     def mesajlar(self, sid: str, limit: int = 100) -> list[dict]:
         return self._veri(self._istek("GET", f"/api/session/{sid}/message?limit={int(limit)}")) or []
 
+    def kabuk_cikti(self, kabuk: str, klasor: str | Path, imlec: int = 0) -> dict:
+        """Ajanin calistirdigi komutun imlecten sonraki ciktisi {output, cursor, size}. Sunucu kabugu yalniz kendi klasoruyle bulur (klasorsuz 404)."""
+        return self._veri(self._istek("GET", f"/api/shell/{kabuk}/output?{self._konum(klasor)}&cursor={int(imlec)}&limit=65536")) or {}
+
     def izinler(self, sid: str) -> list[dict]:
         return self._veri(self._istek("GET", f"/api/session/{sid}/permission")) or []
 
@@ -327,6 +331,47 @@ def arac_calisiyor(mesajlar: list[dict]) -> bool:
                for m in mesajlar if m.get("type") == "assistant" for c in m.get("content") or [])
 
 
+def olay_ilerlemesi(olay: Olay) -> dict | None:
+    """OpenCode oturum olayinin arayuze giden karsiligi; gosterilmeyen olaylar None (yine de etkinlik sayilir)."""
+    v = olay.veri
+    if olay.tip == "session.text.delta":
+        return {"tur": "metin", "parca": v.get("delta", "")}
+    if olay.tip == "session.reasoning.delta":
+        return {"tur": "dusunce", "parca": v.get("delta", "")}
+    if olay.tip == "session.step.started":
+        return {"tur": "durum", "durum": "bekliyor"}
+    if olay.tip == "session.tool.input.started":
+        return {"tur": "durum", "durum": "arac", "ad": v.get("name")}
+    if olay.tip == "session.compaction.started":
+        return {"tur": "durum", "durum": "ozetleniyor"}
+    if olay.tip == "session.retry.scheduled":
+        return {"tur": "durum", "durum": "yeniden", "deneme": v.get("attempt"), "hata": " ".join(_hata_metni(v.get("error")).split())[:160]}
+    if olay.tip == "session.tool.called":
+        return {"tur": "arac", "ad": v.get("name") or v.get("tool"), "girdi": v.get("input")}
+    if olay.tip == "session.tool.success":
+        return {"tur": "arac-sonuc"}
+    if olay.tip == "session.usage.updated":
+        return {"tur": "kullanim", "token": v.get("tokens")}
+    if olay.tip.startswith("session.execution."):
+        return {"tur": "bitti" if olay.tip != "session.execution.started" else "basladi", "durum": olay.tip.rsplit(".", 1)[-1]}
+    return None
+
+
+def _kabuk_olayi(olay: Olay, sid: str, etkinlik: dict) -> None:
+    """Komut baslayinca/bitince izlenecek kabuk listesini gunceller. shell.* olaylari ust duzeyde oturum tasimaz."""
+    v, kabuklar = olay.veri, etkinlik["kabuklar"]
+    kimlik = None
+    if olay.tip == "shell.created" and ((v.get("info") or {}).get("metadata") or {}).get("sessionID") == sid:
+        kimlik = (v.get("info") or {}).get("id")
+    elif olay.tip == "session.tool.progress" and olay.oturum == sid:
+        kimlik = (v.get("metadata") or {}).get("shellID")
+    elif olay.tip == "shell.exited" and v.get("id") in kabuklar:
+        kabuklar.pop(v["id"], None)
+        etkinlik["zaman"] = time.monotonic()
+    if isinstance(kimlik, str) and re.fullmatch(r"[A-Za-z0-9_-]{3,80}", kimlik):  # URL'ye girer
+        kabuklar.setdefault(kimlik, {"imlec": 0, "satir": "", "kalan": "", "baslangic": time.monotonic()})
+
+
 def mesajlardan_beceriler(mesajlar: list[dict]) -> list[str]:
     """Asistan mesajlarinda cagrilan `skill` aracinin beceri kimlikleri (sirayla, tekrarsiz)."""
     bulunan: list[str] = []
@@ -427,35 +472,52 @@ class SunucuCalistirici(Calistirici):
         except SunucuHatasi:
             return False
 
-    def _dinleyici(self, istemci: Istemci, sid: str, durdur: threading.Event, bitti: threading.Event) -> threading.Thread | None:
-        if self.ilerleme is None:
-            bitti.set()
-            return None
+    def _dinleyici(self, istemci: Istemci, sid: str, durdur: threading.Event, bitti: threading.Event, etkinlik: dict) -> threading.Thread:
+        """Oturumun her olayi `etkinlik` zamanini yeniler (zaman asimi buna bakar); ekran dinlemese de calisir."""
         ilerleme = self.ilerleme
+        if ilerleme is None:
+            bitti.set()
+        adlar: dict = {}
 
         def calis() -> None:
             for olay in istemci.olaylar():
                 if durdur.is_set():
                     return
+                _kabuk_olayi(olay, sid, etkinlik)
                 if olay.oturum != sid:
                     continue
+                etkinlik["zaman"] = time.monotonic()
                 if olay.tip.startswith("session.execution.") and not olay.tip.endswith(".started"):
                     bitti.set()
-                v = olay.veri
-                if olay.tip == "session.text.delta":
-                    ilerleme({"tur": "metin", "parca": v.get("delta", "")})
-                elif olay.tip == "session.tool.called":
-                    ilerleme({"tur": "arac", "ad": v.get("name") or v.get("tool"), "girdi": v.get("input")})
-                elif olay.tip == "session.tool.success":
-                    ilerleme({"tur": "arac-sonuc"})
-                elif olay.tip == "session.usage.updated":
-                    ilerleme({"tur": "kullanim", "token": v.get("tokens")})
-                elif olay.tip.startswith("session.execution."):
-                    ilerleme({"tur": "bitti" if olay.tip != "session.execution.started" else "basladi", "durum": olay.tip.rsplit(".", 1)[-1]})
+                karsilik = olay_ilerlemesi(olay)
+                if olay.tip == "session.tool.input.started":
+                    adlar[olay.veri.get("id")] = olay.veri.get("name")
+                elif olay.tip == "session.tool.called" and karsilik and not karsilik["ad"]:  # gercek sunucu adi yalniz arac hazirlanirken bildirir
+                    karsilik["ad"] = adlar.get(olay.veri.get("id"))
+                if karsilik and ilerleme:
+                    ilerleme(karsilik)
 
         t = threading.Thread(target=calis, daemon=True)
         t.start()
         return t
+
+    def _kabuklari_izle(self, istemci: Istemci, klasor, etkinlik: dict) -> None:
+        """Calisan komutlarin yeni ciktisi etkinlik sayilir, son satiri ekrana gider. Ciktisi olmayan komut da gecen sureyle gorunur."""
+        for kabuk, d in list(etkinlik["kabuklar"].items()):
+            try:
+                c = istemci.kabuk_cikti(kabuk, klasor, d["imlec"])
+            except SunucuHatasi:
+                continue
+            imlec = c.get("cursor")
+            if isinstance(imlec, int) and imlec > d["imlec"]:
+                d["imlec"], etkinlik["zaman"] = imlec, time.monotonic()
+                parcalar = re.split(r"[\r\n]+", d["kalan"] + str(c.get("output") or ""))
+                d["kalan"] = parcalar[-1][-200:]  # pytest -q gibi satir sonu vermeyen cikti parcalanmasin; uzayan satirda guncel olan sonudur
+                satirlar = [x.strip() for x in parcalar if x.strip()]
+                if satirlar:
+                    d["satir"] = satirlar[-1][-200:]
+            if self.ilerleme:
+                self.ilerleme({"tur": "kabuk", "satir": d["satir"], "sure_sn": int(time.monotonic() - d["baslangic"])})
 
     # Sunucu sureci tum projeler icin ortak; 'bu proje icin su MCP uygulandi' bilgisi surec boyunca burada tutulur (config karmasi)
     _mcp_uygulanan: dict[tuple[str, str], str] = {}
@@ -570,6 +632,15 @@ class SunucuCalistirici(Calistirici):
             "cache": {"read": f((simdi.get("cache") or {}).get("read"), (once.get("cache") or {}).get("read"))},
         }
 
+    @classmethod
+    def _token_alanlari(cls, simdi: dict, once: dict) -> dict:
+        t = cls._token_fark(simdi, once) if once else simdi
+        return {
+            "token_girdi": int(t.get("input") or 0),
+            "token_cikti": int(t.get("output") or 0) + int(t.get("reasoning") or 0),
+            "token_onbellek": int((t.get("cache") or {}).get("read") or 0),
+        }
+
     @staticmethod
     def _modelleri_kesfet(istemci, model: str | None) -> None:
         """OpenCode sunucusu yerel/ucuncu taraf modelleri (ornek: ollama/qwen3:8b) ilk model listesi istegiyle KESFEDER; liste hic istenmediyse oturum
@@ -617,11 +688,13 @@ class SunucuCalistirici(Calistirici):
             return CalistirmaSonucu(False, hata=f"{type(hata).__name__}: {hata}", sure_sn=time.monotonic() - baslangic)
         durdur, bitti = threading.Event(), threading.Event()
         self._aktif_sid = sid
-        self._dinleyici(istemci, sid, durdur, bitti)
+        etkinlik: dict = {"zaman": baslangic, "kabuklar": {}}
+        self._dinleyici(istemci, sid, durdur, bitti, etkinlik)
         try:
             istemci.mesaj_gonder(sid, istem)
-            # Zaman asimi HAREKETSIZLIK sayilir: oturumun token sayaci degistikce (model calisiyor) sure yeniden baslar; ilerleme gosteren gorev
-            # (gercek durum: 79 arac cagrisi, derleme, ekran goruntusu) 'zaman asimi' ile oldurulmez. Mutlak ust sinir: 4 kat (en cok 4 saat).
+            # Zaman asimi HAREKETSIZLIK sayilir: oturumun her olayi (dusunme, arac, yeniden deneme), token sayaci ya da calisan komutun ciktisi degistikce
+            # sure yeniden baslar; token yalniz adim sonunda artar, tek basina yetmez. Ilerleme gosteren gorev (gercek durum: 79 arac cagrisi, derleme,
+            # ekran goruntusu) 'zaman asimi' ile oldurulmez. Mutlak ust sinir: 4 kat (en cok 4 saat).
             mutlak = baslangic + min(zaman_asimi_sn * 4, 14400)
             son_hareket, son_belirti, sonraki_yoklama = baslangic, None, 0.0
             islenen_izinler: set[str] = set()
@@ -636,6 +709,8 @@ class SunucuCalistirici(Calistirici):
                         belirti = None
                     if belirti is not None and belirti != son_belirti:
                         son_belirti, son_hareket = belirti, simdi
+                    self._kabuklari_izle(istemci, klasor, etkinlik)
+                son_hareket = max(son_hareket, etkinlik["zaman"])
                 for izin in istemci.izinler(sid):
                     if izin.get("id") and izin["id"] not in islenen_izinler:
                         islenen_izinler.add(izin["id"])
@@ -654,7 +729,11 @@ class SunucuCalistirici(Calistirici):
                     except SunucuHatasi:
                         pass
                     neden = f"Zaman asimi ({zaman_asimi_sn} sn)" if simdi <= mutlak else f"Zaman asimi (toplam sure siniri {int(mutlak - baslangic)} sn)"
-                    return CalistirmaSonucu(False, hata=neden, sure_sn=time.monotonic() - baslangic)
+                    try:  # yarida kesilen gorev de token harcadi: 0 gorunmesin
+                        harcanan = self._token_alanlari((istemci.oturum_al(sid) or {}).get("tokens") or {}, once_tokens)
+                    except SunucuHatasi:
+                        harcanan = {}
+                    return CalistirmaSonucu(False, hata=neden, sure_sn=time.monotonic() - baslangic, **harcanan)
             bilgi = istemci.oturum_al(sid)
             mesajlar = istemci.mesajlar(sid, limit=1000 if once_mesajlar is not None else 100)
             if once_mesajlar:  # surdurulen oturum: yalniz bu cagrinin yeni mesajlari
@@ -671,14 +750,11 @@ class SunucuCalistirici(Calistirici):
             self._aktif_sid = None
             bitti.wait(timeout=1.5)  # bitis olayi, aktiflik kapandiktan biraz sonra gelebilir
             durdur.set()
-        t = self._token_fark(bilgi.get("tokens") or {}, once_tokens) if once_tokens else (bilgi.get("tokens") or {})
         sonuc = CalistirmaSonucu(
             ok=bilgi.get("outcome") == "succeeded",
             metin=metin,
-            token_girdi=int(t.get("input") or 0),
-            token_cikti=int(t.get("output") or 0) + int(t.get("reasoning") or 0),
-            token_onbellek=int((t.get("cache") or {}).get("read") or 0),
             sure_sn=time.monotonic() - baslangic,
+            **self._token_alanlari(bilgi.get("tokens") or {}, once_tokens),
         )
         if not sonuc.ok:
             if self.oturum_kipi == "tek":
