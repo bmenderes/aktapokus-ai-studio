@@ -1,3 +1,5 @@
+from pathlib import Path
+import re
 import socket
 import time
 
@@ -106,3 +108,55 @@ def test_bootp_port_kullanimda_anlasilir_hata():
             b.baslat()
     finally:
         a.durdur()
+
+
+KENDI = "C4:EF:BB:F2:B3:35"
+PLC = bytes.fromhex("00801F112233")
+
+
+def _arp(kaynak, ip, hedef=b"\xc0\xa8\x64\xfa", op=1):
+    return b"\xff" * 6 + kaynak + b"\x08\x06" + b"\x00\x01\x08\x00\x06\x04" + bytes([0, op]) + kaynak + ip + bytes(6) + hedef
+
+
+def _pcapng(*paketler):
+    import struct
+    blok = lambda t, g: struct.pack("<II", t, len(g) + 12) + g + struct.pack("<I", len(g) + 12)
+    v = blok(0x0A0D0D0A, b"\x4d\x3c\x2b\x1a\x01\x00\x00\x00" + b"\xff" * 8) + blok(1, struct.pack("<HHI", 1, 0, 128))
+    for p in paketler:
+        v += blok(6, struct.pack("<IIIII", 0, 0, 0, len(p), len(p)) + p + bytes(-len(p) % 4))
+    return v
+
+
+def test_farkli_agdaki_cihaz_ipsiyle_bulunur_kendi_kart_elenir():
+    kendi = bytes.fromhex(KENDI.replace(":", ""))
+    p = ag_araci._pcapng_paketleri(_pcapng(_arp(PLC, bytes([190, 201, 100, 100])), _arp(kendi, b"\xc0\xa8\x64\xfa")))
+    c = ag_araci.cerceveleri_coz(p, KENDI, ["192.168.100.250/24"])
+    assert len(c) == 1 and c[0]["ipler"] == ["190.201.100.100"] and c[0]["mac"] == "00:80:1F:11:22:33" and c[0]["ag_disi"] is True
+
+
+def test_ip_basligi_ve_arp_yoklamasi_ve_ipsiz_cihaz():
+    ipli = b"\x01\x00\x5e\x00\x00\x01" + PLC + b"\x08\x00" + bytes(12) + bytes([192, 168, 100, 5]) + bytes(4)
+    assert ag_araci.cerceveleri_coz([ipli], KENDI, ["192.168.100.250/24"])[0]["ag_disi"] is False
+    assert ag_araci.cerceveleri_coz([_arp(PLC, bytes(4), bytes([10, 0, 0, 7]))], KENDI)[0]["ipler"] == ["10.0.0.7"]
+    assert ag_araci.cerceveleri_coz([b"\xff" * 6 + PLC + b"\x88\xcc" + bytes(20)], KENDI)[0]["ipler"] == []
+
+
+def test_kablo_dinle_gercek_yetki_istemeden_sonuc_ve_hatalar(monkeypatch):
+    liste = lambda: [{"ad": "Ethernet", "mac": KENDI, "agler": []}]
+
+    def sahte(betik, sure):
+        assert "pktmon" in betik and "C4[-:]EF" in betik
+        klasor = re.search(r"\$d = '([^']+)'", betik).group(1)
+        Path(klasor, "k.pcapng").write_bytes(_pcapng(_arp(PLC, bytes([190, 201, 100, 100]))))
+        return 0
+    assert ag_araci.kablo_dinle("Ethernet", 1, sahte, liste)[0]["ipler"] == ["190.201.100.100"]
+    with pytest.raises(ag_araci.AgHatasi, match="izni"):
+        ag_araci.kablo_dinle("Ethernet", 1, lambda b, s: 1223, liste)
+    with pytest.raises(ag_araci.AgHatasi, match="adaptor"):
+        ag_araci.kablo_dinle("Wi-Fi", 1, lambda b, s: 0, liste)
+
+
+def test_kablo_dinleme_uzaktan_kapali():
+    from aktapokus_ai_studio import uzak
+    for a in (uzak.Ayar(yonetim=False), uzak.Ayar(yonetim=True)):
+        assert uzak.politika("POST", "/api/ag/kablo-dinle", a) and uzak.politika("POST", "/api/ag/kablo-adaptorler", a)

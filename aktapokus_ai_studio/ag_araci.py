@@ -5,13 +5,18 @@ Bilgisayarin IP'sini degistirmek yonetici yetkisi ister ve yalniz listelenen ada
 """
 from __future__ import annotations
 
+import base64
 import ipaddress
 import json
 import re
 import socket
+import struct
 import subprocess
 import sys
+import tempfile
+import threading
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 AZAMI_ADRES = 512  # /23'ten buyuk tarama reddedilir
 PORTLAR = {44818: "EtherNet/IP", 2222: "EtherNet/IP", 102: "S7", 502: "Modbus", 4840: "OPC UA", 80: "HTTP", 443: "HTTPS"}
@@ -154,3 +159,140 @@ def adaptor_ip_ata(ad: object, ip: object, maske: object, gecit: object = None) 
 
 def adaptor_dhcp_yap(ad: object) -> None:
     _netsh(["interface", "ipv4", "set", "address", f"name={_adaptoru_bul(ad)}", "source=dhcp"])
+
+
+# --- Kablodaki cihazi bulma: farkli agdaki (adresi bilinmeyen) cihaz taramada gorunmez; Ethernet dinlenir, cihaz konusursa IP'si paketten okunur ---
+KABLO_SURE_SN = 30
+_kablo_kilit = threading.Lock()
+
+
+def kablo_adaptorleri() -> list[dict]:
+    """Bagli fiziksel Ethernet adaptorleri: [{ad, mac, agler:[ip/onek]}]. APIPA'dakiler de listelenir (adaptorler()'den farki). Windows disinda bos."""
+    if sys.platform != "win32":
+        return []
+    komut = ("Get-NetAdapter -Physical | Where-Object { $_.Status -eq 'Up' -and $_.MediaType -eq '802.3' } | ForEach-Object { [pscustomobject]@{ad=$_.Name;mac=$_.MacAddress;"
+             "agler=@(Get-NetIPAddress -InterfaceIndex $_.ifIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue | ForEach-Object { $_.IPAddress + '/' + $_.PrefixLength })} } | ConvertTo-Json -Compress -Depth 3")
+    try:
+        r = _calistir(["powershell", "-NoProfile", "-NonInteractive", "-Command", komut])
+        veri = json.loads(r.stdout) if r.stdout.strip() else []
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return []
+    veri = [veri] if isinstance(veri, dict) else veri
+    return [{"ad": str(v["ad"]), "mac": str(v["mac"]).upper().replace("-", ":"), "agler": [str(x) for x in (v.get("agler") or [])]} for v in veri if isinstance(v, dict) and v.get("ad") and v.get("mac")]
+
+
+def _pcapng_paketleri(veri: bytes) -> list[bytes]:
+    """pcapng icindeki Ethernet cerceveleri (standart kutuphaneyle). Bozuk dosyada okunabilen kadarini dondurur."""
+    paketler, i, sira, turler = [], 0, "<", {}
+    sayac = 0
+    while i + 12 <= len(veri):
+        tur = struct.unpack_from("<I", veri, i)[0]
+        if tur == 0x0A0D0D0A:
+            sira = "<" if veri[i + 8:i + 12] == b"\x4d\x3c\x2b\x1a" else ">"
+            turler, sayac = {}, 0
+        uzunluk = struct.unpack_from(sira + "I", veri, i + 4)[0]
+        if uzunluk < 12 or i + uzunluk > len(veri):
+            break
+        if tur == 1:  # arayuz tanimi: baglanti turu
+            turler[sayac] = struct.unpack_from(sira + "H", veri, i + 8)[0]
+            sayac += 1
+        elif tur == 6 and uzunluk >= 32:  # ayrintili paket
+            arayuz, _, _, alinan = struct.unpack_from(sira + "IIII", veri, i + 8)
+            if turler.get(arayuz, 1) == 1:
+                paketler.append(veri[i + 28:i + 28 + alinan])
+        i += uzunluk
+    return paketler
+
+
+def _mac_metni(b: bytes) -> str:
+    return ":".join(f"{x:02X}" for x in b)
+
+
+def _kullanilir_ip(b: bytes) -> str | None:
+    ip = ipaddress.IPv4Address(b)
+    return None if ip.is_unspecified or ip.is_multicast or ip.is_loopback or str(ip) == "255.255.255.255" else str(ip)
+
+
+def cerceveleri_coz(paketler: list[bytes], kendi_mac: str, agler: list[str] | None = None) -> list[dict]:
+    """Cercevelerden cihazlar: [{mac, uretici, ipler, adet, ag_disi}]. Kendi kartimiz ve grup adresleri elenir; IP'si okunamayan cihaz da MAC'iyle listelenir."""
+    kendi = kendi_mac.upper().replace("-", ":")
+    cihaz: dict[str, dict] = {}
+    for p in paketler:
+        if len(p) < 14:
+            continue
+        kaynak, tip, ofs = p[6:12], p[12:14], 14
+        if tip == b"\x81\x00" and len(p) >= 18:  # VLAN etiketi
+            tip, ofs = p[16:18], 18
+        mac = _mac_metni(kaynak)
+        if mac == kendi or kaynak[0] & 1 or kaynak == bytes(6):
+            continue
+        k = cihaz.setdefault(mac, {"arp": [], "ip": [], "adet": 0})
+        k["adet"] += 1
+        if tip == b"\x08\x06" and len(p) >= ofs + 28 and p[ofs + 2:ofs + 6] == b"\x08\x00\x06\x04":
+            ip = _kullanilir_ip(p[ofs + 14:ofs + 18]) or (_kullanilir_ip(p[ofs + 24:ofs + 28]) if p[ofs + 7] == 1 else None)  # 0.0.0.0 gonderen: sahiplenmek istedigi adres
+            if ip and ip not in k["arp"]:
+                k["arp"].append(ip)
+        elif tip == b"\x08\x00" and len(p) >= ofs + 20:
+            ip = _kullanilir_ip(p[ofs + 12:ofs + 16])
+            if ip and ip not in k["ip"] and len(k["ip"]) < 8:
+                k["ip"].append(ip)
+    aglar = []
+    for a in agler or []:
+        try:
+            aglar.append(ipaddress.IPv4Interface(a).network)
+        except ValueError:
+            pass
+    sonuc = []
+    for mac, k in cihaz.items():
+        ipler = k["arp"] or k["ip"]  # ARP cihazin kendi adresidir; IP basligi yonlendiriciden gecen baskasinin adresi olabilir
+        sonuc.append({"mac": mac, "uretici": uretici(mac), "ipler": ipler, "adet": k["adet"], "ag_disi": bool(ipler) and not any(ipaddress.IPv4Address(ip) in n for ip in ipler for n in aglar)})
+    return sorted(sonuc, key=lambda c: (not c["ipler"], -c["adet"]))
+
+
+def _dinleme_betigi(mac: str, klasor: str, sure: int) -> str:
+    desen = "[-:]".join(mac.split(":"))
+    return f"""$p = "$env:WINDIR\\System32\\pktmon.exe"; $d = '{klasor.replace("'", "''")}'
+& $p stop *> $null
+$l = & $p list 2>&1 | Out-String
+$ids = @([regex]::Matches($l, '(?mi)^\\s*(\\d+)\\s+{desen}\\b') | ForEach-Object {{ $_.Groups[1].Value }})
+if (-not $ids.Count) {{ exit 3 }}
+& $p start --capture --comp $ids --pkt-size 128 --file-name "$d\\k.etl" *> "$d\\baslat.txt"
+if ($LASTEXITCODE -ne 0) {{ exit 4 }}
+Start-Sleep -Seconds {int(sure)}
+& $p stop *> "$d\\dur.txt"
+& $p etl2pcap "$d\\k.etl" --out "$d\\k.pcapng" *> "$d\\cevir.txt"
+exit $LASTEXITCODE
+"""
+
+
+def kablo_dinle(ad: object, sure: int = KABLO_SURE_SN, calistir=None, adaptor_listesi=None) -> list[dict]:
+    """Secili Ethernet adaptorunu `sure` saniye dinler. Yonetici izni ister (UAC); betik acik metin dosyasi olarak birakilmaz, tek kullanimlik gecici klasore yalniz cikti yazilir."""
+    a = next((x for x in (adaptor_listesi or kablo_adaptorleri)() if x["ad"] == ad), None)
+    if a is None:
+        raise AgHatasi("Boyle bagli bir Ethernet adaptoru yok")
+    if not re.fullmatch(r"[0-9A-F]{2}(:[0-9A-F]{2}){5}", a["mac"]):
+        raise AgHatasi("Adaptorun MAC adresi okunamadi")
+    if not _kablo_kilit.acquire(blocking=False):
+        raise AgHatasi("Dinleme zaten suruyor")
+    try:
+        with tempfile.TemporaryDirectory(prefix="aktapokus-kablo-") as klasor:
+            kod = (calistir or _yonetici_calistir)(_dinleme_betigi(a["mac"], klasor, sure), sure + 120)
+            if kod == 1223:
+                raise AgHatasi("Yonetici izni verilmedi")
+            if kod == 3:
+                raise AgHatasi("pktmon bu adaptoru listelemedi")
+            yol = Path(klasor) / "k.pcapng"
+            if kod != 0 or not yol.is_file():
+                raise AgHatasi(f"Dinleme tamamlanamadi (kod {kod})")
+            return cerceveleri_coz(_pcapng_paketleri(yol.read_bytes()), a["mac"], a["agler"])
+    finally:
+        _kablo_kilit.release()
+
+
+def _yonetici_calistir(betik: str, zaman_asimi: float) -> int:
+    kodlu = base64.b64encode(betik.encode("utf-16-le")).decode("ascii")
+    komut = (f"try {{ $s = Start-Process powershell -Verb RunAs -WindowStyle Hidden -Wait -PassThru -ArgumentList '-NoProfile','-NonInteractive','-EncodedCommand','{kodlu}' -ErrorAction Stop; exit $s.ExitCode }} catch {{ exit 1223 }}")
+    try:
+        return _calistir(["powershell", "-NoProfile", "-NonInteractive", "-Command", komut], zaman_asimi).returncode
+    except (OSError, subprocess.SubprocessError) as hata:
+        raise AgHatasi(f"Dinleme baslatilamadi: {hata}") from None

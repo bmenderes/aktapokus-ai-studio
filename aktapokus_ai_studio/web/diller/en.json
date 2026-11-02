@@ -4,6 +4,11 @@
  "yerel": "en-US",
  "tam": {
   "Google ile bağlan": "Connect with Google",
+  "Kablodaki cihazı bul": "Find device on cable",
+  "Dinleniyor (30 sn): kabloyu çıkarıp takın…": "Listening (30 s): unplug and replug the cable…",
+  "Cihaz konuşmadı": "No device spoke",
+  "IP yok": "No IP",
+  "farklı ağ": "different network",
   "Taranacak ağı girip Tara deyin.": "Enter a network and press Scan.",
   "Menüyü aç/kapat": "Show/hide menu",
   "Kuruluyor…": "Installing…",

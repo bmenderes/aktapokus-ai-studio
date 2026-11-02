@@ -1281,6 +1281,9 @@ class Uygulama:
     def ag_adaptorler(self) -> dict:
         return {"adaptorler": ag_araci.adaptorler()}
 
+    def ag_kablo_dinle(self, ad: object) -> dict:
+        return {"cihazlar": self._ag_hata(ag_araci.kablo_dinle, ad)}
+
     def ag_tara(self, ag: object) -> dict:
         return {"cihazlar": self._ag_hata(ag_araci.tara, ag)}
 
@@ -2997,6 +3000,10 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.github_issue_yorum(g.get("no"), g.get("metin")))
                 if yol in ("/api/ag/profil", "/api/ag/profil-sil", "/api/ag/profil-uygula"):
                     return self._gonder(200, app.ag_profil_islem({"/api/ag/profil": "kaydet", "/api/ag/profil-sil": "sil"}.get(yol, "uygula"), g))
+                if yol == "/api/ag/kablo-adaptorler":
+                    return self._gonder(200, {"adaptorler": ag_araci.kablo_adaptorleri()})
+                if yol == "/api/ag/kablo-dinle":
+                    return self._gonder(200, app.ag_kablo_dinle(g.get("ad")))
                 if yol == "/api/ag/tara":
                     return self._gonder(200, app.ag_tara(g.get("ag")))
                 if yol == "/api/ag/adaptor-ip":
