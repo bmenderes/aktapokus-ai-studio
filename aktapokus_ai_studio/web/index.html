@@ -248,7 +248,12 @@ body:has(#ayarlar.on) #bolucuSol,html.ayar-tam body:has(#ayarlar.on) #bolucuSag{
 .ua-bas{flex:none;padding:4px 8px;font-weight:500;background:var(--panel2);border-bottom:1px solid var(--line);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .ua-ic{flex:1;min-height:0;overflow:auto;padding:4px 6px}
 .ua-bol{background:var(--panel2);touch-action:none}.ua-bol.d{cursor:col-resize}.ua-bol.y{cursor:row-resize;grid-column:1/-1}.ua>.ua-pane:last-child{grid-column:1/-1}
-.ua-bol:hover{background:var(--line)}
+/* OPC UA: gri seritler yerine ince cizgi (surukleme alani ayni), paneller sayfa zemininde, tek baslik bicimi */
+.ua-bol{background:none}.ua-bol.d{background:linear-gradient(var(--line),var(--line)) center/1px 100% no-repeat}.ua-bol.y{background:linear-gradient(var(--line),var(--line)) center/100% 1px no-repeat}
+.ua-bol.d:hover{background-size:3px 100%}.ua-bol.y:hover{background-size:100% 3px}
+.ua-pane,.ua-ic{background:transparent}.ua-bas{background:none;font-size:12.5px;color:var(--tx2);padding:6px 10px}.ua-tablo th{color:var(--tx3);font-weight:500}
+.ag-sekme.on{background:var(--panel2);border-color:var(--line2);font-weight:500}
+.ag-satir input.ag-ge{flex:none;width:200px;min-width:0}
 .ua-tablo{border-collapse:collapse;width:100%;font-size:12.5px}.ua-tablo th{text-align:left;font-weight:500;color:var(--tx2);border-bottom:1px solid var(--line);padding:2px 6px;position:sticky;top:0;background:var(--panel)}.ua-tablo td{padding:2px 6px;border-bottom:1px solid var(--panel2);white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis}
 .ua-dugum{display:flex;align-items:center;gap:4px;padding:2px 4px;cursor:pointer;white-space:nowrap;border-radius:4px}.ua-dugum:hover{background:var(--panel2)}.ua-dugum.sec{background:var(--saribg)}
 .ua-cocuk{margin-left:14px}.ua-ok{width:12px;flex:none;color:var(--tx3)}.ua-sinif{font-size:10px;color:var(--tx3);border:1px solid var(--line);border-radius:4px;padding:0 3px;flex:none}
@@ -2056,9 +2061,9 @@ async function agBolumu(h){const post=(y,g)=>api(y,g?{method:"POST",body:g}:unde
   const durdur=()=>{if(S.telegramZ){clearInterval(S.telegramZ);S.telegramZ=null}};
   const adaptorleriAl=async()=>{try{D.adaptorler=(await post("/api/ag/adaptorler")).adaptorler}catch(x){D.adaptorler=[]}return D.adaptorler};
   const ornekAg=()=>{const a=D.adaptorler.find(x=>x.onek>=23&&x.onek<=30)||D.adaptorler.find(x=>x.onek<32);if(!a)return"192.168.1.0/24";const q=a.ip.split(".").map(Number),m=a.maske.split(".").map(Number);return q.map((b,i)=>b&m[i]).join(".")+"/"+a.onek};
-  const git=async id=>{sekme=id;durdur();hataGoster("");sek.textContent="";for(const [k,ad] of [["cihazlar","Cihazlar"],["bootp","BOOTP"],["bilgisayar","Bilgisayar"],["profiller","Profiller"]])sek.append(e("button",{class:k===sekme?"pri":"",text:ad,onclick:()=>git(k)}));ic.textContent="";const kap=e("div");ic.append(kap);
+  const git=async id=>{sekme=id;durdur();hataGoster("");sek.textContent="";for(const [k,ad] of [["cihazlar","Cihazlar"],["bootp","BOOTP"],["bilgisayar","Bilgisayar"],["profiller","Profiller"]])sek.append(e("button",{class:"ag-sekme"+(k===sekme?" on":""),text:ad,onclick:()=>git(k)}));ic.textContent="";const kap=e("div");ic.append(kap);
     if(id==="cihazlar")await cihazlar(kap);else if(id==="bootp")await bootp(kap);else if(id==="bilgisayar")await bilgisayar(kap);else await profiller(kap)};
-  const cihazlar=async k=>{await adaptorleriAl();const ag=e("input",{class:"mono ag-ge",value:ornekAg()}),liste=e("div",{style:"margin-top:8px"});
+  const cihazlar=async k=>{await adaptorleriAl();const ag=e("input",{class:"mono ag-ge",value:ornekAg()}),liste=e("div",{class:"mut",style:"margin-top:8px",text:"Taranacak ağı girip Tara deyin."});
     const tara=e("button",{class:"pri",text:"Tara",onclick:async()=>{tara.disabled=true;liste.textContent="Taranıyor…";const r=await dene(()=>post("/api/ag/tara",{ag:ag.value.trim()}));tara.disabled=false;liste.textContent="";if(!r)return;if(!r.cihazlar.length)liste.append(e("div",{class:"mut",text:"Cihaz bulunamadı"}));
       for(const c of r.cihazlar)liste.append(e("div",{class:"ag-satir"},e("span",{class:"mono",style:"width:120px",text:c.ip}),e("span",{class:"mono mut",style:"width:140px",text:c.mac||"—"}),e("span",{style:"width:110px",text:c.uretici||""}),e("span",{class:"mut ag-ge",text:c.portlar.map(x=>x.ad).join(", ")}),c.mac?e("button",{text:"IP ata",onclick:()=>{D.mac=c.mac;git("bootp")}}):null))}});
     k.append(e("div",{class:"ag-satir",style:"border:0"},ag,tara),liste)};
