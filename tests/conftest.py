@@ -95,6 +95,7 @@ def mcp_ve_beceri_yalitimi(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("AKTAPOKUS_AG_PROFILLER", str(tmp_path_factory.mktemp("agprofil") / "ag-profiller.json"))  # IP profilleri gercek ~/.aktapokus altina yazilmasin
     monkeypatch.setenv("AKTAPOKUS_OPCUA_TOPLAMA", str(tmp_path_factory.mktemp("opcuatopla") / "opcua-toplama.json"))  # kayitli toplama ayari gercek ~/.aktapokus altina yazilmasin / testler gercek toplamayi surdurmesin
     monkeypatch.setenv("AKTAPOKUS_NODERED", str(tmp_path_factory.mktemp("nodered")))  # Node-RED gercek ~/.aktapokus altina kurulmasin
+    monkeypatch.setenv("AKTAPOKUS_MASAUSTU", str(tmp_path_factory.mktemp("masaustu")))  # ayar ve kayit gercek ~/.aktapokus altina yazilmasin
     monkeypatch.setenv("AKTAPOKUS_MCP", str(tmp_path_factory.mktemp("mcp") / "mcp.json"))
     monkeypatch.setenv("AKTAPOKUS_BECERILER", str(tmp_path_factory.mktemp("beceriler") / "skills"))
     monkeypatch.setenv("AKTAPOKUS_MOTOR_TERCIH", "opencode-sunucu")  # test sonuclari bu bilgisayarda hangi CLI'in kurulu oldugundan bagimsiz olsun

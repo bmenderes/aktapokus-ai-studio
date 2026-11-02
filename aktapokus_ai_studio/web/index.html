@@ -670,7 +670,7 @@ async function istatistikYukle(hedef){const p=hedef||S.istHedef||$("#ayarIcerik"
   p.append(e("div",{class:"mut3",style:"margin-top:10px;white-space:normal",text:"Not: abonelik kotanızın (Claude Pro, ChatGPT/Codex) kalan miktarı CLI'lardan güvenilir okunamıyor; burada harcanan token, limite takılma anı ve girdiğiniz tavana göre tahmini kalan görünür."}))}
 function kapsamSecici(){const b=(ad,v)=>e("button",{class:S.istKapsam===v?"pri":"",text:ad,onclick:()=>{S.istKapsam=v;istatistikYukle()}});return e("div",{class:"row"},b("Bu proje","proje"),b("Tüm projeler","tum"),e("button",{text:"Yenile",onclick:()=>istatistikYukle()}))}
 /* ---- AYARLAR: sol menulu tam sayfa . Bolumler: Genel, Saglayicilar, Modeller, CLI'lar, Roller, Kullanim, Hakkinda ---- */
-const AYAR_BOLUMLERI=[["hesaplar","Hesaplar"],["genel","Genel"],["saglayicilar","Sağlayıcılar"],["modeller","Modeller"],["clilar","CLI'lar"],["baglayicilar","Bağlayıcılar"],["mcp","MCP sunucuları"],["opcua","OPC UA"],["ag","Ağ"],["nodered","Node-RED"],["beceriler","Beceriler"],["onerilenler","Önerilenler"],["github","GitHub"],["roller","Roller"],["telegram","Telegram"],["otomasyon","Otomasyonlar"],["izinler","İzinler"],["uzak","Uzak erişim"],["kullanim","Kullanım"],["hakkinda","Hakkında"]];
+const AYAR_BOLUMLERI=[["hesaplar","Hesaplar"],["genel","Genel"],["saglayicilar","Sağlayıcılar"],["modeller","Modeller"],["clilar","CLI'lar"],["baglayicilar","Bağlayıcılar"],["mcp","MCP sunucuları"],["opcua","OPC UA"],["ag","Ağ"],["masaustu","Masaüstü"],["nodered","Node-RED"],["beceriler","Beceriler"],["onerilenler","Önerilenler"],["github","GitHub"],["roller","Roller"],["telegram","Telegram"],["otomasyon","Otomasyonlar"],["izinler","İzinler"],["uzak","Uzak erişim"],["kullanim","Kullanım"],["hakkinda","Hakkında"]];
 function ayarMenuUygula(kapali){$("#ayarlar").classList.toggle("menu-kapali",kapali);$("#ayarMenuDugme").textContent=kapali?"›":"‹";try{localStorage.setItem("aktapokus.ayarMenu",kapali?"1":"")}catch(x){}}
 $("#ayarMenuDugme").onclick=()=>ayarMenuUygula(!$("#ayarlar").classList.contains("menu-kapali"));
 try{if(localStorage.getItem("aktapokus.ayarMenu"))ayarMenuUygula(true)}catch(x){}
@@ -694,6 +694,7 @@ async function ayarGit(id){if(id!==S.ayarBolum&&!otoFormTerk())return;if(S.teleg
     else if(id==="opcua"){baslik("OPC UA");await opcuaBolumu(h)}
     else if(id==="ag"){baslik("Ağ");await agBolumu(h)}
     else if(id==="nodered"){baslik("Node-RED");await noderedBolumu(h)}
+    else if(id==="masaustu"){baslik("Masaüstü");await masaustuBolumu(h)}
     else if(id==="beceriler"){baslik("Beceriler","Modelin gerektiğinde yüklediği talimat paketleri. Sizin oluşturduklarınız ~/.agents/skills klasöründe durur; başka yerlerden bulunanlar yalnızca gösterilir.");await beceriBolumu(h)}
     else if(id==="onerilenler"){baslik("Önerilenler");await onerilenlerBolumu(h)}
     else if(id==="github"){baslik("GitHub","Bilgisayardaki gh (GitHub CLI) girişini kullanır; uygulama token'ı görmez ya da saklamaz. Depo klonlama burada; commit, push, pull request ve issue işlemleri proje panelindeki GitHub sekmesinde.");await githubBolumu(h)}
@@ -2120,6 +2121,16 @@ async function noderedBolumu(h){const kap=e("div");h.append(kap);const dur=()=>{
     if(!d.calisiyor){const b=e("button",{class:"pri",text:"Başlat",onclick:()=>{b.textContent="Başlatılıyor…";islem("baslat",b)}});kap.append(b);return}
     const b=e("button",{text:"Durdur",onclick:()=>islem("durdur",b)});kap.append(e("div",{class:"row",style:"justify-content:flex-end;margin-bottom:6px"},b),e("iframe",{title:"Node-RED",src:d.adres,style:"width:100%;height:calc(100vh - 130px);border:1px solid var(--line);border-radius:8px;background:#fff"}))};
   await ciz()}
+/* Masaustu kontrolu (Ayarlar > Masaustu): proje bazinda acilir; ajan program acar, ekrani gorur, tiklar ve yazar. Engelli programlara girdi gitmez. */
+async function masaustuBolumu(h){const kap=e("div");h.append(kap);const yaz=async g=>{try{kap.textContent="";ciz(await api("/api/masaustu",g?{method:"POST",body:g}:undefined))}catch(x){kap.textContent=x.message}};
+  const ciz=d=>{if(!d.destek){kap.append(e("div",{class:"mut",text:"Yalnız Windows'ta çalışır."}));return}
+    const kutu=e("input",{type:"checkbox",disabled:!d.proje});kutu.checked=d.acik;kutu.onchange=()=>yaz({acik:kutu.checked});
+    kap.append(e("div",{class:"ag-satir",style:"border:0"},e("label",{class:"row",style:"gap:8px"},kutu,e("span",{text:d.proje?"Bu projede açık: "+d.proje:"Önce bir proje seçin"})),e("button",{class:d.durduruldu?"pri":"",text:d.durduruldu?"Devam et":"Tümünü durdur",onclick:()=>yaz({durduruldu:!d.durduruldu})})));
+    kap.append(e("div",{class:"badge b-warn",style:"display:block;white-space:normal;margin:6px 0",text:"Ajan bu bilgisayarı sizin adınıza kullanır; ekran görüntüleri model sağlayıcısına gider. Durdurmak için fareyi sol üst köşeye götürün."}));
+    const liste=e("input",{class:"mono",style:"width:100%",value:d.programlar.join(", ")});
+    kap.append(e("div",{class:"mut",style:"margin-top:8px",text:"Engelli programlar"}),e("div",{class:"ag-satir",style:"border:0"},liste,e("button",{text:"Kaydet",onclick:()=>yaz({programlar:liste.value.split(",").map(x=>x.trim()).filter(Boolean)})})));
+    if(d.kayit.length){kap.append(e("div",{class:"mut",style:"margin-top:8px",text:"Son işlemler"}));for(const k of d.kayit)kap.append(e("div",{class:"ag-satir"},e("span",{class:"mono mut",style:"width:150px",text:k.zaman}),e("span",{style:"width:120px",text:k.arac}),e("span",{class:"mut ag-ge",text:(k.sonuc!=="tamam"?k.sonuc:k.ozet)||""})))}};
+  await yaz()}
 function yardimPaneli(bolum){const adres=(DIL.kod==="en"?"/yardim/otomasyon-en.html":"/yardim/otomasyon.html")+(bolum?"#"+bolum:"");let p=$("#yardimPaneli");
   if(p){p.querySelector("iframe").src=adres;return}
   p=e("aside",{id:"yardimPaneli",style:"position:fixed;top:0;right:0;bottom:0;width:min(480px,92vw);z-index:60;background:var(--bg);border-left:1px solid var(--line);box-shadow:-6px 0 24px rgba(0,0,0,.12);display:flex;flex-direction:column"},

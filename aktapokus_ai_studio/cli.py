@@ -220,6 +220,7 @@ def kur_parser() -> argparse.ArgumentParser:
     h.add_argument("--kanca", action="store_true", help="Claude Code UserPromptSubmit kancasi: stdin'den oturum kimligini okur, yalniz YENI olanlari yazar (yeni yoksa hicbir sey yazmaz)")
     h.add_argument("--kur", choices=["claude", "codex", "opencode", "hepsi"], help="Araclarin kendi ayarina Aktapokus haberi kancasini/talimat dosyasini ekler (yedek alir)")
     h.add_argument("--hepsi", action="store_true", help="Son 2 saatin ozetini isaretlemeden yaz")
+    alt.add_parser("masaustu-mcp", help="Masaustu kontrol araclarini MCP sunucusu olarak calistir (Aktapokus baslatir)")
     u = alt.add_parser("ui", help="Canli arayuzu baslat (yalniz bu bilgisayardan erisilir)")
     u.add_argument("--klasor", help="Acilista secilecek proje klasoru")
     u.add_argument("--port", type=int, default=0)
@@ -249,6 +250,10 @@ def main(argv: list[str] | None = None, girdi: Callable[[str], str] = input, cal
             except (KlasorHatasi, AyarHatasi, OSError) as hata:
                 print(f"HATA: {hata}")
                 return CIKIS_HATA
+        if args.komut == "masaustu-mcp":
+            from . import masaustu_mcp
+
+            return masaustu_mcp.calistir()
         if args.komut == "haber":
             return komut_haber(args)
         if args.komut == "telegram":

@@ -17,6 +17,7 @@ import json
 import os
 import re
 import shutil
+import sys
 import urllib.parse
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -201,6 +202,21 @@ def proje_ayarla(ad: str, proje: str, acik: bool) -> McpTanim:
 def proje_icin(proje: str | None) -> list[McpTanim]:
     """Bu projede etkin sunucular (CLI'lara aktarilacaklar)."""
     return [t for t in yukle().values() if proje and proje in t.projeler]
+
+
+def masaustu_tanimi() -> dict:
+    """Yerlesik masaustu sunucusu: bu Aktapokus'un kendi Python'uyla calisir (pythonw stdio kullanamaz)."""
+    python = Path(sys.executable)
+    if python.name.lower() == "pythonw.exe" and python.with_name("python.exe").is_file():
+        python = python.with_name("python.exe")
+    return {"ad": "masaustu", "tur": "local", "komut": [str(python), "-m", "aktapokus_ai_studio", "masaustu-mcp"], "ortam": {"PYTHONPATH": str(Path(__file__).resolve().parent.parent)},
+            "aciklama": "Aktapokus masaustu kontrolu (yerlesik)"}
+
+
+def masaustu_ayarla(proje: str, acik: bool) -> McpTanim:
+    """Tanimi her seferinde guncel yolla yazar, sonra projede acar/kapatir."""
+    kaydet({**masaustu_tanimi(), "projeler": list(yukle()["masaustu"].projeler) if "masaustu" in yukle() else []})
+    return proje_ayarla("masaustu", proje, acik)
 
 
 def listele() -> list[dict]:

@@ -4,6 +4,12 @@
  "yerel": "en-US",
  "tam": {
   "Google ile bağlan": "Connect with Google",
+  "Yalnız Windows'ta çalışır.": "Windows only.",
+  "Devam et": "Resume",
+  "Tümünü durdur": "Stop all",
+  "Engelli programlar": "Blocked programs",
+  "Son işlemler": "Recent actions",
+  "Ajan bu bilgisayarı sizin adınıza kullanır; ekran görüntüleri model sağlayıcısına gider. Durdurmak için fareyi sol üst köşeye götürün.": "The agent uses this computer on your behalf; screenshots go to the model provider. To stop, move the mouse to the top-left corner.",
   "PLC'lere sor": "Ask PLCs",
   "Soruluyor…": "Asking…",
   "Cihaz adı": "Device name",

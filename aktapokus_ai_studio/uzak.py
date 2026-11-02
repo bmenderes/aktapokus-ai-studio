@@ -270,7 +270,7 @@ YONETIM_KAPALIYKEN_YASAK = (
 # Yeni uc eklerken once uzaktan guvenli mi diye karar verin: tests/test_uzak.py eksik siniflandirmayi yakalar.
 UZAK_BILINEN_UCLAR = frozenset({
     "/api/nodered", "/api/nodered/kur", "/api/nodered/baslat", "/api/nodered/durdur",  # politika her zaman reddeder
-    "/api/ag/kablo-adaptorler", "/api/ag/kablo-dinle",  # politika her zaman reddeder
+    "/api/ag/kablo-adaptorler", "/api/ag/kablo-dinle", "/api/masaustu",  # politika her zaman reddeder
     "/api/ag/adaptor-dhcp", "/api/ag/adaptor-ip", "/api/ag/adaptorler", "/api/ag/bootp", "/api/ag/bootp/ata", "/api/ag/bootp/baslat",
     "/api/ag/bootp/durdur", "/api/ag/bootp/kaldir", "/api/ag/profil", "/api/ag/profil-sil", "/api/ag/profil-uygula", "/api/ag/profiller",
     "/api/ag/ada-gore", "/api/ag/plc-sor", "/api/ag/tara", "/api/ayar", "/api/beceri-kaynak", "/api/beceri-kaynak/onizle", "/api/beceriler", "/api/beceriler/indir", "/api/beceriler/sil",
@@ -298,6 +298,8 @@ def politika(yontem: str, yol: str, ayar: Ayar) -> str | None:
     """Uzak istek icin ret sebebi (Turkce) ya da izinliyse None. Cagri oncesi /api/p/<id>/ oneki ve sorgu ayiklanmis olmali."""
     if yol == "/api/uzak" or yol.startswith("/api/uzak/"):
         return "Uzak erisim ayarlari yalnizca bu bilgisayardan degistirilebilir"
+    if yol == "/api/masaustu":
+        return "Masaustu kontrolu yalnizca bu bilgisayardan acilip kapatilir"
     if yol.startswith("/api/ag/kablo-"):
         return "Kablo dinleme yalnizca bu bilgisayardan yapilir (yonetici izni ister)"
     if yol == "/api/nodered" or yol.startswith("/api/nodered/"):

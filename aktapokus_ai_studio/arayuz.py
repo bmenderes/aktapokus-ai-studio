@@ -34,7 +34,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import nodered, ag_araci, ag_profil, bootp, google_giris, opcua, opcua_ayar, opcua_depo, opcua_toplayici, arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, google_oku, oneriler, izinler, uyanik, otomatik_baslat, gonderme_kontrol, yayin
+from . import nodered, masaustu, ag_araci, ag_profil, bootp, google_giris, opcua, opcua_ayar, opcua_depo, opcua_toplayici, arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, google_oku, oneriler, izinler, uyanik, otomatik_baslat, gonderme_kontrol, yayin
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_model_gecersiz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
@@ -1289,6 +1289,24 @@ class Uygulama:
 
     def ag_plc_sor(self, ad: object) -> dict:
         return {"cihazlar": self._ag_hata(ag_araci.plc_sor_adaptor, ad)}
+
+    def masaustu_durum(self) -> dict:
+        o = self.secili
+        t = mcptanim.yukle().get("masaustu")
+        return {**masaustu.ayar_oku(), "destek": sys.platform == "win32", "proje": o.klasor.name if o else None, "acik": bool(o and t and o.kimlik in t.projeler), "kayit": masaustu.kayit_oku(15)}
+
+    def masaustu_ayarla(self, g: dict) -> dict:
+        o = self.secili
+        try:
+            if "acik" in g:
+                if o is None:
+                    raise UygulamaHatasi("Once bir proje secin")
+                mcptanim.masaustu_ayarla(o.kimlik, bool(g["acik"]))
+            if "durduruldu" in g or "programlar" in g:
+                masaustu.ayar_yaz(g.get("durduruldu"), g.get("programlar"))
+        except (mcptanim.McpHatasi, masaustu.MasaustuHatasi) as hata:
+            raise UygulamaHatasi(str(hata)) from None
+        return self.masaustu_durum()
 
     def ag_tara(self, ag: object) -> dict:
         return {"cihazlar": self._ag_hata(ag_araci.tara, ag)}
@@ -2831,6 +2849,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.ag_adaptorler())
                 if yol == "/api/nodered":
                     return self._gonder(200, nodered.YONETICI.durum())
+                if yol == "/api/masaustu":
+                    return self._gonder(200, app.masaustu_durum())
                 if yol == "/api/ag/bootp":
                     return self._gonder(200, app.bootp_durum())
                 if yol == "/api/ag/profiller":
@@ -3076,6 +3096,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.yeni_konusma(g.get("ust")))
                 if yol == "/api/sohbet-sec":
                     return self._gonder(200, app.sohbet_sec(g.get("sohbet")))
+                if yol == "/api/masaustu":
+                    return self._gonder(200, app.masaustu_ayarla(g if isinstance(g, dict) else {}))
                 if yol in ("/api/nodered/kur", "/api/nodered/baslat", "/api/nodered/durdur"):
                     try:
                         return self._gonder(200, getattr(nodered.YONETICI, yol.rsplit("/", 1)[1])())
