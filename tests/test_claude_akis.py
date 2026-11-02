@@ -241,3 +241,53 @@ def test_ilerleyen_gorev_zaman_asimiyla_oldurulmez_takili_olan_olur(monkeypatch,
     monkeypatch.setattr(SahtePopen, "_satirlar", yavas)
     r = yeni().calistir("istem", tmp_path, zaman_asimi_sn=0.4)  # toplam ~0.9 sn > 0.4 sn, aralar 0.15 sn
     assert r.ok and r.metin == "bitti"
+
+
+# ---------- canli sinyaller (gercek Claude Code 2.1.308 ciktisindan) ----------
+def akan(*parcalar):
+    return [{"type": "stream_event", "event": p} for p in parcalar]
+
+
+def test_parca_parca_gelen_metin_ve_dusunce_iletilir_tamami_yinelenmez(monkeypatch, tmp_path):
+    claude_taklit(monkeypatch, runners, olaylar=[
+        {"type": "system", "subtype": "status", "status": "requesting"},
+        *akan({"type": "message_start"}, {"type": "content_block_delta", "delta": {"type": "thinking_delta", "thinking": "bakayim"}},
+              {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "Do"}}, {"type": "content_block_delta", "delta": {"type": "text_delta", "text": "sya"}}),
+        asistan({"type": "text", "text": "Dosya"}),
+        *akan({"type": "message_stop"}),
+        sonuc_olayi("Dosya"),
+    ])
+    alinan: list = []
+    assert yeni(olaylar=alinan).calistir("istem", tmp_path).ok
+    assert alinan == [{"tur": "durum", "durum": "bekliyor"}, {"tur": "dusunce", "parca": "bakayim"}, {"tur": "metin", "parca": "Do"}, {"tur": "metin", "parca": "sya"}, {"tur": "metin", "parca": "\n"}]
+
+
+def test_komut_aciklamasi_ve_gecen_sure_yeniden_deneme_ve_ozetleme_iletilir(monkeypatch, tmp_path):
+    claude_taklit(monkeypatch, runners, olaylar=[
+        *akan({"type": "content_block_start", "content_block": {"type": "tool_use", "name": "Bash"}}),
+        {"type": "system", "subtype": "task_started", "tool_use_id": "t1", "description": "Testleri\n calistir"},
+        {"type": "tool_progress", "tool_use_id": "t1-heartbeat-0", "parent_tool_use_id": "t1", "tool_name": "Bash", "elapsed_time_seconds": 90},
+        {"type": "system", "subtype": "api_retry", "attempt": 2, "error": "rate_limit"},
+        {"type": "system", "subtype": "status", "status": "compacting"},
+        {"type": "system", "subtype": "status", "status": None},
+        sonuc_olayi("bitti"),
+    ])
+    alinan: list = []
+    assert yeni(olaylar=alinan).calistir("istem", tmp_path).ok
+    assert alinan == [
+        {"tur": "durum", "durum": "arac", "ad": "Bash"},
+        {"tur": "kabuk", "satir": "Testleri calistir", "sure_sn": 0},
+        {"tur": "kabuk", "satir": "Testleri calistir", "sure_sn": 90},
+        {"tur": "durum", "durum": "yeniden", "deneme": 2, "hata": "rate_limit"},
+        {"tur": "durum", "durum": "ozetleniyor"},
+    ]
+
+
+def test_sonuc_gelmeden_kesilen_gorevin_tokeni_kaybolmaz_ayni_mesaj_iki_kez_sayilmaz(monkeypatch, tmp_path):
+    def mesaj(kimlik, cikti):
+        return {"type": "assistant", "message": {"id": kimlik, "content": [], "usage": {"input_tokens": 10, "cache_creation_input_tokens": 5, "cache_read_input_tokens": 7, "output_tokens": cikti}}}
+
+    c = yeni()
+    for o in (mesaj("m1", 1), mesaj("m1", 3), mesaj("m2", 4)):
+        c._kullanim_topla(o)
+    assert c._harcanan() == {"token_girdi": 30, "token_cikti": 7, "token_onbellek": 14}

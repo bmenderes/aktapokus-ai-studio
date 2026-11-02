@@ -147,9 +147,9 @@ def test_calistir_zaman_asimi_ve_cikis_kodu(monkeypatch, tmp_path):
 def test_claude_komut_ve_cikti_cozumu():
     c = ClaudeCodeCalistirici(cli_yolu="cl")
     assert c.komut("a.json", "opus", True) == [
-        "cl", "-p", "--output-format", "stream-json", "--verbose", "--settings", "a.json", "--model", "opus", "--permission-mode", "acceptEdits",
+        "cl", "-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--settings", "a.json", "--model", "opus", "--permission-mode", "acceptEdits",
     ]
-    assert c.komut("a.json", None, False) == ["cl", "-p", "--output-format", "stream-json", "--verbose", "--settings", "a.json"]
+    assert c.komut("a.json", None, False) == ["cl", "-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--settings", "a.json"]
     assert "--resume" in c.komut("a.json", None, False, oturum="x") and "--no-session-persistence" in c.komut("a.json", None, False, kalici=False)
     ok = ClaudeCodeCalistirici.cikti_coz(
         json.dumps({"result": "bitti", "is_error": False, "usage": {

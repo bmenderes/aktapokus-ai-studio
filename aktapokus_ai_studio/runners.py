@@ -284,6 +284,12 @@ class ClaudeCodeCalistirici(Calistirici):
         self.cli_yolu = cli_yolu
         self._islem = None
         self._durduruldu = False
+        self._akis_durumu_sifirla()
+
+    def _akis_durumu_sifirla(self) -> None:
+        self._akan_metin = False  # bu mesajin metni parca parca geldi: tamamlanmis hali yeniden bildirilmez
+        self._gorevler: dict = {}  # arac kimligi -> Claude'un komut aciklamasi
+        self._kullanim: dict = {}  # mesaj kimligi -> token; sonuc olayi gelmeden kesilen gorevin harcamasi icin
 
     def komut(self, ayar_dosyasi: str, model: str | None, onayli: bool, mcp_dosyasi: str | None = None, mcp_adlari: tuple[str, ...] = (), oturum: str | None = None, kalici: bool = True, sistem_dosyasi: str | None = None) -> list[str]:
         cli = self.cli_yolu or claude_bul()
@@ -292,7 +298,7 @@ class ClaudeCodeCalistirici(Calistirici):
                 "Claude Code CLI bulunamadi (npm install -g @anthropic-ai/claude-code) ya da AKTAPOKUS_CLAUDE ile yol verin. "
                 "Baska bir CLI kullanmak icin Ayarlar > Roller'e bakin."
             )
-        komut = [cli, "-p", "--output-format", "stream-json", "--verbose", "--settings", ayar_dosyasi]
+        komut = [cli, "-p", "--output-format", "stream-json", "--verbose", "--include-partial-messages", "--settings", ayar_dosyasi]  # kismi mesaj: uzun yanit yazilirken de sinyal gelir
         if not kalici:
             komut += ["--no-session-persistence"]
         if sistem_dosyasi:
@@ -380,6 +386,15 @@ class ClaudeCodeCalistirici(Calistirici):
         if bildir is None:
             return
         try:  # arayuz geri cagrisi (ve olay bicimi) hicbir zaman calistirmayi bozmaz: Claude bazi olaylarda "message"i duz metin gonderir
+            if olay.get("type") == "stream_event":
+                self._parca_bildir(olay.get("event") or {}, bildir)
+                return
+            if olay.get("type") == "system":
+                self._sistem_bildir(olay, bildir)
+                return
+            if olay.get("type") == "tool_progress":  # komut surerken 30 sn'de bir; cikti icermez
+                bildir({"tur": "kabuk", "satir": self._gorevler.get(olay.get("parent_tool_use_id") or olay.get("tool_use_id"), ""), "sure_sn": int(olay.get("elapsed_time_seconds") or 0)})
+                return
             mesaj = olay.get("message")
             icerik = mesaj.get("content") if isinstance(mesaj, dict) else None
             if not isinstance(icerik, list):
@@ -388,13 +403,56 @@ class ClaudeCodeCalistirici(Calistirici):
                 if not isinstance(c, dict):
                     continue
                 if olay.get("type") == "assistant" and c.get("type") == "text" and c.get("text"):
-                    bildir({"tur": "metin", "parca": str(c["text"]) + "\n"})
+                    if not self._akan_metin:
+                        bildir({"tur": "metin", "parca": str(c["text"]) + "\n"})
                 elif olay.get("type") == "assistant" and c.get("type") == "tool_use":
                     bildir({"tur": "arac", "ad": c.get("name"), "girdi": self._girdi_ozeti(c.get("input"))})
                 elif olay.get("type") == "user" and c.get("type") == "tool_result":
                     bildir({"tur": "arac-sonuc", "hata": bool(c.get("is_error"))})
         except Exception:
             pass  # arayuz geri cagrisi hicbir zaman calistirmayi bozmaz
+
+    def _parca_bildir(self, olay: dict, bildir) -> None:
+        tip, delta = olay.get("type"), olay.get("delta") or {}
+        if tip == "message_start":
+            self._akan_metin = False
+        elif tip == "message_stop" and self._akan_metin:
+            bildir({"tur": "metin", "parca": "\n"})
+        elif tip == "content_block_start" and (olay.get("content_block") or {}).get("type") == "tool_use":
+            bildir({"tur": "durum", "durum": "arac", "ad": olay["content_block"].get("name")})
+        elif tip == "content_block_delta" and delta.get("type") == "text_delta":
+            self._akan_metin = True
+            bildir({"tur": "metin", "parca": delta.get("text", "")})
+        elif tip == "content_block_delta" and delta.get("type") == "thinking_delta" and delta.get("thinking"):
+            bildir({"tur": "dusunce", "parca": delta.get("thinking", "")})
+
+    def _sistem_bildir(self, olay: dict, bildir) -> None:
+        alt = olay.get("subtype")
+        if alt == "status" and olay.get("status") == "requesting":
+            bildir({"tur": "durum", "durum": "bekliyor"})
+        elif alt == "status" and olay.get("status") == "compacting":
+            bildir({"tur": "durum", "durum": "ozetleniyor"})
+        elif alt == "api_retry":
+            bildir({"tur": "durum", "durum": "yeniden", "deneme": olay.get("attempt"), "hata": " ".join(str(olay.get("error") or "").split())[:160]})
+        elif alt == "task_started":
+            aciklama = " ".join(str(olay.get("description") or "").split())[:200]
+            self._gorevler[olay.get("tool_use_id")] = aciklama
+            bildir({"tur": "kabuk", "satir": aciklama, "sure_sn": 0})
+
+    def _kullanim_topla(self, olay: dict) -> None:
+        mesaj = olay.get("message")
+        if olay.get("type") == "assistant" and isinstance(mesaj, dict) and isinstance(mesaj.get("usage"), dict):
+            self._kullanim[mesaj.get("id")] = mesaj["usage"]
+
+    def _harcanan(self) -> dict:
+        """Yarida kesilen gorevin token'i. Mesaj tamamlanmadan kesildiyse cikti eksik sayilabilir, yaklasiktir."""
+        def topla(*alanlar):
+            return sum(int(k.get(a) or 0) for k in self._kullanim.values() for a in alanlar)
+        return {
+            "token_girdi": topla("input_tokens", "cache_creation_input_tokens"),
+            "token_cikti": topla("output_tokens"),
+            "token_onbellek": topla("cache_read_input_tokens"),
+        }
 
     @staticmethod
     def _surec_oldur(islem) -> None:
@@ -423,6 +481,7 @@ class ClaudeCodeCalistirici(Calistirici):
             komut, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, cwd=str(klasor), env=_alt_surec_ortami(Path(klasor)),
         )
         self._islem = islem
+        self._akis_durumu_sifirla()
         hatalar: list[bytes] = []
         hata_is = threading.Thread(target=lambda: hatalar.append(islem.stderr.read()), daemon=True)  # stderr dolup tikamasin
         hata_is.start()
@@ -461,6 +520,7 @@ class ClaudeCodeCalistirici(Calistirici):
                 if isinstance(olay, dict) and olay.get("type") == "result":
                     sonuc_olayi = olay
                 elif isinstance(olay, dict):
+                    self._kullanim_topla(olay)
                     self._olay_bildir(olay)
             islem.wait()
         finally:
@@ -511,9 +571,9 @@ class ClaudeCodeCalistirici(Calistirici):
                 break
         sure = time.monotonic() - baslangic
         if asildi:
-            return CalistirmaSonucu(False, hata=f"Zaman asimi ({zaman_asimi_sn} sn)", sure_sn=sure)
+            return CalistirmaSonucu(False, hata=f"Zaman asimi ({zaman_asimi_sn} sn)", sure_sn=sure, **self._harcanan())
         if self._durduruldu:
-            return CalistirmaSonucu(False, hata="Durduruldu", sure_sn=sure)
+            return CalistirmaSonucu(False, hata="Durduruldu", sure_sn=sure, **self._harcanan())
         if olay is None:
             return CalistirmaSonucu(False, hata=f"Claude Code sonuc dondurmedi (cikis kodu {kod}): {hata_metni.strip()[-300:]}", sure_sn=sure)
         sonuc = self.cikti_coz(json.dumps(olay))
