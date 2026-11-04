@@ -268,6 +268,40 @@ def test_pencere_hic_yoksa_ve_surec_kapanmiyorsa_azami_sureden_sonra_mesaj(baska
     assert uygulama.ikinci_kopya_bekle(azami_sn=1.2) == "mesaj"
     assert 1.0 < time.monotonic() - baslangic < 4
     assert not uygulama.devral_var_mi()  # istek temizlenir
+    assert not uygulama.pencere_iste_yolu().exists()
+
+
+def test_telefon_bagliyken_pencere_yoksa_eski_kopyadan_pencere_istenir_gercek_hata(baska_canli_surec, monkeypatch):
+    """Gercek hata: pencere kapali, telefondaki tarayici bagli; eski kopya kapanmiyor, kisayol 30 sn sonra 'zaten acik' kutusu gosteriyordu."""
+    istek = []
+
+    def pencere():  # eski kopya istegi gorup pencere acana kadar pencere yok
+        istek.append(uygulama.pencere_iste_yolu().exists())
+        return len(istek) >= 3 and any(istek)
+
+    monkeypatch.setattr(uygulama, "mevcut_pencereyi_one_getir", pencere)
+    _kilitle(baska_canli_surec, "bagli")
+    assert uygulama.ikinci_kopya_bekle(azami_sn=10) == "one"
+    assert any(istek) and not uygulama.pencere_iste_yolu().exists()
+
+
+def test_acik_kopya_pencere_istegi_gelince_yeni_pencere_acar_ve_kapanmaz(proje, tmp_path, monkeypatch):
+    sahte = tmp_path / "t.exe"
+    sahte.write_text("")
+    monkeypatch.setenv("AKTAPOKUS_TARAYICI", str(sahte))
+    monkeypatch.setattr(uygulama, "sessiz_alt_surecler", lambda: None)
+    monkeypatch.setattr(uygulama, "mevcut_pencereyi_one_getir", lambda: False)
+    pencere, acilan = SahtePencere(), []
+
+    def ac(komut):
+        acilan.append(komut)
+        pencere.acik = True
+
+    threading.Timer(0.5, uygulama._isaret, [uygulama.pencere_iste_yolu()]).start()
+    threading.Timer(1.5, pencere.kapat).start()
+    kod = uygulama.uygulama_calistir(str(proje), 0, ac, bekle_sn=0.05, baglanti_say=pencere.baglanti, acilis_sn=10, kopma_sn=0.3)
+    assert kod == 0 and len(acilan) == 2 and acilan[0] == acilan[1]  # ayni sunucuya ikinci pencere; istek tuketildi
+    assert not uygulama.pencere_iste_yolu().exists()
 
 
 def test_pencere_bekle_yeni_acma_istegi_gelince_kopma_toleransini_beklemeden_kapanir():

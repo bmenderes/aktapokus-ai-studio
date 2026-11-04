@@ -270,22 +270,32 @@ def ikinci_kopya_bekle(azami_sn: float | None = None, saat: Callable[[], float] 
 
     GERCEK HATA (gercek Edge ile yeniden uretildi): pencere kapaninca Edge baglantiyi birkac sn sonra birakir; o aralikta eski kopya
     'pencere acik' sanir ve hemen yeniden acma 'zaten acik' kutusunda takiliyordu. Durum dosyasina GUVENILMEZ: asil olcut GERCEK pencere.
-    Pencere varsa one getirilir; yoksa (kapaniyor ya da henuz aciliyor) kilit alinana ya da pencere belirene kadar beklenir."""
+    Pencere varsa one getirilir; yoksa (kapaniyor ya da henuz aciliyor) kilit alinana ya da pencere belirene kadar beklenir.
+
+    GERCEK HATA: pencere kapali ama telefondaki tarayici bagli kalinca eski kopya 'bagli' kalir, hic kapanmaz ve kutu gosterilirdi: durum 'bagli' ve pencere yoksa eski kopyadan pencere acmasi istenir."""
     if kilit_al():
         return "al"
     bitis = saat() + (KAPANMA_BEKLEME_SN if azami_sn is None else azami_sn)
-    while saat() < bitis:
-        if mevcut_pencereyi_one_getir():
-            devral_temizle()
-            return "one"
-        if pencere_durumu() == "kopuk":
-            devral_iste()  # eski kopya pencere kopukken kopma toleransini beklemeden kapanir
-        uyku(0.5)
-        if kilit_al():
-            devral_temizle()
-            return "al"
-    devral_temizle()
-    return "mesaj"
+    istendi = False
+    try:
+        while saat() < bitis:
+            if mevcut_pencereyi_one_getir():
+                devral_temizle()
+                return "one"
+            durum = pencere_durumu()
+            if durum == "kopuk":
+                devral_iste()  # eski kopya pencere kopukken kopma toleransini beklemeden kapanir
+            elif durum == "bagli" and not istendi:
+                _isaret(pencere_iste_yolu())
+                istendi = True
+            uyku(0.5)
+            if kilit_al():
+                devral_temizle()
+                return "al"
+        devral_temizle()
+        return "mesaj"
+    finally:
+        _pencere_istegi_temizle()
 
 
 def kilit_birak() -> None:
@@ -323,6 +333,13 @@ def arkaplan_yolu() -> Path:
 
 def pencere_iste_yolu() -> Path:
     return ayar_dizini() / "uygulama.pencere-iste"
+
+
+def _pencere_istegi_temizle() -> None:
+    try:
+        pencere_iste_yolu().unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def dur_yolu() -> Path:
@@ -524,8 +541,18 @@ def _calistir(klasor, port, pencere_ac, bekle_sn, tarayici, baglanti_say, acilis
         return app.bus.tarayici_sayisi()  # Telegram botu gibi dahili aboneler sayilmaz: yoksa pencere kapansa da uygulama kapanmaz
 
     gorulen = {"pencere": False, "durum": None}
+    pencere_acici = pencere_ac or (lambda k: subprocess.Popen(k))
+    _pencere_istegi_temizle()
 
     def izle() -> int:
+        if pencere_iste_yolu().exists():  # ikinci tiklama: pencere yok ama baska tarayici (telefon) bagli, sunucu acik kaldi
+            _pencere_istegi_temizle()  # once tuket: ayni istek tekrar islenmesin
+            try:
+                if not mevcut_pencereyi_one_getir():
+                    pencere_acici(komut)
+                    log_yaz("pencere yeniden acildi (istek uzerine)")
+            except OSError as hata:  # sunucu calismaya devam etmeli
+                log_yaz(f"pencere acilamadi: {hata}")
         n = (baglanti_say or sayac)()
         if n > 0 and not gorulen["pencere"]:
             log_yaz(f"pencere sayfayi yukledi ve baglandi: {time.monotonic() - t_ac:.1f} sn sonra (tarayici acilisi + sayfa)")
@@ -540,7 +567,7 @@ def _calistir(klasor, port, pencere_ac, bekle_sn, tarayici, baglanti_say, acilis
 
     try:
         t_ac = time.monotonic()
-        (pencere_ac or (lambda k: subprocess.Popen(k)))(komut)  # surec ID'sine/ömrüne güvenilmez (devir olabilir)
+        pencere_acici(komut)  # surec ID'sine/ömrüne güvenilmez (devir olabilir)
         sonuc = pencere_bekle(izle, bekle_sn, acilis_sn, kopma_sn, erken_cik=devral_var_mi)
         if sonuc == "baglanmadi":
             hata_goster(f"Pencere {acilis_sn:.0f} sn icinde arayuze baglanamadi. Tarayici penceresi acildiysa kapatip kisayola yeniden tiklayin.")
