@@ -500,3 +500,16 @@ def test_aktapokus_sirlari_ajan_ortamina_gecmez(monkeypatch, tmp_path):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "cli-anahtari")
     o = _alt_surec_ortami(tmp_path)
     assert "AKTAPOKUS_TELEGRAM_TOKEN" not in o and o["AKTAPOKUS_CLAUDE"] == "yol" and o["ANTHROPIC_API_KEY"] == "cli-anahtari"
+
+
+def test_uzak_kok_siniri(tmp_path):
+    kok = tmp_path / "kok"
+    (kok / "proje").mkdir(parents=True)
+    (tmp_path / "disari").mkdir()
+    assert uzak.kok_klasoru(uzak.Ayar(), kok / "proje") == kok.resolve()
+    assert uzak.kokun_icinde(kok / "proje", kok) and uzak.kokun_icinde(kok, kok)
+    assert not uzak.kokun_icinde(tmp_path / "disari", kok)
+    assert not uzak.kokun_icinde(kok / ".." / "disari", kok)
+    assert uzak.guncelle({"kok": str(kok)}).kok == str(kok.resolve())
+    with pytest.raises(uzak.UzakHatasi):
+        uzak.guncelle({"kok": str(tmp_path / "yok")})

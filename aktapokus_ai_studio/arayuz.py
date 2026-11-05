@@ -2689,14 +2689,19 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 return sebep
             if yontem == "POST" and yol == "/api/klasor":
                 g = self._govde()
+                if isinstance(g, dict) and g.get("git_baslat"):
+                    return "Uzaktan git deposu baslatilamaz"
+                hedef = str(g.get("yol", "")) if isinstance(g, dict) else ""
+                kok = uzak.kok_klasoru(sunucu.uzak_ayar, app.klasor)
                 try:
-                    kimlik = projeler.proje_kimligi(str(g.get("yol", ""))) if isinstance(g, dict) and g.get("yol") else None
+                    kimlik = projeler.proje_kimligi(hedef) if hedef else None
                 except Exception:
                     kimlik = None
-                if kimlik not in {p["id"] for p in projeler.listele()}:
-                    return "Uzaktan yalnizca kayitli projeler acilir; yeni klasor bilgisayardan eklenir"
-                if g.get("git_baslat"):
-                    return "Uzaktan git deposu baslatilamaz"
+                kayitli = kimlik in {p["id"] for p in projeler.listele()}
+                if not kayitli and not uzak.kokun_icinde(hedef, kok):
+                    uzak.kayit_yaz(f"REDDEDILDI {self.client_address[0]} {hedef}")
+                    return f"Uzaktan yalnizca kayitli projeler ya da {kok} altindaki klasorler acilir"
+                uzak.kayit_yaz(f"ACILDI {self.client_address[0]} {hedef}" + ("" if kayitli else " (yeni)"))
             if yontem == "PUT" and yol == "/api/ayar":
                 yeni = self._govde()
                 try:
@@ -2947,7 +2952,17 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if yol == "/api/fark":
                     return self._gonder(200, app.fark(q.get("once", ""), q.get("sonra", ""), q.get("dosya")))
                 if yol == "/api/klasorler":
-                    return self._gonder(200, app.klasorleri_listele(q.get("yol")))
+                    if dinleyici is None:
+                        return self._gonder(200, app.klasorleri_listele(q.get("yol")))
+                    kok = uzak.kok_klasoru(sunucu.uzak_ayar, app.klasor)  # uzaktan yalniz kok ve altindaki klasorler gezilir
+                    istenen = q.get("yol") or str(kok)
+                    if not uzak.kokun_icinde(istenen, kok):
+                        raise UygulamaHatasi(f"Uzaktan yalnizca {kok} altindaki klasorler gezilebilir", 403)
+                    r = app.klasorleri_listele(istenen)
+                    if Path(r["yol"]).resolve() == kok:
+                        r["ust"] = None
+                    r["kisayollar"] = [{"ad": kok.name or str(kok), "yol": str(kok)}]
+                    return self._gonder(200, r)
                 if yol == "/api/onizleme":
                     o = app._oturum()
                     return self._gonder(200, {"url": sunucu.onizleme_url(o.kimlik), "proje": o.kimlik})

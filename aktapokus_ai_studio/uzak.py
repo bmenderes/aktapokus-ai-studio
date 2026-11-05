@@ -40,6 +40,7 @@ class Ayar:
     yonetim: bool = False  # uzaktan CLI/MCP/saglayici/Telegram/beceri tanimlama, klasor gezme, klonlama
     uyanik: bool = False  # uzak erisim ACIKKEN bilgisayar uyumasin (uyanik.py; Windows). Varsayilan kapali
     https: bool = False  # Tailscale `serve` ile https://<ad>.ts.net (ana ekrana uygulama olarak eklemek icin); dinleyici yine yalniz Tailscale adresinde
+    kok: str = ""  # uzaktan secilebilen/gezilebilen klasor kokunun en ustu; bos: acik projenin ust klasoru (proje yoksa ev)
     anahtar: str = field(default_factory=lambda: secrets.token_urlsafe(32))
 
     def sozluk(self, anahtarli: bool = False) -> dict:
@@ -68,6 +69,7 @@ def oku() -> Ayar:
         return Ayar(
             acik=h.get("acik") is True, port=h["port"] if port_gecerli(h.get("port")) else VARSAYILAN_PORT,
             terminal=h.get("terminal") is True, yonetim=h.get("yonetim") is True, https=h.get("https") is True, uyanik=h.get("uyanik") is True,
+            kok=h["kok"] if isinstance(h.get("kok"), str) else "",
             anahtar=anahtar if isinstance(anahtar, str) and len(anahtar) >= 32 else secrets.token_urlsafe(32),
         )
     except (OSError, ValueError, json.JSONDecodeError):
@@ -98,8 +100,40 @@ def guncelle(degisiklik: dict) -> Ayar:
         if not port_gecerli(degisiklik["port"]):
             raise UzakHatasi("'port' 1024-65535 arasinda bir sayi olmali")
         ayar.port = degisiklik["port"]
+    if "kok" in degisiklik:
+        kok = degisiklik["kok"]
+        if not isinstance(kok, str) or (kok.strip() and not Path(kok).expanduser().is_dir()):
+            raise UzakHatasi("'kok' var olan bir klasor yolu (ya da bos) olmali")
+        ayar.kok = str(Path(kok).expanduser().resolve()) if kok.strip() else ""
     yaz(ayar)
     return ayar
+
+
+def kok_klasoru(ayar: Ayar, acik_proje: Path | None) -> Path:
+    """Uzaktan secilebilir/gezilebilir klasorlerin en ustu: ayardaki `kok`, yoksa acik projenin ust klasoru, o da yoksa ev."""
+    if ayar.kok.strip():
+        return Path(ayar.kok).expanduser().resolve()
+    return acik_proje.resolve().parent if acik_proje else Path.home().resolve()
+
+
+def kokun_icinde(yol: str | Path, kok: Path) -> bool:
+    try:
+        y, k = os.path.normcase(str(Path(yol).expanduser().resolve())), os.path.normcase(str(kok.resolve()))
+        return os.path.commonpath([y, k]) == k
+    except (OSError, ValueError):
+        return False
+
+
+def kayit_yaz(olay: str) -> None:
+    """Uzaktan yapilan klasor secimlerini ~/.aktapokus/uzak-erisim.log dosyasina ekler (kayit basarisizsa sessiz)."""
+    try:
+        import time
+        yol = dosya_yolu().with_suffix(".log")
+        yol.parent.mkdir(parents=True, exist_ok=True)
+        with yol.open("a", encoding="utf-8") as f:
+            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {olay}\n")
+    except OSError:
+        pass
 
 
 def anahtari_yenile() -> Ayar:

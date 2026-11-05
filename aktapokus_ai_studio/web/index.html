@@ -203,9 +203,10 @@ body{position:relative}
 .cip.ortam b{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mini{padding:0 7px;line-height:1.4}
 .model-oge.yok{opacity:.55}
-.modal-arka{position:fixed;inset:0;background:rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;z-index:30}
-.modal{background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:14px 16px;width:min(580px,92vw);max-height:90vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.25)}
-.klasor-liste{height:290px;max-height:none;outline:none}
+.modal-arka{position:fixed;inset:0;background:rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;z-index:40}
+.modal{background:var(--panel);border:1px solid var(--line2);border-radius:12px;padding:14px 16px;width:min(580px,92vw);max-height:90vh;max-height:90dvh;overflow:auto;box-sizing:border-box;box-shadow:0 12px 40px rgba(0,0,0,.25)}
+.klasor-liste{height:min(290px,30dvh);max-height:none;outline:none}
+.klasor-alt{position:sticky;bottom:-14px;background:var(--panel);padding:8px 0 2px;margin-top:6px}
 .klasor-liste:focus{border-color:var(--acc);box-shadow:0 0 0 2px var(--accbg)}
 .k-oge,.k-ust{padding:3px 10px;cursor:pointer;border-radius:4px;user-select:none}
 .k-ust{color:var(--tx2)}
@@ -1419,7 +1420,7 @@ async function klasorSecimiAc(){if($("#klasorSec"))return;
   const son=e("div",{class:"row",style:"gap:4px;flex-wrap:wrap;margin-top:6px"});
   const kisayol=e("div",{class:"row",style:"gap:4px;flex-wrap:wrap;margin:6px 0"});
   const liste=e("div",{class:"liste klasor-liste",tabindex:"0"});
-  const hedef=e("div",{class:"mut3 mono",style:"white-space:normal;min-height:16px;margin-top:4px"});
+  const hedef=e("div",{class:"mut3 mono",style:"white-space:normal;word-break:break-all;min-height:16px;margin-top:4px"});
   const hata=e("div",{class:"badge b-err",style:"display:none;margin-top:6px;white-space:normal"});
   let mevcut=null,isimler=[],sec=-1,tampon="",tamponZaman=0;
   const birles=(a,b)=>a+(a.endsWith("\\")||a.endsWith("/")?"":"\\")+b;
@@ -1436,7 +1437,7 @@ async function klasorSecimiAc(){if($("#klasorSec"))return;
   const kapat=()=>arka.remove();
   const sonuc=async()=>{hata.style.display="none";const h=hedefYolu();if(!h)return;
     try{await api("/api/klasor",{method:"POST",body:{yol:h}});kapat();await durumYukle();await dosyalariYukle();await onizlemeKur()}
-    catch(x){hata.textContent=x.message;hata.style.display=""}};
+    catch(x){hata.textContent=x.message;hata.style.display="";hata.scrollIntoView({block:"nearest"})}};
   secDugme.onclick=sonuc;
   arka.addEventListener("keydown",ev=>{
     if(ev.target===yol){if(ev.key==="Enter"){ev.preventDefault();goz(yol.value.trim())}else if(ev.key==="Escape")kapat();return}
@@ -1450,7 +1451,7 @@ async function klasorSecimiAc(){if($("#klasorSec"))return;
     else return;
     if(tampon&&(ev.key.length===1||ev.key==="Backspace")){const kk=isimler.map(katla);let i=kk.findIndex(a=>a.startsWith(tampon));if(i<0)i=kk.findIndex(a=>a.includes(tampon));if(i>=0)isaretle(i)}});
   arka.addEventListener("mousedown",ev=>{if(ev.target===arka)kapat()});
-  k.append(e("b",{text:"Proje klasörünü seçin"}),son,kisayol,yol,liste,hedef,e("div",{class:"mut3",style:"margin-top:2px",text:"Harf yazarak klasöre atlayın · ↑↓ gezin · Enter: içine gir · Backspace: üst klasör · Esc: kapat"}),e("div",{class:"row",style:"margin-top:8px"},secDugme,e("button",{text:"Kapat",onclick:kapat})),hata);
+  k.append(e("b",{text:"Proje klasörünü seçin"}),son,kisayol,yol,liste,hedef,e("div",{class:"mut3",style:"margin-top:2px",text:"Harf yazarak klasöre atlayın · ↑↓ gezin · Enter: içine gir · Backspace: üst klasör · Esc: kapat"}),e("div",{class:"klasor-alt"},hata,e("div",{class:"row",style:"margin-top:4px"},secDugme,e("button",{text:"Kapat",onclick:kapat}))));
   document.body.append(arka);
   try{const pl=(await api("/api/projeler")).projeler.filter(p=>p.var).slice(0,5);if(pl.length){son.append(e("span",{class:"mut3",text:"Son projeler:"}));for(const p of pl)son.append(e("button",{text:p.ad,title:p.yol,onclick:async()=>{try{if(await projeSec(p.yol))kapat()}catch(x){hata.textContent=x.message;hata.style.display=""}}}))}}catch(x){}
   await goz(S.klasor||"");liste.focus()}
