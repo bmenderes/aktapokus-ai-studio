@@ -77,3 +77,10 @@ def test_ayarlar_sol_menusu_acilip_kapanir():
 def test_secili_proje_pencereye_ozel():
     assert "function pencereYol(y)" in HTML and "fetch(pencereYol(yol)," in HTML and "pencereProjeYaz(S.projeId)" in HTML
     assert "g.secili" not in HTML
+
+def test_uzaktan_yapilamayan_hep_secenekleri_gosterilmez_ve_plan_karti_kaybolmaz():
+    """Gercek hata: telefonda plan kartindaki kutu isaretlenince ayar 403 aldi, kart once silindigi icin plan onaysiz ve dugmesiz kaldi."""
+    assert '(!o.otomatik&&!(S.baglanti&&S.baglanti.uzak))?e("label"' in HTML
+    assert '(S.baglanti&&S.baglanti.uzak)?null:e("label",{class:"row mut",style:"gap:4px;white-space:nowrap"},hk,"Hep koru")' in HTML
+    assert "oto.disabled=kilitli||!!(S.baglanti&&S.baglanti.uzak)" in HTML and "kor.disabled=kilitli||!!(S.baglanti&&S.baglanti.uzak)" in HTML
+    assert 'onclick:async()=>{w.remove();try{if(hep.checked)' not in HTML and 'testsiz:testVar?tst.checked:false}});w.remove()}' in HTML
