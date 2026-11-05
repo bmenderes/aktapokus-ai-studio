@@ -2699,7 +2699,7 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 except Exception:
                     kimlik = None
                 kayitli = kimlik in {p["id"] for p in projeler.listele()}
-                if not kayitli and not uzak.kokun_icinde(hedef, kok):
+                if not kayitli and not (hedef and Path(hedef).expanduser().is_absolute() and uzak.kokun_icinde(hedef, kok)):  # bos/goreli yol calisma klasorune cozulur: kok icinde sayilmasin
                     uzak.kayit_yaz(f"REDDEDILDI {self.client_address[0]} {hedef}")
                     return f"Uzaktan yalnizca kayitli projeler ya da {kok} altindaki klasorler acilir"
                 uzak.kayit_yaz(f"ACILDI {self.client_address[0]} {hedef}" + ("" if kayitli else " (yeni)"))

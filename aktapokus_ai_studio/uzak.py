@@ -317,7 +317,7 @@ UZAK_BILINEN_UCLAR = frozenset({
     "/api/github/gonderme-kontrol", "/api/github/issue-gorev", "/api/github/issue-yorum", "/api/github/issueler", "/api/github/klonla",
     "/api/github/pr", "/api/github/proje", "/api/github/push", "/api/github/yayin-hazirla", "/api/google", "/api/google/baglan", "/api/google/cikis",
     "/api/google/istemci", "/api/gorev", "/api/gorev-meta", "/api/gorev-sil", "/api/hesaplar", "/api/imza", "/api/istatistik", "/api/izinler",
-    "/api/klasor", "/api/klasor-ac", "/api/klasorler", "/api/konusma-ozeti", "/api/kuyruk/sil", "/api/mcp-sunuculari", "/api/mcp-sunuculari/dene",
+    "/api/kaynak", "/api/klasor", "/api/klasor-ac", "/api/klasorler", "/api/konusma-ozeti", "/api/kuyruk/sil", "/api/mcp-sunuculari", "/api/mcp-sunuculari/dene",
     "/api/mcp-sunuculari/proje", "/api/mcp-sunuculari/sil", "/api/modeller", "/api/motorlar", "/api/motorlar/rolleri-gecir", "/api/olaylar",
     "/api/oneriler", "/api/onizleme", "/api/onizleme-ac", "/api/onizleme-ekran", "/api/opcua", "/api/opcua/abone", "/api/opcua/agac",
     "/api/opcua/degerler", "/api/opcua/durdur", "/api/opcua/goz", "/api/opcua/oku", "/api/opcua/ozellik", "/api/opcua/topla", "/api/opcua/toplama",

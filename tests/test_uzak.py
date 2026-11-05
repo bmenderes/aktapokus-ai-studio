@@ -281,16 +281,19 @@ def test_terminal_ve_yonetim_anahtarlari_http_ile_acilir(sunucu):
     assert yerel("GET", "/api/uzak")[1]["dinleyici"]["calisiyor"] is True
 
 
-def test_uzaktan_klasor_acma_yalniz_kayitli_projeler(sunucu, tmp_path):
+def test_uzaktan_klasor_acma_kayitli_proje_ya_da_kok_altinda(sunucu):
     app, sv, yerel, proje = sunucu
     port, _ = ac(yerel)
-    yabanci = tmp_path / "yabanci"
-    yabanci.mkdir()
-    st, d = uzak_istek(port, "POST", "/api/klasor", {"yol": str(yabanci)})
+    disarida = proje.resolve().parent.parent  # kok: acik projenin ust klasoru
+    st, d = uzak_istek(port, "POST", "/api/klasor", {"yol": str(disarida)})
     assert st == 403 and "kayitli" in d["hata"] and app.klasor == proje.resolve()
+    assert uzak_istek(port, "POST", "/api/klasor", {"yol": "goreli"})[0] == 403
     assert uzak_istek(port, "POST", "/api/klasor", {"yol": str(proje), "git_baslat": True})[0] == 403
     assert uzak_istek(port, "POST", "/api/klasor", {"yol": ""})[0] == 403 and uzak_istek(port, "POST", "/api/klasor", {})[0] == 403
     assert uzak_istek(port, "POST", "/api/klasor", {"yol": str(proje)})[0] == 200
+    yeni = proje.resolve().parent / "yeni-klasor"
+    yeni.mkdir()
+    assert uzak_istek(port, "POST", "/api/klasor", {"yol": str(yeni)})[0] == 200  # kok altindaki kayitsiz klasor acilir
 
 
 def test_uzaktan_model_degisir_ama_gizli_dosya_korumasi_kapatilamaz(sunucu):
