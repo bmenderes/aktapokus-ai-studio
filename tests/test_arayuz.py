@@ -752,6 +752,32 @@ def test_calisan_projeye_geri_donunce_oturum_korunur(kur, tmp_path):
             e.serbest.set()
 
 
+def test_gorev_verilen_proje_yeni_pencerenin_acilis_projesi_olur(kur, tmp_path):
+    """Telefon /api/p/<proje>/gorev ile calisir: bilgisayarda yeni acilan pencere (onek yok) ayni projeyi gormeli, kapanis beklenmeden diske yazilmali."""
+    from aktapokus_ai_studio import uygulama
+
+    app, sv, api, _ = kur()
+    ikinci = _ikinci_proje(tmp_path)
+    klasor_sec(api, kur.proje)
+    a = app.secili_kimlik
+    assert api("POST", "/api/klasor", {"yol": str(ikinci)})[0] == 200  # secili: B
+    assert Path(uygulama.son_klasoru_oku()) == Path(api("GET", "/api/durum")[1]["klasor"])
+    assert api("POST", f"/api/p/{a}/gorev", {"gorev": "telefondan"})[0] == 200
+    assert app.secili_kimlik == a and api("GET", "/api/durum")[1]["proje"] == a
+    assert Path(uygulama.son_klasoru_oku()) == app.oturumlar[a].klasor
+
+
+def test_reddedilen_gorev_acilis_projesini_degistirmez(kur, tmp_path):
+    app, sv, api, _ = kur()
+    ikinci = _ikinci_proje(tmp_path)
+    klasor_sec(api, kur.proje)
+    a = app.secili_kimlik
+    assert api("POST", "/api/klasor", {"yol": str(ikinci)})[0] == 200
+    b = app.secili_kimlik
+    assert api("POST", f"/api/p/{a}/gorev", {"gorev": "  "})[0] == 400
+    assert app.secili_kimlik == b
+
+
 def test_proje_oneki_bilinmeyen_projeye_404_ve_klasor_secemez(kur):
     app, sv, api, _ = kur()
     klasor_sec(api, kur.proje)

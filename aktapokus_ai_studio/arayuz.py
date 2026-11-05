@@ -444,6 +444,7 @@ class Uygulama:
                 self.oturumlar[kimlik].yarim = devam.oku(sonuc["klasor"])
             if sec:
                 self.secili_kimlik = kimlik
+                self._son_klasoru_kaydet(sonuc["klasor"])
             try:
                 projeler.ekle_veya_guncelle(sonuc["klasor"])  # son projeler listesi (ortam cipi); hata klasor secimini engellemez
             except OSError:
@@ -451,6 +452,22 @@ class Uygulama:
             self._yayinla(self.oturumlar[kimlik], {"tur": "klasor", "klasor": str(sonuc["klasor"]), "git": sonuc["git"], "koruyucu": sonuc["koruyucu"]})
             with self.proje_baglami(kimlik):
                 return self.durum()
+
+    @staticmethod
+    def _son_klasoru_kaydet(klasor: object) -> None:
+        """Kapanisi beklemeden diske yazar: sunucu zorla kapansa da sonraki acilis son calisilan projeyle baslar."""
+        from .uygulama import son_klasoru_yaz
+
+        son_klasoru_yaz(str(klasor))
+
+    def son_calisilani_isaretle(self) -> None:
+        """Arayuzden (telefon dahil) gorev verilen proje, yeni acilan pencerenin projesi olur. Acik pencereler kendi projesinde kalir;
+        otomasyonlar ve Telegram cagirmaz: arka plan isi pencerenin acilis projesini degistirmesin."""
+        with self.kilit:
+            o = self.secili
+            if o is not None:
+                self.secili_kimlik = o.kimlik
+                self._son_klasoru_kaydet(o.klasor)
 
     def _klasor(self) -> Path:
         if self.klasor is None:
@@ -3091,7 +3108,9 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if yol == "/api/clilar/dene":
                     return self._gonder(200, app.cli_dene(g.get("ad"), g.get("model")))
                 if yol == "/api/gorev":
-                    return self._gonder(200, app.gorev_olustur(g.get("gorev"), g.get("testsiz") if isinstance(g.get("testsiz"), bool) else None, ekler=g.get("ekler"), kuyruga=g.get("kuyruga") is True, sohbet=g.get("sohbet")))
+                    sonuc = app.gorev_olustur(g.get("gorev"), g.get("testsiz") if isinstance(g.get("testsiz"), bool) else None, ekler=g.get("ekler"), kuyruga=g.get("kuyruga") is True, sohbet=g.get("sohbet"))
+                    app.son_calisilani_isaretle()
+                    return self._gonder(200, sonuc)
                 if yol == "/api/yeni-sohbet":
                     return self._gonder(200, app.yeni_konusma(g.get("ust")))
                 if yol == "/api/sohbet-sec":
