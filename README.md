@@ -125,6 +125,8 @@ Yazı kutusunun altındaki rol akışı çipine ve sol listedeki rollere tıklam
 
 ## Uzak erişim (telefondan / başka bilgisayardan, Tailscale)
 
+İki bilgisayarı (kendi bilgisayarınız + server) tek telefondan kullanmak için: [docs/iki-bilgisayar.md](docs/iki-bilgisayar.md).
+
 **Varsayılan KAPALI.** Ayarlar > **Uzak erişim**'den açılır. Arayüze [Tailscale](https://tailscale.com) özel ağındaki cihazlarınızdan ulaşırsınız; **internete açılmaz** ve uzak masaüstü gerekmez.
 
 1. Bu bilgisayara ve telefonunuza Tailscale kurup ikisinde **aynı hesapla** giriş yapın.
