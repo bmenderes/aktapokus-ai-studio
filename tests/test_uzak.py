@@ -496,6 +496,23 @@ def test_her_uc_uzak_listesinde_siniflandirilmis():
     assert set(re.findall(r'"(/api/[a-zA-Z0-9_/-]+)"', kaynak)) <= uzak.UZAK_BILINEN_UCLAR
 
 
+
+def test_dinamik_uclar_uzak_listesinde():
+    """Yolunda kimlik tasiyan her uc (re.match deseni) uzak.UZAK_DINAMIK_UCLAR'da olmali; yoksa telefondan 'tanimli degil' doner."""
+    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "arayuz.py").read_text(encoding="utf-8")
+    desenler = set(re.findall(r're\.match\(r"(\^/api/[^"]+)"', kaynak)) - {r"^/api/p/([0-9a-f]{10})(/.*)$"}
+    assert desenler and desenler <= set(uzak.UZAK_DINAMIK_UCLAR)
+
+
+def test_telefondan_plan_onayi_ve_karar_verilir():
+    a = uzak.Ayar()
+    for islem in ("onayla", "reddet", "karar", "durdur", "testi-atla"):
+        assert uzak.politika("POST", f"/api/gorev/1a2b3c/{islem}", a) is None, islem
+    assert uzak.politika("GET", "/api/beceriler/ornek-beceri", a) is None
+    assert uzak.politika("POST", "/api/gorev/1a2b3c/baska", a) and uzak.politika("POST", "/api/gorev/xyz/onayla", a)
+    assert uzak.politika("POST", "/api/telegram/baslat", a) and uzak.politika("POST", "/api/telegram/baslat", uzak.Ayar(yonetim=True)) is None
+    assert uzak.politika("POST", "/api/terminal/abcd/girdi", a) and uzak.politika("POST", "/api/terminal/abcd/girdi", uzak.Ayar(terminal=True)) is None
+
 def test_aktapokus_sirlari_ajan_ortamina_gecmez(monkeypatch, tmp_path):
     from aktapokus_ai_studio.runners import _alt_surec_ortami
     monkeypatch.setenv("AKTAPOKUS_TELEGRAM_TOKEN", "gizli")

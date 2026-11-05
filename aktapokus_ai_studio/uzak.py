@@ -328,6 +328,15 @@ UZAK_BILINEN_UCLAR = frozenset({
 })
 
 
+# Yolunda kimlik/ad tasiyan uclar (arayuz.py'deki re.match desenleriyle AYNI metin; tests/test_uzak.py eksigi yakalar).
+# Yonetim kurallari (YONETIM_KAPALIYKEN_YASAK) bunlara da onek uzerinden uygulanir.
+UZAK_DINAMIK_UCLAR = (
+    r"^/api/gorev/([0-9a-f]+)/(onayla|reddet|karar|durdur|testi-atla)$",  # plan onayi, koru/geri al, durdur
+    r"^/api/beceriler/([A-Za-z0-9-]{1,64})$",  # beceri okuma (yazma yonetim ister)
+    r"^/api/telegram/(baslat|durdur|eslestir|otomatik|ilerleme|kok|kok-sil)$",  # yonetim ister
+    r"^/api/terminal/([0-9a-f]+)/akis$", r"^/api/terminal/([0-9a-f]+)/(girdi|boyut|kapat)$",  # terminal anahtarina bagli
+)
+
 def politika(yontem: str, yol: str, ayar: Ayar) -> str | None:
     """Uzak istek icin ret sebebi (Turkce) ya da izinliyse None. Cagri oncesi /api/p/<id>/ oneki ve sorgu ayiklanmis olmali."""
     if yol == "/api/uzak" or yol.startswith("/api/uzak/"):
@@ -346,7 +355,7 @@ def politika(yontem: str, yol: str, ayar: Ayar) -> str | None:
         return "Otomasyon izinleri (onaysiz calistirma) yalnizca bu bilgisayardan degistirilebilir"
     if yol == "/api/terminal" or yol.startswith("/api/terminal/"):
         return None if ayar.terminal else "Terminal uzaktan kapali (bilgisayardan Ayarlar > Uzak erisim'den acilabilir)"
-    if yol not in UZAK_BILINEN_UCLAR:
+    if yol not in UZAK_BILINEN_UCLAR and not any(re.match(desen, yol) for desen in UZAK_DINAMIK_UCLAR):
         return "Bu islem uzaktan tanimli degil"
     if not ayar.yonetim:
         for yontemler, onek in YONETIM_KAPALIYKEN_YASAK:
