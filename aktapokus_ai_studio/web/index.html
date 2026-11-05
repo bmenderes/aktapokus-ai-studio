@@ -66,7 +66,7 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 .ek-kart .duzenle{position:absolute;left:4px;bottom:4px;width:26px;height:26px;min-height:0;padding:0;border-radius:50%;border:1px solid var(--line2);background:var(--panel);font-size:14px;line-height:1;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
 .ek-kart .x{position:absolute;top:-6px;right:-6px;width:20px;height:20px;min-height:0;padding:0;border-radius:50%;border:1px solid var(--line2);background:var(--panel);font-size:11px;line-height:1;text-align:center;cursor:pointer}
 .ek-galeri{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.ek-resim{width:150px;height:110px;object-fit:cover;border-radius:10px;border:1px solid var(--line2);cursor:zoom-in;background:var(--panel2)}
-.resim-ust{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;cursor:zoom-out}.resim-ust img{max-width:94vw;max-height:94vh;border-radius:8px;background:#fff}
+.resim-ust{position:fixed;inset:0;z-index:1000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;cursor:zoom-out}.resim-ust img{max-width:94vw;max-height:94vh;max-height:94dvh;border-radius:8px;background:#fff}
 .ek-cip img,.ek-cip .ek-simge{flex:none;width:22px;height:22px;border-radius:50%;object-fit:cover;display:inline-flex;align-items:center;justify-content:center;font-size:12px}
 .ek-cip .ad{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ek-cip .x{border:0;background:none;padding:0 3px;min-height:0;color:var(--tx3);cursor:pointer}
 #orta.surukle{outline:2px dashed var(--sari);outline-offset:-4px}
@@ -261,7 +261,9 @@ body:has(#ayarlar.on) #bolucuSol,html.ayar-tam body:has(#ayarlar.on) #bolucuSag{
 .rd-arka{position:fixed;top:0;left:0;right:0;bottom:0;z-index:60;background:var(--bg);display:flex;flex-direction:column}
 .rd-tuvalkap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:8px}
 .rd-tuval{max-width:100%;max-height:100%;touch-action:none;border-radius:6px;box-shadow:0 0 0 1px var(--line2)}
-.rd-bar{flex:none;display:flex;align-items:center;gap:8px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--panel);overflow-x:auto}
+.rd-ust{flex:none;display:flex;align-items:center;gap:8px;padding:calc(8px + env(safe-area-inset-top)) 12px 8px;border-bottom:1px solid var(--line);background:var(--panel)}
+.rd-bar{flex:none;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line);background:var(--panel)}
+.rd-arka{max-width:100vw;overflow:hidden;height:100vh;height:100dvh}
 .rd-bar button{flex:none;border-radius:999px;padding:3px 14px;white-space:nowrap}.rd-bar button.on{background:var(--panel2);border-color:var(--tx3);font-weight:600}
 .rd-bar .rd-renk{width:28px;height:28px;min-width:28px;padding:0;border:2px solid var(--line2)}
 .ik{width:1.2em;height:1.2em;vertical-align:-.22em;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
@@ -339,6 +341,9 @@ body:has(#ayarlar.on) #bolucuSol,html.ayar-tam body:has(#ayarlar.on) #bolucuSag{
   #ayarIcerik{box-sizing:border-box;max-width:100%;overflow-x:hidden;padding:10px 10px 40px}
   .ayar-satir{flex-wrap:wrap;gap:8px 12px;padding:10px 12px}
   .ayar-satir>:first-child{flex:1 1 180px;min-width:0}
+  /* proje klasoru satirinda 'Degistir' kucuk kalir, uzun yol kirilarak okunur */
+  .ayar-satir>button{flex:none;min-height:30px;padding:2px 12px;font-size:13px}
+  .ayar-satir .mut3{overflow-wrap:anywhere;word-break:break-word}
   .ayar-satir input:not([type=checkbox]),.ayar-satir select{max-width:100%}
   .mobil-dugme{display:inline-flex;align-items:center;justify-content:center;min-height:30px;padding:0 9px;border:1px solid var(--line2);border-radius:8px;background:var(--panel)}
 }
@@ -555,8 +560,10 @@ function modelListesiCiz(icerik,kap,yenile){icerik.className="";icerik.textConte
   const bagli=S.saglayicilar.filter(s=>s.bagli);
   const sayi=id=>S.canliModeller.filter(m=>m.saglayici===id).length;
   if(!bagli.length)icerik.append(e("div",{class:"mut3",text:"Henüz anahtarla bağlanmış sağlayıcı yok. Yerleşik ücretsiz OpenCode modelleri kullanılabilir ("+sayi("opencode")+" model)."}));
-  for(const s of bagli){const sat=e("div",{class:"card"},e("div",{class:"row",style:"justify-content:space-between"},e("span",{class:"row"},e("b",{text:s.ad}),e("span",{class:"badge b-ok",text:"bağlı"}),e("span",{class:"mut3",text:sayi(s.id)+" model"})),
-      e("span",{class:"row"},...s.baglantilar.map(b=>e("button",{text:"Kaldır"+(s.baglantilar.length>1?" ("+(b.label||b.id.slice(-4))+")":""),onclick:async()=>{if(!confirm(s.ad+" bağlantısı kaldırılsın mı? (Anahtar OpenCode'dan silinir; bu sağlayıcıyı kullanan roller çalışmaz.)"))return;try{await api("/api/saglayicilar/kaldir",{method:"POST",body:{baglanti:b.id}});yenile()}catch(x){alert(x.message)}}})))));icerik.append(sat)}
+  for(const s of bagli){const detay=e("div",{style:"margin-top:6px"});let acik=false;  /* Dene: bu sağlayıcının modellerini listeler, anahtarı dener, role atar (eskiden yalnız bağlama sihirbazından sonra görünürdü) */
+    const dene=e("button",{text:"Dene",title:"Modelleri göster, anahtarı dene, role ata",onclick:()=>{acik=!acik;detay.textContent="";if(acik)model2(detay,s.id)}});
+    const sat=e("div",{class:"card"},e("div",{class:"row",style:"justify-content:space-between"},e("span",{class:"row"},e("b",{text:s.ad}),e("span",{class:"badge b-ok",text:"bağlı"}),e("span",{class:"mut3",text:sayi(s.id)+" model"})),
+      e("span",{class:"row"},dene,...s.baglantilar.map(b=>e("button",{text:"Kaldır"+(s.baglantilar.length>1?" ("+(b.label||b.id.slice(-4))+")":""),onclick:async()=>{if(!confirm(s.ad+" bağlantısı kaldırılsın mı? (Anahtar OpenCode'dan silinir; bu sağlayıcıyı kullanan roller çalışmaz.)"))return;try{await api("/api/saglayicilar/kaldir",{method:"POST",body:{baglanti:b.id}});yenile()}catch(x){alert(x.message)}}})))),detay);icerik.append(sat)}
   icerik.append(e("button",{class:"pri",style:"margin-top:6px",text:"+ Model ekle",onclick:()=>modelSihirbazi(icerik,yenile)}))}
 function modelSihirbazi(icerik,yenile){const eski=$("#modelSihirbazi");if(eski){eski.remove();return}
   const k=e("div",{class:"card",id:"modelSihirbazi"});
@@ -1267,7 +1274,7 @@ async function resimDuzenle(dosya){
     const yenile=()=>{if(rafB)return;rafB=requestAnimationFrame(()=>{rafB=0;ciz()})};
     const nokta=ev=>{const r=cv.getBoundingClientRect();return[(ev.clientX-r.left)*cv.width/r.width,(ev.clientY-r.top)*cv.height/r.height]};
     const sinir=(v,m)=>Math.max(0,Math.min(m,v));
-    const bar=e("div",{class:"rd-bar"}),arka=e("div",{class:"rd-arka"},e("div",{class:"rd-tuvalkap"},cv),bar);
+    const ust=e("div",{class:"rd-ust"}),bar=e("div",{class:"rd-bar"}),arka=e("div",{class:"rd-arka"},ust,e("div",{class:"rd-tuvalkap"},cv),bar);
     const bitir=s=>{arka.remove();coz(s)};
     const dugme=(ad,fn,sinif)=>e("button",{type:"button",class:sinif||"",text:ad,onclick:fn});
     const modDugme=dugme("Çiz",()=>modAyarla("ciz"),"on"),kesDugme=dugme("Kırp",()=>modAyarla("kes")),uygula=dugme("Uygula",()=>kesUygula(),"pri"),renkDugme=e("button",{type:"button",class:"rd-renk",title:"Kalem rengi","aria-label":"Kalem rengi",onclick:()=>{renk=(renk+1)%RENKLER.length;renkDugme.style.background=RENKLER[renk]}});
@@ -1289,7 +1296,9 @@ async function resimDuzenle(dosya){
     const tamam=()=>{if(mod==="kes"&&kes)kesUygula();
       if(!gecmis.length)return bitir(dosya);
       kes=null;ciz();cv.toBlob(b=>bitir(b?new File([b],(dosya.name||"foto").replace(/\.[^.]+$/,"")+"-duzenli.jpg",{type:"image/jpeg"}):dosya),"image/jpeg",.9)};
-    bar.append(dugme("İptal",()=>bitir(null)),modDugme,kesDugme,renkDugme,dugme("Geri al",geriAl),uygula,e("span",{style:"flex:1"}),dugme("Tamam",tamam,"pri"));
+    /* Ust satir: Iptal | Tamam (her ekranda tam gorunur); alt satir: araclar (sigmazsa alt satira iner, yana kaymaz) */
+    ust.append(dugme("İptal",()=>bitir(null)),e("span",{style:"flex:1"}),dugme("Tamam",tamam,"pri"));
+    bar.append(modDugme,kesDugme,renkDugme,dugme("Geri al",geriAl),uygula);
     document.body.append(arka);ciz()})}
 /* Galeri/kameradan gelen resimler once duzenleyiciden gecer (Tamam = eklenir, Iptal = eklenmez); video ve dosyalar dogrudan eklenir. */
 async function ekDuzenleyerekEkle(dosyalar){const son=[];
