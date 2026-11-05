@@ -34,7 +34,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Callable
 
-from . import nodered, masaustu, ag_araci, ag_profil, bootp, google_giris, opcua, opcua_ayar, opcua_depo, opcua_toplayici, arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, google_oku, oneriler, izinler, uyanik, otomatik_baslat, gonderme_kontrol, yayin
+from . import nodered, masaustu, ag_araci, ag_profil, bootp, google_giris, kaynak, opcua, opcua_ayar, opcua_depo, opcua_toplayici, arac_oturumlari, beceri_kaynak, haber, beceriler, canli, ciktilar, claude_oturumlari, ekran, clitanim, github, gityonet, devam, gorevmeta, guard, hesaplar, motorlar, otomasyon, otomasyon_akis, uzak, istatistik, mcptanim, projeler, snapshot, terminal, web_getir, google_oku, oneriler, izinler, uyanik, otomatik_baslat, gonderme_kontrol, yayin
 from .zamanlayici import Zamanlayici
 from .config import AyarHatasi, ayar_coz, ayar_model_gecersiz, ayar_yolu, ayar_yukle
 from .klasor import KlasorHatasi, guvenli_klasor
@@ -305,6 +305,7 @@ class Uygulama:
         saglayici_istemci_uret: Callable[[], object] | None = None,
     ):
         self.calistirici_uret = calistirici_uret
+        self._kaynak = kaynak.Izleyici()  # bilgisayarin toplam CPU/GPU yuzdesi (olcum yalniz biri isteyince ve ~30 sn surer)
         self._google = None  # google_giris.Yonetici: ilk kullanimda olusur
         self._opcua_toplayici = None
         self._bootp = None
@@ -2863,6 +2864,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.telegram_islem("durum", {}))
                 if yol == "/api/google":
                     return self._gonder(200, app.google_islem("durum", {}))
+                if yol == "/api/kaynak":
+                    return self._gonder(200, app._kaynak.oku())
                 if yol == "/api/mcp-sunuculari":
                     return self._gonder(200, app.mcp_listele())
                 if yol == "/api/opcua":

@@ -318,6 +318,11 @@ body:has(#ayarlar.on) #bolucuSol,html.ayar-tam body:has(#ayarlar.on) #bolucuSag{
   #mobilMenu button.on{background:var(--panel2);color:var(--tx);box-shadow:none;font-weight:600}
   #mobilMenu .mm-ayrac{height:1px;background:var(--line);margin:4px 0;flex:none}
   #mobilDurum{flex:none;margin-bottom:2px}#mobilDurum #durumCubugu{display:flex;border:0;background:none;padding:4px 8px}
+  /* menudeki durum alani: iki satir alt alta (git/durum ustte; CPU-GPU ve token altta), hicbiri kesilmez */
+  #mobilDurum #durumCubugu{flex-direction:column;align-items:stretch;gap:4px;overflow:visible;font-size:12px}
+  #mobilDurum #durumCubugu>.row{flex-wrap:wrap;overflow:visible;white-space:normal;flex:none;min-height:0}
+  #mobilDurum #tokenYazi{display:inline!important}#mobilDurum #tokenYazi+span{display:none!important}
+  #kaynakYazi{white-space:nowrap}
   #sohbetBaslik,#sekmeler,#solKaydir{padding-right:46px}
   /* ayarlar ve terminal tum ekrani kaplar (ust cubuk yok): arkadaki Yeni/Proje gorunmez; menu dugmesi ustte kalir */
   #ayarlar,#terminalSayfa{position:fixed;top:0;left:0;right:0;bottom:0;height:100dvh}
@@ -392,7 +397,7 @@ body:has(#ayarlar.on) #bolucuSol,html.ayar-tam body:has(#ayarlar.on) #bolucuSag{
 <div class="mm-ayrac"></div><button id="mmAyar">Ayarlar</button><button id="mmTerminal">Terminal</button><button id="mmTam">Tam ekran</button></div>
 <div id="durumCubugu">
   <div class="row"><span id="gitRozet"></span><span id="korRozet"></span><span id="durumMetni" class="durum-hazir">Hazır</span><span id="gecenSure" class="mut3 mono" title="Geçen süre"></span></div>
-  <div class="row mut"><span id="tokenYazi">token 0</span><span style="width:70px;height:4px;background:var(--panel2);border-radius:2px;display:inline-block"><span id="tokenCubuk" style="display:block;height:4px;width:0;background:var(--tx2);border-radius:2px"></span></span><span id="baglanti" class="badge">bağlanıyor</span></div>
+  <div class="row mut"><span id="kaynakYazi" class="mono" title="Bilgisayarın toplam işlemci (CPU) ve ekran kartı (GPU) kullanımı; bu bilgisayarı kullanan herkes dahil"></span><span id="tokenYazi">token 0</span><span style="width:70px;height:4px;background:var(--panel2);border-radius:2px;display:inline-block"><span id="tokenCubuk" style="display:block;height:4px;width:0;background:var(--tx2);border-radius:2px"></span></span><span id="baglanti" class="badge">bağlanıyor</span></div>
 </div>
 <div id="ayarlar"><button id="ayarMenuDugme" title="Menüyü aç/kapat" aria-label="Menüyü aç/kapat">‹</button><div id="ayarMenu"></div><div id="ayarIcerik"></div></div>
 <div id="terminalSayfa"><div id="trmUst"></div><div id="trmGovde"><div id="trmTelegram"></div><div id="trmMesaj"></div></div></div>
@@ -508,6 +513,9 @@ S.altaYapisik=true;(()=>{const a=$("#akis"),sabitle=()=>{if(S.altaYapisik)a.scro
   if(window.ResizeObserver){const ro=new ResizeObserver(sabitle);ro.observe(a);for(const c of a.children)ro.observe(c);new MutationObserver(m=>{for(const x of m)for(const n of x.addedNodes)if(n.nodeType===1)ro.observe(n)}).observe(a,{childList:true})}})();
 function alttaGoster(){S.altaYapisik=true;const a=$("#akis"),git=()=>{if(S.altaYapisik)a.scrollTop=a.scrollHeight};git();requestAnimationFrame(git);setTimeout(git,250);setTimeout(git,1000)}  /* düzen/resim/yazı tipi sonradan oturunca da en altta kalsın; kullanıcı yukarı kaydırırsa (altaYapisik=false) dokunmaz */
 function gunluge(m){const g=$("#gunluk");g.append(e("div",{class:"mut",text:new Date().toLocaleTimeString(DIL.yerel)+"  "+m}))}
+/* Bilgisayarin toplam CPU/GPU yuzdesi (baska kullanicilarin yuku dahil): durum cubugunda sade metin; sekme gorunurken 3 sn'de bir */
+async function kaynakGuncelle(){if(document.hidden)return;try{const k=await api("/api/kaynak");const p=[];if(k.cpu!=null)p.push("CPU "+Math.round(k.cpu)+"%");if(k.gpu!=null)p.push("GPU "+Math.round(k.gpu)+"%"+(k.gpu_bellek!=null?" · VRAM "+Math.round(k.gpu_bellek)+"%":""));$("#kaynakYazi").textContent=p.join(" · ")}catch(x){}}
+setInterval(kaynakGuncelle,3000);setTimeout(kaynakGuncelle,500);
 function tokenGuncelle(t){$("#tokenYazi").textContent="token "+t.toLocaleString(DIL.yerel);$("#tokenCubuk").style.width="0%"}  /* limit yok: yalniz sayac */
 function rolDuzenle(ad){ayarAc("roller")}
 /* ---- Ajanlar sekmesi: roller (calistirici + model) ve CLI'lar (listele/dene/ekle/sil) ---- */
