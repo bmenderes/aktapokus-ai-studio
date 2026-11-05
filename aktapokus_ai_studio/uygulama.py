@@ -228,10 +228,10 @@ def kapaniyor_mu() -> bool:
     return pencere_durumu() == "kopuk"
 
 
-def mevcut_pencereyi_one_getir() -> bool:
-    """Acik Aktapokus uygulama penceresini (Edge/Chrome 'Aktapokus' basligi) one getirir; bulunursa True. Yalniz Windows."""
+def _aktapokus_pencereleri() -> list[int]:
+    """Gorunur Aktapokus uygulama pencereleri (Edge/Chrome 'Aktapokus' basligi). Yalniz Windows; hata olursa bos liste."""
     if sys.platform != "win32":
-        return False
+        return []
     try:
         import ctypes
         from ctypes import wintypes
@@ -253,8 +253,24 @@ def mevcut_pencereyi_one_getir() -> bool:
             return True
 
         u.EnumWindows(islev_tipi(bak), 0)
-        if not bulunan:
-            return False
+        return bulunan
+    except Exception:
+        return []
+
+
+def pencere_acik_mi() -> bool:
+    return bool(_aktapokus_pencereleri())
+
+
+def mevcut_pencereyi_one_getir() -> bool:
+    """Acik Aktapokus uygulama penceresini one getirir; bulunursa True. Yalniz Windows."""
+    bulunan = _aktapokus_pencereleri()
+    if not bulunan:
+        return False
+    try:
+        import ctypes
+
+        u = ctypes.windll.user32
         u.ShowWindow(bulunan[0], 9)  # SW_RESTORE (simge durumundaysa)
         u.SetForegroundWindow(bulunan[0])
         return True
@@ -311,16 +327,29 @@ ACILIS_SURESI_SN = 90.0  # pencere bu surede sunucuya hic baglanmazsa vazgecilir
 KOPMA_TOLERANSI_SN = 20.0  # baglanti bu kadar suredir yoksa pencere kapanmis sayilir (yenileme/kisa kopmalar tolere edilir)
 
 
-def pencere_bekle(baglanti_say: Callable[[], int], bekle_sn: float, acilis_sn: float, kopma_sn: float, saat: Callable[[], float] = time.monotonic, erken_cik: Callable[[], bool] | None = None) -> str:
-    """'kapandi' (en az bir kez baglandi, sonra kopma_sn boyunca baglanti yok) ya da 'baglanmadi' (acilis_sn icinde hic baglanmadi)."""
-    baslangic = son = saat()
-    gorulen = False
+def pencere_bekle(baglanti_say: Callable[[], int], bekle_sn: float, acilis_sn: float, kopma_sn: float, saat: Callable[[], float] = time.monotonic, erken_cik: Callable[[], bool] | None = None, pencere_acik: Callable[[], bool] | None = None) -> str:
+    """'kapandi' (en az bir kez baglandi, sonra kopma_sn boyunca baglanti yok) ya da 'baglanmadi' (acilis_sn icinde hic baglanmadi).
+
+    GERCEK HATA: bilgisayar uykudan uyaninca baglanti kopuk bulundu; saat uykuyu da saydigi icin tolerans o anda dolmus gorundu, sunucu kapandi. Pencere
+    "Failed to fetch" ile acik kaldi, telefon da baglanamadi. Bu yuzden: yoklama uzun sure durduysa (uyku) sure bastan baslar; gercek pencere aciksa kapanilmaz."""
+    baslangic = son = onceki = saat()
+    gorulen = bildirildi = False
     while True:
         simdi = saat()
+        if simdi - onceki > kopma_sn:  # yoklama bu kadar durduysa bilgisayar uyumustur: gecen sure kopma sayilmaz
+            baslangic = son = simdi
+        onceki = simdi
         if baglanti_say() > 0:
-            gorulen, son = True, simdi
-        elif gorulen and (simdi - son > kopma_sn or (erken_cik is not None and erken_cik())):  # erken_cik: yeni acma istegi geldi, pencere zaten kopuk
+            gorulen, son, bildirildi = True, simdi, False
+        elif gorulen and erken_cik is not None and erken_cik():  # yeni acma istegi geldi, pencere zaten kopuk
             return "kapandi"
+        elif gorulen and simdi - son > kopma_sn:
+            if pencere_acik is None or not pencere_acik():
+                return "kapandi"
+            son = simdi  # pencere acik: sayfa yeniden baglanir, sunucu kapanmaz
+            if not bildirildi:
+                bildirildi = True
+                log_yaz("baglanti koptu ama pencere acik: sunucu acik kaliyor")
         elif not gorulen and simdi - baslangic > acilis_sn:
             return "baglanmadi"
         time.sleep(bekle_sn)
@@ -568,7 +597,7 @@ def _calistir(klasor, port, pencere_ac, bekle_sn, tarayici, baglanti_say, acilis
     try:
         t_ac = time.monotonic()
         pencere_acici(komut)  # surec ID'sine/ömrüne güvenilmez (devir olabilir)
-        sonuc = pencere_bekle(izle, bekle_sn, acilis_sn, kopma_sn, erken_cik=devral_var_mi)
+        sonuc = pencere_bekle(izle, bekle_sn, acilis_sn, kopma_sn, erken_cik=devral_var_mi, pencere_acik=pencere_acik_mi)
         if sonuc == "baglanmadi":
             hata_goster(f"Pencere {acilis_sn:.0f} sn icinde arayuze baglanamadi. Tarayici penceresi acildiysa kapatip kisayola yeniden tiklayin.")
             return 1

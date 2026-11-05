@@ -108,6 +108,7 @@ def mcp_ve_beceri_yalitimi(tmp_path_factory, monkeypatch):
     from aktapokus_ai_studio import uygulama as _uygulama
 
     monkeypatch.setattr(_uygulama, "mevcut_pencereyi_one_getir", lambda: False)  # testler kullanicinin gercek Aktapokus penceresini one getirmesin
+    monkeypatch.setattr(_uygulama, "pencere_acik_mi", lambda: False)  # kullanicinin gercek penceresi acikken testteki sunucu kapanabilsin
     monkeypatch.setenv("AKTAPOKUS_IZINLER", str(tmp_path_factory.mktemp("izinler") / "izinler.json"))  # genel izinler gercek ~/.aktapokus altina yazilmasin
     monkeypatch.setenv("AKTAPOKUS_OTOMASYON", str(tmp_path_factory.mktemp("otomasyon") / "otomasyonlar.json"))  # testler gercek otomasyon tanimlarina dokunmasin
     monkeypatch.setenv("AKTAPOKUS_GOREV_META", str(tmp_path_factory.mktemp("gorevmeta") / "gorev-meta.json"))  # sabitle/arsivle bilgileri gercek ~/.aktapokus altina yazilmasin

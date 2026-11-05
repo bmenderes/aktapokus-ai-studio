@@ -428,6 +428,31 @@ def test_pencere_bekle_kisa_kopmalari_tolere_eder():
     assert gorulen_sonuc["v"] == "kapandi" and kalan == []  # 10 yoklamanin HEPSI tuketildi: arada erken kapanmadi
 
 
+def test_pencere_bekle_uykudan_uyaninca_kapanmaz():
+    """Gercek hata: 18 saatlik uykudan sonra baglanti kopuk bulundu, sunucu aninda kapandi. Sayfa yeniden baglanirsa calismayi surdurmeli."""
+    zaman = iter([0, 1, 2, 60000, 60001, 60010, 60020, 60030])
+    baglanti = iter([1, 1, 0, 1, 0, 0, 0])
+    gorulen = []
+
+    def say():
+        gorulen.append(1)
+        return next(baglanti)
+
+    assert uygulama.pencere_bekle(say, 0, 90, 20, lambda: next(zaman)) == "kapandi"
+    assert len(gorulen) == 7  # uyanir uyanmaz degil, ancak yeniden baglanip gercekten kopunca kapandi
+
+
+def test_pencere_acikken_baglanti_kopsa_da_kapanmaz_pencere_kapaninca_kapanir():
+    acik = iter([True, True, False])
+    assert _bekle_pencereli([1], acik) == "kapandi"
+    assert next(acik, "bitti") == "bitti"  # uc kez soruldu: ilk ikisinde pencere acikti, sunucu kapanmadi
+
+
+def _bekle_pencereli(dizi, acik):
+    kalan = list(dizi)
+    return uygulama.pencere_bekle(lambda: kalan.pop(0) if kalan else 0, 0, 90, 5, SahteSaat(), pencere_acik=lambda: next(acik))
+
+
 def test_pencere_bekle_hic_baglanmazsa_baglanmadi_ve_baglantidan_once_kapandi_denmez():
     assert _bekle([], acilis=10) == "baglanmadi"
     # tolerans acilis suresinden KISA olsa bile hic baglanmamis pencere 'kapandi' sayilmaz
