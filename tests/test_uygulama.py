@@ -628,3 +628,52 @@ def test_uzak_erisim_kurulumu_yavas_olsa_da_pencere_hemen_acilir(proje, tmp_path
     assert kod == 1  # hic baglanti olmadi: acilis zaman asimi (bu testin konusu degil)
     assert cagrildi.wait(5), "uzak kurulum yine de calistirilmali"
     assert acilis["sn"] < 2.0, f"pencere uzak kurulumu beklememeli ({acilis['sn']:.1f} sn)"
+
+
+class _SahteUzakSunucu:
+    """uzak_uygula ilk `basarisiz` cagride dinleyici kuramaz (Tailscale henuz hazir degil), sonra kurar."""
+    def __init__(self, basarisiz: int, acik: bool = True):
+        self.kapaniyor = threading.Event()
+        self.uzak_ayar = SimpleNamespace(acik=acik)
+        self.uzak_dinleyici = None
+        self.uzak_hata = None
+        self.cagri = 0
+        self._basarisiz = basarisiz
+
+    def uzak_uygula(self):
+        self.cagri += 1
+        if not self.uzak_ayar.acik:
+            return
+        if self.cagri <= self._basarisiz:
+            self.uzak_hata = "Tailscale adresi bulunamadi"
+        else:
+            self.uzak_dinleyici, self.uzak_hata = object(), None
+
+
+def _kosul_bekle(kosul, sn=5.0):
+    bitis = time.time() + sn
+    while time.time() < bitis and not kosul():
+        time.sleep(0.01)
+    return kosul()
+
+
+def test_uzak_dinleyici_tailscale_gec_gelirse_yeniden_denenir():
+    s = _SahteUzakSunucu(basarisiz=2)
+    t = threading.Thread(target=uygulama.uzak_kur_ve_bekle, args=(s, 0.02), daemon=True)
+    t.start()
+    assert _kosul_bekle(lambda: s.uzak_dinleyici is not None) and s.cagri == 3
+    time.sleep(0.15)
+    assert s.cagri == 3  # kurulduktan sonra bir daha denenmez (acik baglantilar kesilmesin)
+    s.kapaniyor.set()
+    t.join(2)
+    assert not t.is_alive()
+
+
+def test_uzak_erisim_kapaliysa_yeniden_denenmez():
+    s = _SahteUzakSunucu(basarisiz=0, acik=False)
+    t = threading.Thread(target=uygulama.uzak_kur_ve_bekle, args=(s, 0.02), daemon=True)
+    t.start()
+    time.sleep(0.15)
+    s.kapaniyor.set()
+    t.join(2)
+    assert s.cagri == 1 and not t.is_alive()

@@ -530,13 +530,31 @@ def uygulama_calistir(
 def _uzak_arka_planda(sunucu) -> None:
     """Uzak erisim kurulumu ayri iplikte: Tailscale komutlari (ozellikle `serve`: HTTPS acik degilse 15 sn'ye kadar bekler) pencere acilisini GECIKTIRMESIN.
     GERCEK HATA: ayarda uzak erisim + https aciksa her acilis ~17 sn surup pencere gec geliyordu (kullanici kisayola iki kez tikliyordu)."""
-    def is_() -> None:
+    threading.Thread(target=uzak_kur_ve_bekle, args=(sunucu,), daemon=True, name="uzak-kurulum").start()
+
+
+def uzak_kur_ve_bekle(sunucu, aralik: float = 30.0) -> None:
+    """Uzak dinleyiciyi kurar; kurulamadiysa (ayar acik ama dinleyici yok) uygulama kapanana kadar `aralik` sn'de bir yeniden dener.
+    GERCEK HATA: bilgisayar acilisinda uygulama Tailscale'den once basladi, dinleyici hic kurulmadi ve telefon gun boyu baglanamadi."""
+    def dene() -> None:
         try:
             sunucu.uzak_uygula()
         except Exception as hata:
             log_yaz(f"Uzak erisim kurulamadi: {type(hata).__name__}")
 
-    threading.Thread(target=is_, daemon=True, name="uzak-kurulum").start()
+    dene()
+    bekliyor = False
+    while True:
+        eksik = sunucu.uzak_ayar.acik and sunucu.uzak_dinleyici is None
+        if eksik and not bekliyor:
+            log_yaz(f"uzak erisim kurulamadi, {aralik:g} sn'de bir yeniden denenecek: {sunucu.uzak_hata or 'bilinmeyen hata'}")
+        elif bekliyor and not eksik and sunucu.uzak_dinleyici is not None:
+            log_yaz("uzak erisim yeniden denemede kuruldu")
+        bekliyor = eksik
+        if sunucu.kapaniyor.wait(aralik):
+            return
+        if sunucu.uzak_ayar.acik and sunucu.uzak_dinleyici is None:
+            dene()
 
 
 def _calistir(klasor, port, pencere_ac, bekle_sn, tarayici, baglanti_say, acilis_sn, kopma_sn) -> int:
