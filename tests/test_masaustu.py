@@ -219,3 +219,13 @@ def test_ekran_goruntusu_monitor_okunamazsa_tum_ekrana_duser(monkeypatch):
     monkeypatch.setattr(masaustu, "_sanal_ekran", lambda: (0, 0, 1920, 1080))
     _, bilgi = masaustu.ekran_goruntusu()
     assert (c["gen"], c["yuk"]) == (1920, 1080) and bilgi["ekran_sayisi"] == 1
+
+
+def test_engelli_gruplar_varsayilan_listeyi_olusturur_ve_grup_kaldirilabilir(tmp_path, monkeypatch):
+    """Ayarlar > Masaustu gruplari (PLC / kabuk / parola) tek tikla acip kapatir: grup cikarilinca yalniz o programlar serbest kalir."""
+    monkeypatch.setenv("AKTAPOKUS_MASAUSTU", str(tmp_path))
+    assert set(masaustu.ENGELLI_GRUPLAR) == {"plc", "kabuk", "parola"}
+    assert set(masaustu.ENGELLI_PROGRAMLAR) == {p for g in masaustu.ENGELLI_GRUPLAR.values() for p in g}
+    assert masaustu.program_engelli("LogicBuilder.exe") and masaustu.program_engelli("cmd.exe")
+    masaustu.ayar_yaz(programlar=[p for p in masaustu.ENGELLI_PROGRAMLAR if p not in masaustu.ENGELLI_GRUPLAR["plc"]])
+    assert not masaustu.program_engelli("LogicBuilder.exe") and masaustu.program_engelli("cmd.exe") and masaustu.program_engelli("KeePass.exe")

@@ -2144,12 +2144,19 @@ async function noderedBolumu(h){const kap=e("div");h.append(kap);const dur=()=>{
   await ciz()}
 /* Masaustu kontrolu (Ayarlar > Masaustu): proje bazinda acilir; ajan program acar, ekrani gorur, tiklar ve yazar. Engelli programlara girdi gitmez. */
 async function masaustuBolumu(h){const kap=e("div");h.append(kap);const yaz=async g=>{try{kap.textContent="";ciz(await api("/api/masaustu",g?{method:"POST",body:g}:undefined))}catch(x){kap.textContent=x.message}};
+  const GRUP_AD={plc:"PLC yazılımları",kabuk:"Komut satırı ve sistem araçları",parola:"Parola yöneticileri"};
   const ciz=d=>{if(!d.destek){kap.append(e("div",{class:"mut",text:"Yalnız Windows'ta çalışır."}));return}
-    const kutu=e("input",{type:"checkbox",disabled:!d.proje});kutu.checked=d.acik;kutu.onchange=()=>yaz({acik:kutu.checked});
-    kap.append(e("div",{class:"ag-satir",style:"border:0"},e("label",{class:"row",style:"gap:8px"},kutu,e("span",{text:d.proje?"Bu projede açık: "+d.proje:"Önce bir proje seçin"})),e("button",{class:d.durduruldu?"pri":"",text:d.durduruldu?"Devam et":"Tümünü durdur",onclick:()=>yaz({durduruldu:!d.durduruldu})})));
+    const kutu=e("input",{type:"checkbox",style:"width:auto;flex:none",disabled:!d.proje});kutu.checked=d.acik;kutu.onchange=()=>yaz({acik:kutu.checked});
+    kap.append(e("div",{class:"ag-satir",style:"border:0"},e("label",{class:"row",style:"gap:8px"},kutu,e("span",{text:d.proje?"Bu projede açık":"Önce bir proje seçin"})),e("button",{class:d.durduruldu?"pri":"",text:d.durduruldu?"Devam et":"Tümünü durdur",onclick:()=>yaz({durduruldu:!d.durduruldu})})));
     kap.append(e("div",{class:"badge b-warn",style:"display:block;white-space:normal;margin:6px 0",text:"Ajan bu bilgisayarı sizin adınıza kullanır; ekran görüntüleri model sağlayıcısına gider. Durdurmak için fareyi sol üst köşeye götürün."}));
-    const liste=e("input",{class:"mono",style:"width:100%",value:d.programlar.join(", ")});
-    kap.append(e("div",{class:"mut",style:"margin-top:8px",text:"Engelli programlar"}),e("div",{class:"ag-satir",style:"border:0"},liste,e("button",{text:"Kaydet",onclick:()=>yaz({programlar:liste.value.split(",").map(x=>x.trim()).filter(Boolean)})})));
+    const var_=new Set(d.programlar),gruplar=d.gruplar||{},grupta=new Set(Object.values(gruplar).flat());
+    kap.append(e("div",{class:"mut",style:"margin-top:8px",text:"Engelli programlar"}));
+    for(const [ad,uyeler] of Object.entries(gruplar)){const say=uyeler.filter(u=>var_.has(u)).length;const k=e("input",{type:"checkbox",style:"width:auto;flex:none"});k.checked=say===uyeler.length;k.indeterminate=say>0&&say<uyeler.length;
+      k.onchange=()=>yaz({programlar:k.checked?[...new Set([...d.programlar,...uyeler])]:d.programlar.filter(p=>!uyeler.includes(p))});
+      kap.append(e("div",{class:"ag-satir",style:"border:0"},e("label",{class:"row",style:"gap:8px",title:uyeler.join(", ")},k,e("span",{text:GRUP_AD[ad]||ad}))))}
+    if(gruplar.plc&&gruplar.plc.some(u=>!var_.has(u)))kap.append(e("div",{class:"badge b-warn",style:"display:block;white-space:normal;margin:6px 0",text:"PLC yazılımları açık: ajan indirme ve çevrimiçi değişiklik düğmelerine de basabilir."}));
+    const diger=d.programlar.filter(p=>!grupta.has(p));const yeni=e("input",{class:"mono",placeholder:"program adı",style:"width:150px"});const ekle=()=>{const v=yeni.value.trim().toLowerCase();if(v&&!var_.has(v))yaz({programlar:[...d.programlar,v]})};yeni.onkeydown=ev=>{if(ev.key==="Enter")ekle()};
+    kap.append(e("div",{class:"ag-satir",style:"border:0;flex-wrap:wrap;gap:6px"},...diger.map(p=>e("span",{class:"cip"},e("span",{class:"mono",text:p}),e("button",{class:"ikon",title:"Engeli kaldır",style:"border:0;background:none;padding:0 2px",text:"×",onclick:()=>yaz({programlar:d.programlar.filter(x=>x!==p)})}))),yeni,e("button",{text:"Ekle",onclick:ekle})));
     if(d.kayit.length){kap.append(e("div",{class:"mut",style:"margin-top:8px",text:"Son işlemler"}));for(const k of d.kayit)kap.append(e("div",{class:"ag-satir"},e("span",{class:"mono mut",style:"width:150px",text:k.zaman}),e("span",{style:"width:120px",text:k.arac}),e("span",{class:"mut ag-ge",text:(k.sonuc!=="tamam"?k.sonuc:k.ozet)||""})))}};
   await yaz()}
 function yardimPaneli(bolum){const adres=(DIL.kod==="en"?"/yardim/otomasyon-en.html":"/yardim/otomasyon.html")+(bolum?"#"+bolum:"");let p=$("#yardimPaneli");

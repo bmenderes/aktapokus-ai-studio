@@ -1311,7 +1311,7 @@ class Uygulama:
     def masaustu_durum(self) -> dict:
         o = self.secili
         t = mcptanim.yukle().get("masaustu")
-        return {**masaustu.ayar_oku(), "destek": sys.platform == "win32", "proje": o.klasor.name if o else None, "acik": bool(o and t and o.kimlik in t.projeler), "kayit": masaustu.kayit_oku(15)}
+        return {**masaustu.ayar_oku(), "destek": sys.platform == "win32", "proje": o.klasor.name if o else None, "acik": bool(o and t and o.kimlik in t.projeler), "kayit": masaustu.kayit_oku(15), "gruplar": {ad: list(g) for ad, g in masaustu.ENGELLI_GRUPLAR.items()}}
 
     def masaustu_ayarla(self, g: dict) -> dict:
         o = self.secili

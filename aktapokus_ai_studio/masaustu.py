@@ -18,8 +18,13 @@ import zlib
 from pathlib import Path
 
 AZAMI_GENISLIK = 1280
-ENGELLI_PROGRAMLAR = ("logicbuilder", "machineexpert", "somachine", "codesys", "pd-netmanage", "netmanage", "tiaportal", "portal", "studio5000", "rslogix", "twincat", "xaeshell", "gxworks", "cxprogrammer",
-                      "cmd", "powershell", "pwsh", "windowsterminal", "wt", "conhost", "regedit", "mmc", "keepass", "1password", "bitwarden", "lastpass")
+# Arayuzde grup olarak acilip kapanir (Ayarlar > Masaustu); varsayilan: hepsi engelli.
+ENGELLI_GRUPLAR = {
+    "plc": ("logicbuilder", "machineexpert", "somachine", "codesys", "pd-netmanage", "netmanage", "tiaportal", "portal", "studio5000", "rslogix", "twincat", "xaeshell", "gxworks", "cxprogrammer"),
+    "kabuk": ("cmd", "powershell", "pwsh", "windowsterminal", "wt", "conhost", "regedit", "mmc"),
+    "parola": ("keepass", "1password", "bitwarden", "lastpass"),
+}
+ENGELLI_PROGRAMLAR = tuple(p for g in ENGELLI_GRUPLAR.values() for p in g)
 ENGELLI_BASLIK_TAM = ("aktapokus",)  # kendi arayuzumuz
 KILIT_PROGRAMLARI = ("lockapp.exe", "logonui.exe", "consent.exe", "credentialuibroker.exe")  # kilit ekrani ve parola/izin sorulari: listeden kaldirilamaz
 ENGELLI_BASLIK_ICERIR = ("node-red",)  # akislari PLC'ye yazabilir
