@@ -108,6 +108,17 @@ def tam_kosu(app, api, proje, karar=True, gorev="yeni.txt ekle"):
     return plan
 
 
+def test_adimini_ac(app, api, proje):
+    """Yeni projede ayri test adimi kapali gelir; test rolunun de calismasini bekleyen testler onu acar."""
+    klasor_sec(api, proje)
+    ayar = app.ayar_oku()
+    ayar["testi_atla"] = False
+    app.ayar_yaz(ayar)
+
+
+test_adimini_ac.__test__ = False
+
+
 # ---------- kimlik / host ----------
 def test_token_ve_host_zorunlu(kur):
     app, sv, api, _ = kur()
@@ -169,6 +180,7 @@ def test_klasorleri_listele(kur, tmp_path):
 # ---------- gorev akisi ----------
 def test_tam_akis_korunsun(kur):
     app, sv, api, sahte = kur()
+    test_adimini_ac(app, api, kur.proje)
     plan = tam_kosu(app, api, kur.proje, karar=True)
     assert plan["adimlar"][0]["rol"] == "kodcu" and plan["butce"] == 2000000
     assert (kur.proje / "yeni.txt").exists()
@@ -685,7 +697,7 @@ def test_ayni_klasor_yeniden_secilince_yeni_bos_oturum_olur(kur):
 
 
 # ---------- coklu proje P2: es zamanli projeler ----------
-def _iki_proje_calisan(kur, tmp_path):
+def _iki_proje_calisan(kur, tmp_path, testli=False):
     """A ve B projelerinde ayni anda birer gorev baslatir; her gorevin kendi (ayri) calistirici ornegi vardir."""
     from aktapokus_ai_studio import projeler
 
@@ -699,6 +711,8 @@ def _iki_proje_calisan(kur, tmp_path):
     app, sv, api, _ = kur(uret=uret)
     ikinci = _ikinci_proje(tmp_path)
     klasor_sec(api, kur.proje)
+    if testli:
+        test_adimini_ac(app, api, kur.proje)
     a = projeler.proje_kimligi(kur.proje)
     plan_a = api("POST", "/api/gorev", {"gorev": "a gorevi"})[1]
     assert api("POST", f"/api/gorev/{plan_a['kosu']}/onayla", {})[0] == 200
@@ -806,7 +820,7 @@ def test_proje_baglami_secili_projeyi_degistirmez(kur, tmp_path):
 
 def test_projenin_sonraki_adimi_secili_proje_baskayken_basliyorsa_yine_kendi_oturumuna_baglanir(kur, tmp_path):
     """A'nin ilk adimi B secili iken biter; ikinci adimin calistiricisi A'nin oturumuna yazilmali (durdur A'yi, B'yi degil durdurur)."""
-    app, api, ornekler, (a, ka), (b, kb) = _iki_proje_calisan(kur, tmp_path)
+    app, api, ornekler, (a, ka), (b, kb) = _iki_proje_calisan(kur, tmp_path, testli=True)
     try:
         ornekler[0].serbest.set()  # A'nin ilk adimi biter -> ikinci adim yeni calistirici ornegiyle baslar (secili proje: B)
         assert bekle(lambda: len(ornekler) >= 3 and ornekler[2].basladi.is_set(), 15), f"ikinci adim baslamadi ({len(ornekler)} ornek)"

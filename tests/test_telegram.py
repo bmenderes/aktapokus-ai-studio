@@ -226,7 +226,15 @@ def test_goreli_klasor_yolu_reddedilir(kur, tmp_path, monkeypatch):
 
 
 def test_bilgisayar_tarafinda_ilerleme_gunlugu_yazilir_icerik_ve_token_yazilmaz(kur):
+    from aktapokus_ai_studio.config import ayar_yolu
+
     bot, fake, app, loglar = kur()
+    fake.mesaj(UID, f"/klasor {kur.proje}")
+    assert bekle(lambda: aktif_klasor(bot) is not None)
+    yol = ayar_yolu(kur.proje)
+    veri = json.loads(yol.read_text(encoding="utf-8"))
+    veri["testi_atla"] = False  # ayri test adimi yeni projede kapali gelir; bu test onun gunlugunu de bekler
+    yol.write_text(json.dumps(veri), encoding="utf-8")
     kosu = tam_kosu_baslat(bot, fake, app, kur.proje, gorev="GIZLI-GOREV-METNI yeni.txt ekle")
     fake.dugme(UID, f"o:{kosu}")
     assert bekle(lambda: son_klavye(fake, "k:")[0] is not None)
