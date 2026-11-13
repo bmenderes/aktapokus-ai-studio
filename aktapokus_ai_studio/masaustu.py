@@ -504,11 +504,13 @@ def ogeler(hwnd: object) -> list[dict]:
         "$OutputEncoding=[Console]::OutputEncoding=[Text.UTF8Encoding]::new();Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes;"
         "$c=[Windows.Automation.TreeWalker]::ControlViewWalker;$s=New-Object Collections.ArrayList;"
         "function g($e,$d){if($s.Count -ge 300 -or $d -gt 7){return};$k=$c.GetFirstChild($e);while($k -ne $null -and $s.Count -lt 300){$i=$k.Current;$r=$i.BoundingRectangle;"
-        "if(-not $r.IsEmpty -and ($i.Name -or $i.AutomationId)){[void]$s.Add(@{ad=$i.Name;tur=$i.ControlType.ProgrammaticName -replace 'ControlType.','';x=[int]$r.X;y=[int]$r.Y;genislik=[int]$r.Width;yukseklik=[int]$r.Height;etkin=$i.IsEnabled})};"
+        "if(-not $r.IsEmpty -and ($i.Name -or $i.AutomationId)){[void]$s.Add(@{ad=$i.Name;tur=($i.ControlType.ProgrammaticName -replace 'ControlType\\.','');x=[int]$r.X;y=[int]$r.Y;genislik=[int]$r.Width;yukseklik=[int]$r.Height;etkin=$i.IsEnabled})};"
         "g $k ($d+1);$k=$c.GetNextSibling($k)}};"
         f"g ([Windows.Automation.AutomationElement]::FromHandle([IntPtr]{h})) 0;ConvertTo-Json -Compress -InputObject @($s)")
     try:
         r = subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-Command", betik], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30, stdin=subprocess.DEVNULL, creationflags=0x08000000)
+        if r.returncode != 0:  # GERCEK HATA: betikteki sozdizimi hatasi sessizce bos liste donuyordu; arac hic calismadigi halde fark edilmedi
+            raise MasaustuHatasi(f"Ogeler okunamadi: {(r.stderr or '').strip()[:200] or 'powershell hata kodu ' + str(r.returncode)}")
         v = json.loads(r.stdout) if r.stdout.strip() else []
     except (OSError, subprocess.SubprocessError, ValueError) as hata:
         raise MasaustuHatasi(f"Ogeler okunamadi: {hata}") from None

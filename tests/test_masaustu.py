@@ -140,3 +140,42 @@ def test_kilit_ekranina_ve_izin_sorusuna_girdi_gitmez_liste_bosaltilsa_bile(saht
         with pytest.raises(masaustu.MasaustuHatasi, match="kilitli"):
             f()
     assert girdi == []
+
+
+def _ogeler_betigi(monkeypatch, donus):
+    """ogeler()'in PowerShell'e verdigi betigi yakalar; gercek pencereye dokunmaz."""
+    import subprocess
+    from types import SimpleNamespace
+    yakalanan = {}
+    monkeypatch.setattr(masaustu, "_hazirlik", lambda: None)
+    monkeypatch.setattr(masaustu, "_izin_ver", lambda h: {})
+    monkeypatch.setattr(masaustu, "kaydet", lambda *a, **k: None)
+
+    def sahte(komut, **k):
+        yakalanan["betik"] = komut[-1]
+        return SimpleNamespace(**donus)
+
+    monkeypatch.setattr(subprocess, "run", sahte)
+    return yakalanan
+
+
+def test_ogeler_betigi_powershellde_ayristirilir(monkeypatch):
+    """GERCEK HATA: betikte sozdizimi hatasi vardi, arac her zaman bos liste donuyordu. Betik gercek PowerShell ayristiricisindan gecmeli."""
+    import shutil
+    import subprocess
+    import sys
+    if sys.platform != "win32" or not shutil.which("powershell"):
+        pytest.skip("PowerShell yok")
+    gercek = subprocess.run
+    y = _ogeler_betigi(monkeypatch, {"returncode": 0, "stdout": '[{"ad":"Tamam","tur":"Button"}]', "stderr": ""})
+    assert masaustu.ogeler(123) == [{"ad": "Tamam", "tur": "Button"}]
+    denetim = "$h=$null;[void][Management.Automation.Language.Parser]::ParseInput($env:AKTAPOKUS_BETIK,[ref]$null,[ref]$h);if($h.Count){$h|%{$_.Message};exit 1}"
+    import os
+    r = gercek(["powershell", "-NoProfile", "-NonInteractive", "-Command", denetim], capture_output=True, text=True, timeout=60, env={**os.environ, "AKTAPOKUS_BETIK": y["betik"]})
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_ogeler_powershell_hatasi_bos_liste_degil_hatadir(monkeypatch):
+    _ogeler_betigi(monkeypatch, {"returncode": 1, "stdout": "", "stderr": "Unexpected token"})
+    with pytest.raises(masaustu.MasaustuHatasi, match="Unexpected token"):
+        masaustu.ogeler(123)
