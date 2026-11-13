@@ -73,7 +73,13 @@ def bitti(app):
 # ---------- ayar ----------
 def test_ayar_alanlari_varsayilan_kapali_ve_dogrulanir():
     a = ayar_coz(VARSAYILAN_AYAR)
-    assert a.otomatik_onay is False and a.testi_atla is False
+    assert a.otomatik_onay is False and a.testi_atla is True  # yeni projede ayri test adimi kapali gelir: kodcu kendi dogrular
+    assert "KENDIN dogrula" in a.roller["kodcu"].talimat
+    from aktapokus_ai_studio.config import ESKI_KODCU_TALIMATI, KODCU_TALIMATI
+    eski = {**VARSAYILAN_AYAR, "roller": {**VARSAYILAN_AYAR["roller"], "kodcu": {**VARSAYILAN_AYAR["roller"]["kodcu"], "talimat": ESKI_KODCU_TALIMATI}}}
+    assert ayar_coz(eski).roller["kodcu"].talimat == KODCU_TALIMATI  # eski varsayilan AYNEN duruyorsa yenisi kullanilir
+    ozel = {**VARSAYILAN_AYAR, "roller": {**VARSAYILAN_AYAR["roller"], "kodcu": {**VARSAYILAN_AYAR["roller"]["kodcu"], "talimat": "Benim talimatim"}}}
+    assert ayar_coz(ozel).roller["kodcu"].talimat == "Benim talimatim"  # kullanicinin degistirdigine dokunulmaz
     for alan in ("otomatik_onay", "testi_atla"):
         for kotu in ("evet", 1, None, []):
             v = dict(VARSAYILAN_AYAR, **{alan: kotu})
@@ -89,7 +95,7 @@ def test_varsayilan_onay_ister_otomatik_onay_acikken_onay_beklemeden_baslar(api)
     time.sleep(1.0)
     assert app.kosu.durum == "plan" and roller(ornekler) == []  # onay yok -> hicbir sey calismaz
     istek("POST", f"/api/gorev/{plan['kosu']}/reddet", {})
-    ayarla(app, otomatik_onay=True)
+    ayarla(app, otomatik_onay=True, testi_atla=False)
     st, plan = istek("POST", "/api/gorev", {"gorev": "bir sey yap"})
     assert plan["otomatik"] is True
     assert bitti(app) and roller(ornekler) == ["kodcu", "test"]
@@ -148,6 +154,7 @@ def test_varsayilan_testi_atla_ve_onay_aninda_gorev_basina_degistirme(api):
 
 def test_calisirken_test_iptal_edilir_hata_sayilmaz_akis_devam_eder(api):
     app, istek, ornekler = api
+    ayarla(app, testi_atla=False)
     BAYRAK["engelle"] = True
     st, plan = istek("POST", "/api/gorev", {"gorev": "x"})
     istek("POST", f"/api/gorev/{plan['kosu']}/onayla", {})
@@ -185,10 +192,10 @@ def test_hat_testsiz_dogrulama_rollerini_eler(proje):
 # ---------- arayuz ----------
 def test_durum_ayar_ozetinde_otomatik_onay_ve_testi_atla_gorunur(api):
     app, istek, ornekler = api
-    assert istek("GET", "/api/durum")[1]["ayar"]["testi_atla"] is False
-    ayarla(app, testi_atla=True, otomatik_onay=True)
+    assert istek("GET", "/api/durum")[1]["ayar"]["testi_atla"] is True
+    ayarla(app, testi_atla=False, otomatik_onay=True)
     a = istek("GET", "/api/durum")[1]["ayar"]
-    assert a["testi_atla"] is True and a["otomatik_onay"] is True
+    assert a["testi_atla"] is False and a["otomatik_onay"] is True
 
 
 def test_arayuz_kodu_otomatik_onayda_durumu_ezmez_ve_test_kapsulu_tiklanir():

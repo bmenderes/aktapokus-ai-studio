@@ -13,10 +13,19 @@ BILINEN_CALISTIRICILAR = ("opencode", "opencode-sunucu", "claude", "codex", "gem
 SNAPSHOT_DISI = (AYAR_KLASORU, ".opencode/opencode.json")
 VARSAYILAN_MODEL = "opencode/deepseek-v4.1-flash-free"
 
-KODCU_TALIMATI = (
+ESKI_KODCU_TALIMATI = (  # 2026-11-13'e kadarki varsayilan: projede AYNEN duruyorsa yenisi kullanilir (kullanicinin degistirdigi talimata dokunulmaz)
     "Sen kodcusun. Gorevi yerine getirmek icin calisma klasorundeki dosyalari oku ve gerekli "
     "degisiklikleri yap. Yalnizca gerekeni degistir, kucuk ve odakli kal. Bitince yaptigin "
     "degisiklikleri kisaca ozetle."
+)
+# Kodcu isini KENDI dogrular (ayri test rolu varsayilan olarak kapali): degistir > dene > bozuksa duzelt > yeniden dene.
+KODCU_TALIMATI = (
+    "Sen kodcusun. Gorevi yerine getirmek icin calisma klasorundeki dosyalari oku ve gerekli "
+    "degisiklikleri yap. Yalnizca gerekeni degistir, kucuk ve odakli kal. "
+    "Degisiklikten sonra isini KENDIN dogrula: projenin testleri varsa ilgili olanlari calistir; yoksa "
+    "sonucu calistirarak ya da dosyalari yeniden okuyarak dene. Bir sey bozuksa duzelt ve yeniden dene; "
+    "calisana kadar surdur. Cozemedigin bir sorun kalirsa gizleme, acikca yaz. "
+    "Bitince kisaca ozetle: ne yaptin, neyi nasil dogruladin, neyi dogrulayamadin."
 )
 TEST_TALIMATI = (
     "Sen test uzmanisin. Dosyalari DEGISTIRME. Yapilan degisikligi incele; projenin testleri "
@@ -28,6 +37,7 @@ TEST_TALIMATI = (
 VARSAYILAN_AYAR: dict = {
     "surum": 1,
     "akis": ["kodcu", "test"],
+    "testi_atla": True,  # yeni projede ayri test adimi kapali gelir (kodcu kendi dogrular); rol cipindeki dugmeyle acilir
     "azami_duzeltme": 2,
     "butce_token": 2000000,  # 0 = sinirsiz (Claude Code basit bir gorevde bile ~50 bin token yer; 200 bin cok kisaydi)
     "zaman_asimi_sn": 900,
@@ -135,6 +145,8 @@ def ayar_coz(veri: object) -> Ayar:
         talimat = r.get("talimat")
         if not isinstance(talimat, str) or not talimat.strip():
             raise AyarHatasi(f"Rol '{ad}': 'talimat' bos olmayan metin olmali")
+        if talimat == ESKI_KODCU_TALIMATI:
+            talimat = KODCU_TALIMATI
         agent = r.get("agent")
         if agent is not None and (not isinstance(agent, str) or not agent.strip()):
             raise AyarHatasi(f"Rol '{ad}': 'agent' bos olmayan metin ya da null olmali")
