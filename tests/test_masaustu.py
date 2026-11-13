@@ -100,7 +100,7 @@ def test_png_gecerli():
 
 
 def test_mcp_protokolu_arac_listesi_hata_ve_gorsel(sahte, monkeypatch):
-    monkeypatch.setattr(masaustu, "ekran_goruntusu", lambda p=None: (b"png", {"olcek": 1}))
+    monkeypatch.setattr(masaustu, "ekran_goruntusu", lambda p=None, e=None: (b"png", {"olcek": 1}))
     giris = io.BytesIO(b"".join(json.dumps(x).encode() + b"\n" for x in (
         {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {"protocolVersion": "2025-03-26"}}, {"jsonrpc": "2.0", "method": "notifications/initialized"}, {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
         {"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "tus", "arguments": {"tuslar": "win+r"}}}, {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "ekran_goruntusu", "arguments": {}}}, {"jsonrpc": "2.0", "id": 5, "method": "yok"})) + b"bozuk\n")
@@ -179,3 +179,43 @@ def test_ogeler_powershell_hatasi_bos_liste_degil_hatadir(monkeypatch):
     _ogeler_betigi(monkeypatch, {"returncode": 1, "stdout": "", "stderr": "Unexpected token"})
     with pytest.raises(masaustu.MasaustuHatasi, match="Unexpected token"):
         masaustu.ogeler(123)
+
+
+def _sahte_cekim(monkeypatch, ekranlar):
+    """ekran_goruntusu'nun hangi alani cektigini yakalar (gercek ekrana dokunmaz)."""
+    import ctypes
+    from types import SimpleNamespace
+    cekilen = {}
+
+    def blt(hedef, hx, hy, tg, ty, kaynak, x, y, gen, yuk, kip):
+        cekilen.update(x=x, y=y, gen=gen, yuk=yuk, tg=tg, ty=ty)
+        return 1
+
+    g = SimpleNamespace(CreateCompatibleDC=lambda k: 1, CreateCompatibleBitmap=lambda k, a, b: 1, SelectObject=lambda a, b: 1, SetStretchBltMode=lambda a, b: 1, StretchBlt=blt,
+                        GetDIBits=lambda h, b, a, ty, t, bi, z: ty, DeleteObject=lambda b: 1, DeleteDC=lambda h: 1)
+    u = SimpleNamespace(GetDC=lambda h: 1, ReleaseDC=lambda h, k: 1)
+    monkeypatch.setattr(masaustu, "_api", lambda: SimpleNamespace(u=u, g=g, c=ctypes))
+    monkeypatch.setattr(masaustu, "_hazirlik", lambda: None)
+    monkeypatch.setattr(masaustu, "kaydet", lambda *a, **k: None)
+    monkeypatch.setattr(masaustu, "_ekranlar", lambda: list(ekranlar))
+    return cekilen
+
+
+def test_ekran_goruntusu_tek_monitor_ceker_ve_koordinat_o_monitore_gore_cevrilir(monkeypatch):
+    """GERCEK HATA: iki monitor (3840x1200) tek goruntuye sigdirilinca olcek 0.33 oluyor, yazilar okunmuyordu."""
+    c = _sahte_cekim(monkeypatch, [(0, 0, 1920, 1200), (1920, 0, 1920, 1200)])
+    _, bilgi = masaustu.ekran_goruntusu()
+    assert (c["x"], c["gen"], c["tg"]) == (0, 1920, 1280) and bilgi["ekran"] == 1 and bilgi["ekran_sayisi"] == 2 and bilgi["olcek"] == round(1280 / 1920, 4)
+    _, bilgi = masaustu.ekran_goruntusu(None, 2)
+    assert (c["x"], c["y"], c["gen"], c["yuk"]) == (1920, 0, 1920, 1200) and bilgi["ekran"] == 2
+    assert masaustu.koordinat_coz(640, 400) == (1920 + 960, 600)  # ikinci monitorun ortasi
+    for kotu in (0, 3, "x"):
+        with pytest.raises(masaustu.MasaustuHatasi):
+            masaustu.ekran_goruntusu(None, kotu)
+
+
+def test_ekran_goruntusu_monitor_okunamazsa_tum_ekrana_duser(monkeypatch):
+    c = _sahte_cekim(monkeypatch, [])
+    monkeypatch.setattr(masaustu, "_sanal_ekran", lambda: (0, 0, 1920, 1080))
+    _, bilgi = masaustu.ekran_goruntusu()
+    assert (c["gen"], c["yuk"]) == (1920, 1080) and bilgi["ekran_sayisi"] == 1

@@ -235,6 +235,24 @@ def _sanal_ekran() -> tuple[int, int, int, int]:
     return m(76), m(77), m(78), m(79)
 
 
+def _ekranlar() -> list[tuple[int, int, int, int]]:
+    """Monitorler (x, y, genislik, yukseklik): birincil (0,0 kosesi) once, digerleri soldan saga. Okunamazsa bos liste."""
+    w = _api()
+    bulunan: list[tuple[int, int, int, int]] = []
+    tur = w.c.WINFUNCTYPE(w.t.BOOL, w.c.c_void_p, w.c.c_void_p, w.c.POINTER(w.t.RECT), w.t.LPARAM)
+
+    def bak(_m, _dc, r, _p):
+        k = r.contents
+        bulunan.append((k.left, k.top, k.right - k.left, k.bottom - k.top))
+        return True
+
+    try:
+        w.u.EnumDisplayMonitors(None, None, tur(bak), 0)
+    except (OSError, AttributeError, w.c.ArgumentError):
+        return []
+    return sorted((e for e in bulunan if e[2] > 0 and e[3] > 0), key=lambda e: ((e[0], e[1]) != (0, 0), e[0], e[1]))
+
+
 def _on_pencere() -> int:
     return _api().u.GetForegroundWindow() or 0
 
@@ -330,16 +348,26 @@ def odakla(hwnd: object) -> dict:
     return pencere_bilgi(h)
 
 
-def ekran_goruntusu(hwnd: object = None) -> tuple[bytes, dict]:
-    """(PNG, bilgi). Pencere verilirse once one alinir ve yalniz o alan cekilir; tiklama koordinatlari bu goruntuye gore cevrilir."""
+def ekran_goruntusu(hwnd: object = None, ekran: object = None) -> tuple[bytes, dict]:
+    """(PNG, bilgi). Pencere verilirse once one alinir ve yalniz o alan cekilir; tiklama koordinatlari bu goruntuye gore cevrilir.
+    Pencere verilmezse TEK monitor cekilir (`ekran`: 1 = birincil). GERCEK HATA: iki monitorde tum sanal ekran (3840x1200) 1280'e kucultulunce yazilar okunmuyordu."""
     _hazirlik()
     w = _api()
+    ek: dict = {}
     if hwnd:
         b = odakla(hwnd)
         x, y, gen, yuk = b["x"], b["y"], b["genislik"], b["yukseklik"]
         time.sleep(0.2)
     else:
-        x, y, gen, yuk = _sanal_ekran()
+        liste = _ekranlar() or [_sanal_ekran()]
+        try:
+            no = int(ekran) if ekran is not None else 1
+        except (TypeError, ValueError):
+            raise MasaustuHatasi("Ekran numarasi sayi olmali") from None
+        if not 1 <= no <= len(liste):
+            raise MasaustuHatasi(f"Boyle bir ekran yok: {no} (ekran sayisi: {len(liste)})")
+        x, y, gen, yuk = liste[no - 1]
+        ek = {"ekran": no, "ekran_sayisi": len(liste)}
     if gen <= 0 or yuk <= 0:
         raise MasaustuHatasi("Goruntu alani bos")
     olcek = min(1.0, AZAMI_GENISLIK / gen)
@@ -363,7 +391,7 @@ def ekran_goruntusu(hwnd: object = None) -> tuple[bytes, dict]:
         w.u.ReleaseDC(None, kaynak)
     _son_goruntu.update(x=x, y=y, olcek=olcek)
     kaydet("ekran_goruntusu", f"{gen}x{yuk}")
-    return png_kodla(tampon.raw, tg, ty), {"genislik": tg, "yukseklik": ty, "olcek": round(olcek, 4)}
+    return png_kodla(tampon.raw, tg, ty), {"genislik": tg, "yukseklik": ty, "olcek": round(olcek, 4), **ek}
 
 
 def tikla(x: object, y: object, dugme: object = "sol", cift: object = False, kaynak: object = "goruntu") -> dict:

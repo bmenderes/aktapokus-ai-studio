@@ -13,7 +13,7 @@ SURUM = "2024-11-05"
 _YER = {"x": {"type": "number"}, "y": {"type": "number"}, "kaynak": {"type": "string", "enum": ["goruntu", "ekran"], "description": "goruntu: son ekran_goruntusu pikseli (varsayilan); ekran: ogeler aracindaki koordinat"}}
 ARACLAR = [
     {"name": "pencereler", "description": "Acik pencereleri listeler (numara, baslik, program, konum).", "inputSchema": {"type": "object", "properties": {}}},
-    {"name": "ekran_goruntusu", "description": "Ekranin ya da verilen pencerenin goruntusunu verir. Goruntu dis model saglayicisina gider; gizli bilgi acikken kullanmayin.", "inputSchema": {"type": "object", "properties": {"pencere": {"type": "integer"}}}},
+    {"name": "ekran_goruntusu", "description": "Bir ekranin (monitorun) ya da verilen pencerenin goruntusunu verir. Pencere verilmezse `ekran` numarali monitor cekilir (varsayilan 1 = birincil); yanittaki ekran_sayisi kac monitor oldugunu soyler. Goruntu dis model saglayicisina gider; gizli bilgi acikken kullanmayin.", "inputSchema": {"type": "object", "properties": {"pencere": {"type": "integer"}, "ekran": {"type": "integer", "minimum": 1}}}},
     {"name": "ogeler", "description": "Penceredeki dugme ve kutulari yazili verir (ekran koordinatiyla). Goruntu gormeyen modeller bunu kullanir.", "inputSchema": {"type": "object", "properties": {"pencere": {"type": "integer"}}, "required": ["pencere"]}},
     {"name": "program_baslat", "description": "Program acar: .exe yolu, PATH'teki ad ya da Baslat menusu adi (ornek: SOLIDWORKS). PLC programlama yazilimlari ve kabuklar engellidir; PLC'ye yazmak yasaktir.", "inputSchema": {"type": "object", "properties": {"ad": {"type": "string"}, "argumanlar": {"type": "array", "items": {"type": "string"}}}, "required": ["ad"]}},
     {"name": "odakla", "description": "Pencereyi one getirir.", "inputSchema": {"type": "object", "properties": {"pencere": {"type": "integer"}}, "required": ["pencere"]}},
@@ -34,7 +34,7 @@ def arac_calistir(ad: str, g: dict) -> dict:
         if ad == "pencereler":
             return _metin(masaustu.pencereler())
         if ad == "ekran_goruntusu":
-            png, bilgi = masaustu.ekran_goruntusu(g.get("pencere"))
+            png, bilgi = masaustu.ekran_goruntusu(g.get("pencere"), g.get("ekran"))
             return {"content": [{"type": "image", "data": base64.b64encode(png).decode("ascii"), "mimeType": "image/png"}, {"type": "text", "text": json.dumps(bilgi)}]}
         if ad == "ogeler":
             return _metin(masaustu.ogeler(g.get("pencere")))
