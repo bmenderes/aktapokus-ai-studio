@@ -305,7 +305,7 @@ class Uygulama:
         saglayici_istemci_uret: Callable[[], object] | None = None,
     ):
         self.calistirici_uret = calistirici_uret
-        self._kaynak = kaynak.Izleyici()  # bilgisayarin toplam CPU/GPU yuzdesi (olcum yalniz biri isteyince ve ~30 sn surer)
+        self._kaynak_izleyici = kaynak.Izleyici()  # bilgisayarin toplam CPU/GPU yuzdesi (olcum yalniz biri isteyince ve ~30 sn surer)
         self._google = None  # google_giris.Yonetici: ilk kullanimda olusur
         self._opcua_toplayici = None
         self._bootp = None
@@ -2865,7 +2865,7 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 if yol == "/api/google":
                     return self._gonder(200, app.google_islem("durum", {}))
                 if yol == "/api/kaynak":
-                    return self._gonder(200, app._kaynak.oku())
+                    return self._gonder(200, app._kaynak_izleyici.oku())
                 if yol == "/api/mcp-sunuculari":
                     return self._gonder(200, app.mcp_listele())
                 if yol == "/api/opcua":
