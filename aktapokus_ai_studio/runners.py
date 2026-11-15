@@ -779,7 +779,7 @@ def gemini_ciktisini_coz(cikti: str) -> CalistirmaSonucu:
 class GeminiCalistirici(Calistirici):
     """Google Gemini CLI (`gemini -p`). Istem STDIN'den verilir; -p yalniz kisa bir yonerge tasir (Gemini stdin'e ekler).
     Onayli calisma `--approval-mode yolo` (araclar sormadan calisir; Gemini'nin kendi sandbox'i kapali: KORUYUCUSUZ), salt okunur `--approval-mode plan`.
-    BELGEYE GORE yazildi; kurulu olmadigi icin gercek CLI ile denenmedi."""
+    Gercek CLI ile denendi (0.65.0, 2026-11-15)."""
 
     ad = "gemini"
     YONERGE = "Yukaridaki istegi (standart girdi) yerine getir."
@@ -791,7 +791,8 @@ class GeminiCalistirici(Calistirici):
         onek = self.komut_oneki or gemini_bul()
         if not onek:
             raise CalistiriciHatasi("Gemini CLI bulunamadi (npm install -g @google/gemini-cli) ya da AKTAPOKUS_GEMINI ile yol verin.")
-        komut = [*onek, "-p", self.YONERGE, "--output-format", "json", "--approval-mode", "yolo" if onayli else "plan"]
+        # --skip-trust: basliksiz kipte guvenilmeyen klasorde Gemini hic calismaz (cikis 55); klasoru kullanici Aktapokus'ta kendisi secti.
+        komut = [*onek, "-p", self.YONERGE, "--output-format", "json", "--approval-mode", "yolo" if onayli else "plan", "--skip-trust"]
         if model:
             if model.startswith("-"):
                 raise CalistiriciHatasi("Model adi '-' ile baslayamaz")

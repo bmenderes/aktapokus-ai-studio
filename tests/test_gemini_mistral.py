@@ -66,8 +66,8 @@ def test_bulucular_ortam_degiskeniyle(tmp_path, monkeypatch):
 def test_gemini_komut_onayli_ve_salt_okunur_bayraklari():
     g = gemini()
     k = g.komut(None, True)
-    assert k[2:] == ["-p", GeminiCalistirici.YONERGE, "--output-format", "json", "--approval-mode", "yolo"]
-    assert g.komut("pro", False)[-4:] == ["--approval-mode", "plan", "-m", "pro"]
+    assert k[2:] == ["-p", GeminiCalistirici.YONERGE, "--output-format", "json", "--approval-mode", "yolo", "--skip-trust"]
+    assert g.komut("pro", False)[-5:] == ["--approval-mode", "plan", "--skip-trust", "-m", "pro"]
     with pytest.raises(CalistiriciHatasi):
         g.komut("--yolo", True)
 
