@@ -1343,7 +1343,7 @@ class Uygulama:
     def masaustu_durum(self) -> dict:
         o = self.secili
         t = mcptanim.yukle().get("masaustu")
-        return {**masaustu.ayar_oku(), "destek": sys.platform == "win32", "proje": o.klasor.name if o else None, "acik": bool(o and t and o.kimlik in t.projeler), "kayit": masaustu.kayit_oku(15), "gruplar": {ad: list(g) for ad, g in masaustu.ENGELLI_GRUPLAR.items()}}
+        return {**masaustu.ayar_oku(), "destek": sys.platform == "win32", "proje": o.klasor.name if o else None, "acik": bool(o and t and (o.kimlik in t.projeler or mcptanim.TUMU in t.projeler)), "hepsi": bool(t and mcptanim.TUMU in t.projeler), "kayit": masaustu.kayit_oku(15), "gruplar": {ad: list(g) for ad, g in masaustu.ENGELLI_GRUPLAR.items()}}
 
     def masaustu_ayarla(self, g: dict) -> dict:
         o = self.secili
@@ -1352,6 +1352,8 @@ class Uygulama:
                 if o is None:
                     raise UygulamaHatasi("Once bir proje secin")
                 mcptanim.masaustu_ayarla(o.kimlik, bool(g["acik"]))
+            if "hepsi" in g:
+                mcptanim.masaustu_ayarla(mcptanim.TUMU, bool(g["hepsi"]))
             if "durduruldu" in g or "programlar" in g:
                 masaustu.ayar_yaz(g.get("durduruldu"), g.get("programlar"))
         except (mcptanim.McpHatasi, masaustu.MasaustuHatasi) as hata:

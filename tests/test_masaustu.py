@@ -121,6 +121,18 @@ def test_proje_bazinda_acilir_ve_kapanir():
     assert mcptanim.proje_icin("a" * 10) == []
 
 
+def test_tum_projelerde_acilir_ve_kapanir():
+    """'Tum projelerde' secilince her projeye (yeni acilanlar dahil) verilir; kapatinca proje bazindaki secimler korunur."""
+    mcptanim.masaustu_ayarla("a" * 10, True)
+    mcptanim.masaustu_ayarla(mcptanim.TUMU, True)
+    assert mcptanim.proje_icin("b" * 10) and mcptanim.proje_icin("c" * 10) and not mcptanim.proje_icin(None)
+    mcptanim.kaydet({**mcptanim.masaustu_tanimi(), "projeler": list(mcptanim.yukle()["masaustu"].projeler)})  # '*' kayitta gecerli
+    mcptanim.masaustu_ayarla(mcptanim.TUMU, False)
+    assert mcptanim.proje_icin("b" * 10) == [] and mcptanim.proje_icin("a" * 10)
+    with pytest.raises(mcptanim.McpHatasi):
+        mcptanim.masaustu_ayarla("**", True)
+
+
 def test_uzaktan_acilamaz():
     for a in (uzak.Ayar(yonetim=False), uzak.Ayar(yonetim=True)):
         assert uzak.politika("POST", "/api/masaustu", a) and uzak.politika("GET", "/api/masaustu", a)

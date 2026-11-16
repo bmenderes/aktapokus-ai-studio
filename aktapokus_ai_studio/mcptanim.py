@@ -123,8 +123,8 @@ def tanim_coz(veri: object, eski: McpTanim | None = None, program_denetle: bool 
                     raise McpHatasi(f"'{k}' icin yeni deger girin (kayitli deger yok)")
                 sozluk[k] = onceki[k]
     projeler = veri.get("projeler", list(eski.projeler) if eski else [])
-    if not isinstance(projeler, list) or not all(isinstance(x, str) and re.fullmatch(r"[0-9a-f]{10}", x) for x in projeler):
-        raise McpHatasi("'projeler' proje kimliklerinin listesi olmali")
+    if not isinstance(projeler, list) or not all(isinstance(x, str) and re.fullmatch(r"[0-9a-f]{10}|\*", x) for x in projeler):
+        raise McpHatasi("'projeler' proje kimliklerinin listesi olmali ('*' = tum projeler)")
     aciklama = veri.get("aciklama") or ""
     if not isinstance(aciklama, str) or len(aciklama) > 300:
         raise McpHatasi("'aciklama' en cok 300 karakterlik metin olmali")
@@ -190,7 +190,7 @@ def proje_ayarla(ad: str, proje: str, acik: bool) -> McpTanim:
     t = tanimlar.get(ad)
     if t is None:
         raise McpHatasi("Boyle bir MCP sunucusu yok")
-    if not re.fullmatch(r"[0-9a-f]{10}", proje or ""):
+    if not re.fullmatch(r"[0-9a-f]{10}|\*", proje or ""):
         raise McpHatasi("Gecersiz proje kimligi")
     projeler = [p for p in t.projeler if p != proje] + ([proje] if acik else [])
     yeni = McpTanim(t.ad, t.tur, t.komut, t.url, t.ortam, t.basliklar, tuple(projeler), t.aciklama)
@@ -199,9 +199,12 @@ def proje_ayarla(ad: str, proje: str, acik: bool) -> McpTanim:
     return yeni
 
 
+TUMU = "*"  # projeler listesinde: tum projelerde etkin
+
+
 def proje_icin(proje: str | None) -> list[McpTanim]:
-    """Bu projede etkin sunucular (CLI'lara aktarilacaklar)."""
-    return [t for t in yukle().values() if proje and proje in t.projeler]
+    """Bu projede etkin sunucular (CLI'lara aktarilacaklar). Listede '*' olan sunucu TUM projelerde etkindir."""
+    return [t for t in yukle().values() if proje and (proje in t.projeler or TUMU in t.projeler)]
 
 
 def masaustu_tanimi() -> dict:
