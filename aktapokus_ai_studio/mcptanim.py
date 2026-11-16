@@ -207,6 +207,22 @@ def proje_icin(proje: str | None) -> list[McpTanim]:
     return [t for t in yukle().values() if proje and (proje in t.projeler or TUMU in t.projeler)]
 
 
+# Masaustu acik projede modele soylenir. Gercek durum (2026-11-16): ipucu yokken Claude 'yalniz klasordeki dosyalari degistir' kuralini okuyup
+# acik Machine Expert penceresine hic bakmadi, "bu bilgisayarda yok" dedi; MCP araclari ertelenmis (deferred) oldugu icin listede de gormedi.
+MASAUSTU_IPUCU = (
+    "MASAUSTU: Bu gorevde bu bilgisayarin ekranini gorup fare/klavyeyi kullanabilirsin: mcp__masaustu__ araclari "
+    "(pencereler, ekran_goruntusu, odakla, ogeler, tikla, yaz, tus, kaydir, program_baslat, bekle). Araclar listede gorunmuyorsa "
+    "ToolSearch ile 'masaustu' ara. Kullanici acik bir programda (or. Machine Expert, Excel) bir sey isterse ONCE pencereler ve "
+    "ekran_goruntusu ile ekrana bak; bir programin kurulu ya da acik olmadigina dosya aramasiyla karar verme. Masaustunde yaptigin "
+    "islem klasor kuralina aykiri degildir. Bir pencere ya da tus engellenirse bunu acikca yaz, sessizce baska yola gecme."
+)
+
+
+def ipucu(tanimlar) -> str:
+    """Etkin sunuculara gore modele eklenecek kisa yonlendirme ('' = yok)."""
+    return MASAUSTU_IPUCU if any(getattr(t, "ad", None) == "masaustu" for t in tanimlar) else ""
+
+
 def masaustu_tanimi() -> dict:
     """Yerlesik masaustu sunucusu: bu Aktapokus'un kendi Python'uyla calisir (pythonw stdio kullanamaz)."""
     python = Path(sys.executable)

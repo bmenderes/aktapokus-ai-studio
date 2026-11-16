@@ -291,3 +291,34 @@ def test_sonuc_gelmeden_kesilen_gorevin_tokeni_kaybolmaz_ayni_mesaj_iki_kez_sayi
     for o in (mesaj("m1", 1), mesaj("m1", 3), mesaj("m2", 4)):
         c._kullanim_topla(o)
     assert c._harcanan() == {"token_girdi": 30, "token_cikti": 7, "token_onbellek": 14}
+
+
+def test_masaustu_acikken_modele_masaustu_araclari_hatirlatilir(monkeypatch, tmp_path):
+    """Gercek durum: ipucu yokken Claude acik Machine Expert penceresine hic bakmadi ('bu bilgisayarda yok' dedi)."""
+    from pathlib import Path
+
+    from aktapokus_ai_studio import mcptanim
+    from sahte_popen import SahtePopen
+
+    yakalanan = []
+    giris = SahtePopen.__init__
+
+    def okuyarak(self, komut, *a, **k):
+        if "--append-system-prompt-file" in komut:
+            yakalanan.append(Path(komut[komut.index("--append-system-prompt-file") + 1]).read_text(encoding="utf-8"))
+        return giris(self, komut, *a, **k)
+
+    monkeypatch.setattr(SahtePopen, "__init__", okuyarak)
+    masaustu = mcptanim.McpTanim(ad="masaustu", tur="local", komut=("python", "-m", "x"))
+    baska = mcptanim.McpTanim(ad="baska", tur="local", komut=("python", "-m", "y"))
+    for mcp, beklenen in (((masaustu,), True), ((baska,), False)):
+        kayit, _ = claude_taklit(monkeypatch, runners)
+        c = yeni("yeni")
+        c.mcp = mcp
+        c.calistir("KURALLAR: k\n\nROLUN: kodcu.\n\nGOREV:\nekrana bak", tmp_path)
+        assert ("mcp__masaustu__" in yakalanan[-1]) is beklenen and yakalanan[-1].startswith("KURALLAR: k")
+    kayit, _ = claude_taklit(monkeypatch, runners)
+    c = yeni("yeni")
+    c.mcp = (masaustu,)
+    c.calistir("duz istem", tmp_path)  # kural bolumu olmayan istemde de ipucu sistem istemine gider, kullanici mesaji degismez
+    assert kayit["girdi"] == b"duz istem" and yakalanan[-1] == mcptanim.MASAUSTU_IPUCU

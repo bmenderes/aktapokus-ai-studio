@@ -553,6 +553,12 @@ class ClaudeCodeCalistirici(Calistirici):
                 mcp_dosyasi = str(Path(gecici) / "mcp.json")
                 Path(mcp_dosyasi).write_text(json.dumps(mcptanim.claude_ayari(list(self.mcp))), encoding="utf-8")
             sistem, kullanici = istemi_ayir(istem)
+            if self.mcp:
+                from . import mcptanim
+
+                ek = mcptanim.ipucu(self.mcp)
+                if ek:
+                    sistem = f"{sistem}\n\n{ek}" if sistem else ek
             sistem_dosyasi = None
             if sistem:
                 sistem_dosyasi = str(Path(gecici) / "sistem.txt")
