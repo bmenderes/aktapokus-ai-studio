@@ -927,11 +927,11 @@ function gorevMenusu(x,y,g,t,o,sat){menuKapat();
   const calis=async f=>{menuKapat();try{await f()}catch(er){alert(er.message)}};
   const yenile=()=>kenarCubugu();
   const meta=alan=>calis(async()=>{await api("/api/p/"+g.id+"/gorev-meta",{method:"POST",body:Object.assign({id:t.id},alan)});await yenile()});
-  const ac=hedef=>calis(async()=>{if(hedef==="pencere"){window.open(location.pathname+"#t="+T+"&p="+g.id+"&g="+t.id,"_blank","popup=yes,width=1320,height=880");return}await api("/api/p/"+g.id+"/klasor-ac",{method:"POST",body:{hedef}})});
+  const ac=hedef=>calis(async()=>{if(hedef==="pencere"){window.open(location.pathname+"#t="+T+"&p="+g.id+"&g="+t.id,"_blank","popup=yes,width=1320,height=880");return}const r=await api("/api/p/"+g.id+"/klasor-ac",{method:"POST",body:{hedef}});if(hedef==="gemini"){await terminalAc();trmSec(r.terminal)}});
   const altSohbet={ad:"⤷ Alt sohbet aç",k:"N",f:()=>calis(async()=>{if(!await projeAc(g))return;await yeniKonusma(t.sohbet)})};
   const adDegistir={ad:"✎ Yeniden adlandır",k:"R",f:()=>{menuKapat();return sohbetAdiDegistir(g,t)}};
   const ogeler=!t.id?[altSohbet,adDegistir]:[
-    {ad:"↗ Şurada aç",alt:[{ad:"Yeni pencere",k:"1",f:()=>ac("pencere")},{ad:"Dosya Gezgini",k:"2",f:()=>ac("gezgin")},{ad:"VS Code",k:"3",f:()=>ac("vscode")}]},"-",
+    {ad:"↗ Şurada aç",alt:[{ad:"Yeni pencere",k:"1",f:()=>ac("pencere")},{ad:"Dosya Gezgini",k:"2",f:()=>ac("gezgin")},{ad:"VS Code",k:"3",f:()=>ac("vscode")},{ad:"Antigravity",k:"4",f:()=>ac("antigravity")},{ad:"Gemini CLI",ip:"Projenin klasöründe terminal açar ve Gemini CLI'ı başlatır",k:"5",f:()=>ac("gemini")}]},"-",
     {ad:t.sabit?"📌 Sabitlemeyi kaldır":"📌 Üste sabitle",k:"P",f:()=>meta({sabit:!t.sabit})},
     {ad:t.okunmadi?"○ Okundu işaretle":"● Okunmadı işaretle",k:"U",f:()=>meta({okunmadi:!t.okunmadi})},
     ...(t.sohbet?[altSohbet]:[]),adDegistir,

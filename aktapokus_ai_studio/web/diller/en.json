@@ -317,6 +317,7 @@
   "Bütçe aşıldı": "Budget exceeded",
   "C:\\yol\\proje   (Enter: bu yola git)": "C:\\path\\project   (Enter: go to this path)",
   "CI kontrolleri": "CI checks",
+  "Bu projenin klasöründe terminal açar ve Gemini CLI'ı başlatır": "Opens a terminal in this project's folder and starts the Gemini CLI",
   "CI kontrolü yok": "No CI checks",
   "CLI'lar": "CLIs",
   "Calisan test adimini iptal eder; degisiklikler ve karar adimi devam eder": "Cancels the running test step; changes and the decision step continue",

@@ -219,5 +219,5 @@ def test_gecmis_gorev_ozet_karti_degil_konusma_olarak_yeniden_oynatilir():
         assert f"function {ad}" in html or f"async function {ad}" in html
     for yol in ("/gorev-meta", "/gorev-sil", "/klasor-ac", "/claude-devam"):
         assert yol in html
-    for etiket in ("Üste sabitle", "Okunmadı işaretle", "Yeniden adlandır", "Yeni görev olarak kopyala", "Arşive kaldır", "Sil", "Yeni pencere", "Dosya Gezgini", "VS Code", "Claude Code'da sürdür"):
+    for etiket in ("Üste sabitle", "Okunmadı işaretle", "Yeniden adlandır", "Yeni görev olarak kopyala", "Arşive kaldır", "Sil", "Yeni pencere", "Dosya Gezgini", "VS Code", "Antigravity", "Gemini CLI", "Claude Code'da sürdür"):
         assert etiket in html

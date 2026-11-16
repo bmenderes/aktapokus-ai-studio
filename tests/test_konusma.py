@@ -178,7 +178,7 @@ def test_gorev_sil_kayit_olaylar_ve_metayi_kaldirir(api):
 
 
 # ---------- klasoru ac ----------
-def test_klasor_ac_gezgin_ve_vscode_yalniz_kayitli_proje_klasorunu_acar(api, monkeypatch, tmp_path):
+def test_klasor_ac_gezgin_vscode_ve_antigravity_yalniz_kayitli_proje_klasorunu_acar(api, monkeypatch, tmp_path):
     app, istek, proje = api
     acilan = []
     monkeypatch.setattr(Uygulama, "_gezgini_ac", staticmethod(lambda yol: acilan.append(("gezgin", yol))))
@@ -190,13 +190,40 @@ def test_klasor_ac_gezgin_ve_vscode_yalniz_kayitli_proje_klasorunu_acar(api, mon
     monkeypatch.setenv("AKTAPOKUS_VSCODE", str(sahte_code))
     assert istek("POST", "/api/klasor-ac", {"hedef": "vscode"})[0] == 200
     assert acilan[-1] == ("program", [str(sahte_code), str(proje.resolve())])
+    sahte_antigravity = tmp_path / "Antigravity.exe"
+    sahte_antigravity.write_text("")
+    monkeypatch.setenv("AKTAPOKUS_ANTIGRAVITY", str(sahte_antigravity))
+    assert istek("POST", "/api/klasor-ac", {"hedef": "antigravity"})[0] == 200
+    assert acilan[-1] == ("program", [str(sahte_antigravity), str(proje.resolve())])
+    # .cmd/.bat sarmalayicisi kabul edilmez (cmd.exe yolu yorumlardi)
+    sahte_cmd = tmp_path / "Antigravity.cmd"
+    sahte_cmd.write_text("")
+    monkeypatch.setenv("AKTAPOKUS_ANTIGRAVITY", str(sahte_cmd))
     monkeypatch.setenv("AKTAPOKUS_VSCODE", str(tmp_path / "yok.exe"))
     monkeypatch.setattr("aktapokus_ai_studio.arayuz.shutil.which", lambda a: None)
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "bos"))
     monkeypatch.setenv("PROGRAMFILES", str(tmp_path / "bos"))
+    monkeypatch.delenv("PROGRAMFILES(X86)", raising=False)
+    st, d = istek("POST", "/api/klasor-ac", {"hedef": "antigravity"})
+    assert st == 404 and "Antigravity" in d["hata"]
     st, d = istek("POST", "/api/klasor-ac", {"hedef": "vscode"})
     assert st == 404 and "VS Code" in d["hata"]
     assert istek("POST", "/api/klasor-ac", {"hedef": "cmd"})[0] == 400 and istek("POST", "/api/klasor-ac", {})[0] == 400
+
+
+def test_klasor_ac_gemini_cli_proje_klasorunde_terminalde_baslatir(api, monkeypatch):
+    """Gemini CLI bir program degil: projenin klasorunde terminal acilir ve `gemini` oraya yazilir (kabuk tirnagi kacirilir)."""
+    app, istek, proje = api
+    girdiler = []
+    monkeypatch.setattr(app, "terminal_ac", lambda *a, **k: {"id": "t1"})
+    monkeypatch.setattr(app, "terminal_girdi", lambda tid, b64: girdiler.append((tid, base64.b64decode(b64).decode())) or {"tamam": True})
+    monkeypatch.setattr("aktapokus_ai_studio.arayuz.gemini_bul", lambda: [r"C:\Program Files\nodejs\node.exe", r"C:\o'brien\gemini.js"])
+    st, d = istek("POST", "/api/klasor-ac", {"hedef": "gemini"})
+    assert st == 200 and d == {"terminal": "t1"}
+    assert girdiler == [("t1", "& 'C:\\Program Files\\nodejs\\node.exe' 'C:\\o''brien\\gemini.js'\r")]
+    monkeypatch.setattr("aktapokus_ai_studio.arayuz.gemini_bul", lambda: None)
+    st, d = istek("POST", "/api/klasor-ac", {"hedef": "gemini"})
+    assert st == 404 and "Gemini CLI" in d["hata"] and len(girdiler) == 1  # kurulu degilse terminal acilmaz
 
 
 # ---------- Claude Code'da devam et ----------

@@ -41,7 +41,7 @@ from .klasor import KlasorHatasi, guvenli_klasor
 from . import baglam as baglam_modulu, sohbetler
 from .pipeline import HatHatasi, _kayit_klasoru, calistir_hat, eksik_kayitlari_onar, son_kayit
 from .proje import GitGerekli, hazirla as proje_hazirla
-from .runners import Calistirici, CalistiriciHatasi, ClaudeCodeCalistirici, calistirici_olustur, claude_bul, codex_bul, hepsini_kapat, opencode_bul
+from .runners import Calistirici, CalistiriciHatasi, ClaudeCodeCalistirici, calistirici_olustur, claude_bul, codex_bul, gemini_bul, hepsini_kapat, opencode_bul
 from .sunucu import SunucuCalistirici
 
 ATLANAN_KLASORLER = {".git", "node_modules", "__pycache__", ".aktapokus", ".opencode", ".venv", "venv", "dist", "build", ".idea", ".vscode"}
@@ -56,6 +56,34 @@ def github_deposu_mu(klasor: Path) -> bool:
         return bool(re.search(r"^\s*url\s*=\s*\S*github\.com", (klasor / ".git" / "config").read_text(encoding="utf-8", errors="replace"), re.M | re.I))
     except OSError:
         return False
+
+
+def antigravity_bul() -> str | None:
+    """Google Antigravity (ajan IDE'si) programi: AKTAPOKUS_ANTIGRAVITY, PATH, sonra bilinen kurulum yerleri.
+    Antigravity VS Code'un devamidir; Windows'ta ayni yerlesimi kullanir (Programs\\Antigravity\\Antigravity.exe).
+    .cmd/.bat sarmalayicilari KULLANILMAZ (cmd.exe yolu yorumlardi), dogrudan calistirilabilen program gerekir."""
+    adaylar: list[str | None] = [os.environ.get("AKTAPOKUS_ANTIGRAVITY"), shutil.which("Antigravity")]
+    for kok in filter(None, (os.environ.get("LOCALAPPDATA"), os.environ.get("PROGRAMFILES"), os.environ.get("PROGRAMFILES(X86)"))):
+        adaylar += [str(Path(kok) / "Programs" / "Antigravity" / "Antigravity.exe"), str(Path(kok) / "Antigravity" / "Antigravity.exe")]
+    return next((a for a in adaylar if a and Path(a).suffix.lower() not in (".cmd", ".bat") and Path(a).is_file()), None)
+
+
+def surucu_harfleri() -> list[str]:
+    """Klasor secicide gosterilecek Windows surucu harfleri ("C" gibi).
+    Neden: tek tek `os.path.exists("X:\\")` denemesi bagli OLMAYAN ag surucusunde ~10 sn bekliyor ve klasor seciciyi
+    donduruyordu (gercek olcum: V: ag surucusu bagli degilken 11 sn). GetLogicalDrives + GetDriveType aninda yanit verir.
+    Ag suruculeri LISTELENMEZ (erisilebilirlikleri ancak yavas bir denemeyle anlasilir); yol kutusuna yazilarak gidilebilir."""
+    if os.name != "nt":
+        return []
+    try:
+        import ctypes
+
+        cekirdek = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        bitler = cekirdek.GetLogicalDrives()
+        harfler = [chr(ord("A") + i) for i in range(26) if bitler & (1 << i)]
+    except (AttributeError, OSError, ValueError):
+        return [h for h in "CDEFGHIJKLMNOPQRSTUVWXYZ" if os.path.exists(f"{h}:\\")]
+    return [h for h in harfler if cekirdek.GetDriveTypeW(f"{h}:\\") in (2, 3, 5, 6)]  # cikarilabilir, sabit, CD, RAM; ag(4)/kok yok(1) haric
 
 
 def konusma_sinirlari_oku(klasor: Path) -> list[str]:
@@ -1983,7 +2011,25 @@ class Uygulama:
             except OSError as hata:
                 raise UygulamaHatasi(f"VS Code acilamadi: {hata.strerror or type(hata).__name__}", 500) from None
             return {"tamam": True}
-        raise UygulamaHatasi("hedef 'gezgin' ya da 'vscode' olmali")
+        if hedef == "antigravity":
+            program = antigravity_bul()
+            if not program:
+                raise UygulamaHatasi("Antigravity bulunamadi (kurulu degil, PATH'te yok ya da AKTAPOKUS_ANTIGRAVITY verilmemis)", 404)
+            try:
+                self._program_ac([program, klasor])
+            except OSError as hata:
+                raise UygulamaHatasi(f"Antigravity acilamadi: {hata.strerror or type(hata).__name__}", 500) from None
+            return {"tamam": True}
+        if hedef == "gemini":
+            # Gemini CLI bir program degil, terminalde calisan bir ajan: projenin klasorunde yeni terminal acilir ve `gemini` baslatilir.
+            onek = gemini_bul()
+            if not onek:
+                raise UygulamaHatasi("Gemini CLI bulunamadi (npm install -g @google/gemini-cli) ya da AKTAPOKUS_GEMINI ile yol verin", 404)
+            t = self.terminal_ac()
+            komut = "& " + " ".join("'" + p.replace("'", "''") + "'" for p in onek) + "\r"
+            self.terminal_girdi(t["id"], base64.b64encode(komut.encode("utf-8")).decode("ascii"))
+            return {"terminal": t["id"]}
+        raise UygulamaHatasi("hedef 'gezgin', 'vscode', 'antigravity' ya da 'gemini' olmali")
 
     def claude_devam(self, kimlik: object) -> dict:
         """Gorevin Claude Code konusmasini bu projenin klasorunde terminalde surdurur (`claude --resume <kimlik>`): ayni konusma, iki yonlu."""
@@ -2545,16 +2591,15 @@ class Uygulama:
 
     @staticmethod
     def klasor_kisayollari() -> list[dict]:
-        """Klasor secicinin hizli gecis dugmeleri: ev, masaustu, belgeler, indirilenler ve (Windows'ta) var olan surucular."""
+        """Klasor secicinin hizli gecis dugmeleri: ev, masaustu, belgeler, indirilenler ve (Windows'ta) yerel surucular (bkz. surucu_harfleri)."""
         ev = Path.home()
         liste = [{"ad": "Ev", "yol": str(ev)}]
         for ad, alt in (("Masaüstü", "Desktop"), ("Belgeler", "Documents"), ("İndirilenler", "Downloads")):
             if (ev / alt).is_dir():
                 liste.append({"ad": ad, "yol": str(ev / alt)})
         if os.name == "nt":
-            for harf in "CDEFGHIJKLMNOPQRSTUVWXYZ":
-                if os.path.exists(f"{harf}:\\"):
-                    liste.append({"ad": f"{harf}:", "yol": f"{harf}:\\"})
+            for harf in surucu_harfleri():
+                liste.append({"ad": f"{harf}:", "yol": f"{harf}:\\"})
         return liste
 
     def proje_listesi(self) -> dict:
