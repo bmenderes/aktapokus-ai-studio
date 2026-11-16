@@ -98,6 +98,18 @@ def program_engelli(ad: str, liste: list[str] | None = None) -> bool:
     return any(e.replace(" ", "") in k for e in (liste if liste is not None else ayar_oku()["programlar"]) if e) if k else False
 
 
+GRUP_ADLARI = {"plc": "PLC yazilimlari", "kabuk": "Komut satiri ve sistem araclari", "parola": "Parola yoneticileri"}
+
+
+def engel_nedeni(program: str) -> str:
+    """Modelin kullaniciya AYNEN aktarabilecegi, nereden acilacagini soyleyen mesaj (gercek durum: model 'Claude ayarlari' sandi)."""
+    k = Path(program).stem.lower().replace(" ", "") if program else ""
+    grup = next((ad for ad, g in ENGELLI_GRUPLAR.items() if any(e in k for e in g)), None)
+    yer = f"'{GRUP_ADLARI[grup]}' kutusunun isaretini kaldirin" if grup else f"listeden '{k}' programini kaldirin"
+    return (f"Bu pencereye girdi gonderilemez: {program} engelli. Acmak KULLANICININ isidir: Aktapokus > Ayarlar > Masaustu > "
+            f"Engelli programlar bolumunde {yer} (Claude ayarlarinda degil). Ayar hemen gecerli olur, gorevi yeniden vermek yeter.")
+
+
 def baslik_engelli(baslik: str) -> bool:
     b = (baslik or "").strip().lower()
     return b in ENGELLI_BASLIK_TAM or any(p in b for p in ENGELLI_BASLIK_ICERIR)
@@ -111,7 +123,7 @@ def _izin_ver(hwnd: int) -> dict:
     if b["program"].lower() in KILIT_PROGRAMLARI or "lock screen" in b["baslik"].lower():
         raise MasaustuHatasi("Oturum kilitli ya da parola/izin soruluyor: girdi gonderilmez")
     if program_engelli(b["program"]) or baslik_engelli(b["baslik"]):
-        raise MasaustuHatasi(f"Bu pencereye girdi gonderilemez: {b['program']} (Ayarlar > Masaustu'nden degistirilebilir)")
+        raise MasaustuHatasi(engel_nedeni(b["program"]) if program_engelli(b["program"]) else f"Bu pencereye girdi gonderilemez: {b['program']} (Aktapokus'un kendi penceresi ya da korunan pencere)")
     return b
 
 

@@ -210,7 +210,8 @@ def proje_icin(proje: str | None) -> list[McpTanim]:
 # Masaustu acik projede modele soylenir. Gercek durum (2026-11-16): ipucu yokken Claude 'yalniz klasordeki dosyalari degistir' kuralini okuyup
 # acik Machine Expert penceresine hic bakmadi, "bu bilgisayarda yok" dedi; MCP araclari ertelenmis (deferred) oldugu icin listede de gormedi.
 MASAUSTU_IPUCU = (
-    "MASAUSTU: Bu gorevde bu bilgisayarin ekranini gorup fare/klavyeyi kullanabilirsin: mcp__masaustu__ araclari "
+    "MASAUSTU: Sen Aktapokus uygulamasinin icinde calisiyorsun; izin ve ayarlar Aktapokus'undur (Claude uygulamasinin degil). "
+    "Bu gorevde bu bilgisayarin ekranini gorup fare/klavyeyi kullanabilirsin: mcp__masaustu__ araclari "
     "(pencereler, ekran_goruntusu, odakla, ogeler, tikla, yaz, tus, kaydir, program_baslat, bekle). Araclar listede gorunmuyorsa "
     "ToolSearch ile 'masaustu' ara. Kullanici acik bir programda (or. Machine Expert, Excel) bir sey isterse ONCE pencereler ve "
     "ekran_goruntusu ile ekrana bak; bir programin kurulu ya da acik olmadigina dosya aramasiyla karar verme. Masaustunde yaptigin "
