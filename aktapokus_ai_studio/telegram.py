@@ -513,6 +513,11 @@ class Bot:
             elif len(parcalar) == 2 and parcalar[0] == "s":
                 yanit("Sablon calistiriliyor")
                 self._sablon_calistir(chat["id"], parcalar[1])
+            elif len(parcalar) == 3 and parcalar[0] == "i" and parcalar[2] in ("o", "a", "r"):
+                karar = {"o": "once", "a": "always", "r": "reject"}[parcalar[2]]
+                with self._kosu_baglami(parcalar[1]):
+                    self.app.izin_yanitla(parcalar[1], karar)
+                yanit("Reddedildi" if karar == "reject" else "Izin verildi")
             elif len(parcalar) == 3 and parcalar[0] == "k" and parcalar[2] in ("0", "1"):
                 with self._kosu_baglami(parcalar[1]):
                     self.app.karar_ver(parcalar[1], parcalar[2] == "1")
@@ -566,6 +571,10 @@ class Bot:
             ek = "\n(Icerik gonderimi kapali; /fark <dosya> icin /gizlilik acik)" if not self.ayar["icerik_gonder"] else "\n/fark <dosya> ile degisikligi gorebilirsiniz."
             self._herkese(f"{et}{len(dosyalar)} dosya degisti:\n" + "\n".join(satirlar) + uyari + ek,
                           [[{"text": "Korunsun", "callback_data": f"k:{k}:1"}, {"text": "Geri al", "callback_data": f"k:{k}:0"}]])
+        elif t == "izin-bekleniyor":
+            iz = o.get("izin") or {}
+            self._herkese(f"{et}Izin bekleniyor ({iz.get('rol') or 'model'} · {iz.get('arac') or 'islem'}):\n{str(iz.get('ozet') or '')[:300]}",
+                          [[{"text": "Izin ver", "callback_data": f"i:{k}:o"}, {"text": "Bu gorevde hep", "callback_data": f"i:{k}:a"}, {"text": "Reddet", "callback_data": f"i:{k}:r"}]])
         elif t == "bitti":
             self.ilerleme.pop(k, None)
             gorev = self.kosu_gorev.pop(k, "").strip().splitlines()

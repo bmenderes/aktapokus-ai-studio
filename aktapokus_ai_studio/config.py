@@ -37,6 +37,7 @@ TEST_TALIMATI = (
 VARSAYILAN_AYAR: dict = {
     "surum": 1,
     "akis": ["kodcu", "test"],
+    "izin_sor": "riskli",  # gorev sirasinda komut calistirma/web getirme oncesi kullaniciya sorulur (eski projelerde alan yok = 'hayir')
     "testi_atla": True,  # yeni projede ayri test adimi kapali gelir (kodcu kendi dogrular); rol cipindeki dugmeyle acilir
     "azami_duzeltme": 2,
     "butce_token": 2000000,  # 0 = sinirsiz (Claude Code basit bir gorevde bile ~50 bin token yer; 200 bin cok kisaydi)
@@ -85,6 +86,7 @@ class Ayar:
     otomatik_onay: bool = False  # arayuzden/Telegram'dan yazilan gorevin plani onay beklemeden baslar (otomasyon ve issue gorevleri HER ZAMAN onay ister)
     otomatik_koru: bool = False  # degisiklikler 'korunsun mu' sorulmadan korunur (geri alma noktasi yine alinir; sonradan Gecmis'ten geri alinabilir)
     testi_atla: bool = False  # dogrulama (test) rolleri varsayilan olarak atlanir; gorev basina degistirilebilir
+    izin_sor: str = "hayir"  # gorev sirasinda izin sorma: 'hayir' | 'riskli' (komut, web) | 'hepsi' (dosya duzenleme de); soramayan CLI'larda etkisiz
     claude_oturum: str = "tek"  # Claude Code konusmasi: 'tek' (proje basina tek konusma) | 'yeni' (her calistirmada yeni) | 'hic' (kaydetme)
 
     def rol_sirasi(self) -> list[Rol]:
@@ -175,6 +177,8 @@ def ayar_coz(veri: object) -> Ayar:
         raise AyarHatasi("'baglam' true/false olmali")
     if veri.get("claude_oturum", "tek") not in ("tek", "yeni", "hic"):
         raise AyarHatasi("'claude_oturum' 'tek', 'yeni' ya da 'hic' olmali")
+    if veri.get("izin_sor", "hayir") not in ("hayir", "riskli", "hepsi"):
+        raise AyarHatasi("'izin_sor' 'hayir', 'riskli' ya da 'hepsi' olmali")
     for ad_ in ("otomatik_onay", "otomatik_koru", "testi_atla"):
         if not isinstance(veri.get(ad_, False), bool):
             raise AyarHatasi(f"'{ad_}' true/false olmali")
@@ -189,6 +193,7 @@ def ayar_coz(veri: object) -> Ayar:
         otomatik_koru=bool(veri.get("otomatik_koru", False)),
         testi_atla=bool(veri.get("testi_atla", False)),
         claude_oturum=veri.get("claude_oturum", "tek"),
+        izin_sor=veri.get("izin_sor", "hayir"),
     )
 
 

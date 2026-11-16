@@ -751,3 +751,24 @@ def test_ilerleme_kapaliyken_yalniz_plan_fark_ve_bitis_gider(kur):
     tum = fake.metinler() + [v["text"] for v in fake.gonderilen("editMessageText")]
     assert not any("calisiyor..." in m for m in tum)
     assert any(m.startswith("Plan") for m in tum) and any("dosya degisti" in m for m in tum)
+
+def test_gorev_sirasindaki_izin_sorusu_dugmeyle_yanitlanir(kur, proje):
+    """Model komut calistirmak isteyince Telegram'a dugmeli soru gelir; 'Izin ver' gorevi surdurur."""
+    from aktapokus_ai_studio.config import ayar_yolu
+    from test_izin_sor import SoranCalistirici
+
+    c = SoranCalistirici()
+    bot, fake, app, _ = kur(uret=lambda ad: c)
+    fake.mesaj(UID, f"/klasor {proje}")
+    assert bekle(lambda: aktif_klasor(bot) is not None)
+    yol = ayar_yolu(proje)
+    veri = json.loads(yol.read_text(encoding="utf-8"))
+    veri["izin_sor"] = "riskli"
+    yol.write_text(json.dumps(veri), encoding="utf-8")
+    fake.mesaj(UID, "/gorev yeni.txt ekle")
+    assert bekle(lambda: son_klavye(fake, "o:")[0] is not None)
+    fake.dugme(UID, son_klavye(fake, "o:")[1]["Onayla"])
+    assert bekle(lambda: son_klavye(fake, "i:")[0] is not None)
+    assert any("Izin bekleniyor" in m and "npm install" in m for m in fake.metinler())
+    fake.dugme(UID, son_klavye(fake, "i:")[1]["Izin ver"])
+    assert bekle(lambda: c.yanitlar == ["once"])

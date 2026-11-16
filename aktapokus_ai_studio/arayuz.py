@@ -243,6 +243,9 @@ class Kosu:
     sonuc: object = None
     testsiz: bool = False  # dogrulama (test) rolleri bu gorevde atlanir
     testi_atla: threading.Event = field(default_factory=threading.Event)  # calisirken testi atlatma
+    izin: dict | None = None  # yanit bekleyen izin sorusu {id, arac, ozet, rol}; gorev bu sirada bekler (durum 'calisiyor' kalir)
+    izin_olayi: threading.Event = field(default_factory=threading.Event)
+    izin_karar: str = "reject"
     simdiki_rol: str | None = None
     dogrulama_rolleri: frozenset = frozenset()
     olaylar: list = field(default_factory=list)  # konusma olarak yeniden oynatilacak olaylar (kayitla birlikte saklanir)
@@ -261,7 +264,7 @@ class Kosu:
 AKTIF_KOSU = ("plan", "calisiyor", "karar-bekliyor")
 
 AZAMI_KAYITLI_OLAY = 1500
-KAYITLI_OLAY_TURLERI = {"plan", "basladi", "adim-basladi", "adim-bitti", "dogrulama", "duzeltme", "fark", "bitti", "test-atlatiliyor", "dogrulama-atlandi", "durduruluyor"}
+KAYITLI_OLAY_TURLERI = {"plan", "basladi", "adim-basladi", "adim-bitti", "dogrulama", "duzeltme", "fark", "bitti", "test-atlatiliyor", "dogrulama-atlandi", "durduruluyor", "izin-yanitlandi"}
 
 
 def _olay_kaydi(olay: dict) -> dict | None:
@@ -522,6 +525,7 @@ class Uygulama:
             "otomatik_onay": a.otomatik_onay,
             "otomatik_koru": a.otomatik_koru,
             "testi_atla": a.testi_atla,
+            "izin_sor": a.izin_sor,
             "claude_oturum": a.claude_oturum,
         }
 
@@ -533,7 +537,7 @@ class Uygulama:
             d["koruyucu_eksik"] = guard.dogrula(self.klasor)
             k = son_kayit(self.klasor)
             d["son_kayit"] = {x: k.get(x) for x in ("id", "zaman", "gorev", "durum", "token_toplam")} if k else None
-        d["kosu"] = {"kimlik": self.kosu.kimlik, "gorev": self.kosu.gorev, "durum": self.kosu.durum, "gecen_sn": int(time.time() - self.kosu.baslangic) if self.kosu.baslangic and self.kosu.durum in ("calisiyor", "karar-bekliyor") else None} if self.kosu else None
+        d["kosu"] = {"kimlik": self.kosu.kimlik, "gorev": self.kosu.gorev, "durum": self.kosu.durum, "gecen_sn": int(time.time() - self.kosu.baslangic) if self.kosu.baslangic and self.kosu.durum in ("calisiyor", "karar-bekliyor") else None, "izin": self.kosu.izin} if self.kosu else None
         d["kuyruk"] = [k["gorev"][:200] for k in self.secili.kuyruk] if self.secili else []
         d["yarim"] = self._yarim_ozeti(self.secili) if self.secili else None
         return d
@@ -2388,9 +2392,23 @@ class Uygulama:
         if kosu.durum == "karar-bekliyor":
             kosu.karar = False  # fark karari beklerken durdurma = geri al
             kosu.karar_olayi.set()
+        if kosu.izin is not None:  # izin sorusu beklerken durdurma = reddet
+            kosu.izin_karar = "reject"
+            kosu.izin_olayi.set()
         self._yayinla(oturum, {"tur": "durduruluyor", "kosu": kimlik})
         r = oturum.aktif_calistirici
         return bool(r and r.durdur())
+
+    def izin_yanitla(self, kimlik: str, karar: object, istek: object = None) -> None:
+        """Gorev sirasinda sorulan izin sorusunu yanitlar: 'once' (bu kez), 'always' (bu gorevde ayni tur komut hep), 'reject'."""
+        if karar not in ("once", "always", "reject"):
+            raise UygulamaHatasi("karar 'once', 'always' ya da 'reject' olmali")
+        with self.kilit:
+            kosu = self._kosu(kimlik, ("calisiyor",))
+            if kosu.izin is None or (istek is not None and istek != kosu.izin.get("id")):
+                raise UygulamaHatasi("Yanit bekleyen izin sorusu yok", 409)
+            kosu.izin_karar = str(karar)
+        kosu.izin_olayi.set()
 
     def testi_atla(self, kimlik: str) -> bool:
         """Calisan gorevde test (dogrulama) adimini iptal eder: o adim hata sayilmaz, kalan akis (fark + karar) devam eder."""
@@ -2419,7 +2437,26 @@ class Uygulama:
             oturum.aktif_calistirici = r
             if hasattr(r, "ilerleme"):
                 r.ilerleme = lambda e: yayinla({**e, "tur": "canli", "alt": e.get("tur")})
+            if hasattr(r, "izin_sor"):
+                r.izin_sor = izin_sor if seviye[0] != "hayir" else None
             return r
+
+        seviye = ["hayir"]  # proje ayari 'izin_sor'; basinda kimse olmayan (onaysiz) otomasyonda her zaman 'hayir'
+
+        def izin_sor(istek: dict) -> str:
+            """Calistirici izin isteyince kullaniciya sorar ve yanit gelene kadar bekler (durdur = reddet)."""
+            if kosu.iptal.is_set() or kosu.onaysiz:
+                return "reject"
+            kosu.izin_olayi.clear()
+            kosu.izin_karar = "reject"
+            kosu.izin = {"id": str(istek.get("id") or ""), "arac": str(istek.get("arac") or ""), "ozet": str(istek.get("ozet") or ""), "rol": kosu.simdiki_rol}
+            yayinla({"tur": "izin-bekleniyor", "kosu": kosu.kimlik, "izin": kosu.izin})
+            if kosu.iptal.is_set():  # soru yayinlanirken durdurulduysa bekleme
+                kosu.izin_olayi.set()
+            kosu.izin_olayi.wait()
+            sorulan, kosu.izin = kosu.izin, None
+            yayinla({"tur": "izin-yanitlandi", "kosu": kosu.kimlik, "id": sorulan["id"], "karar": kosu.izin_karar, "arac": sorulan["arac"], "ozet": sorulan["ozet"][:200]})
+            return kosu.izin_karar
 
         koru = [False]  # Ayarlar > Genel 'Degisiklikleri otomatik koru': karar sorulmaz
 
@@ -2453,9 +2490,12 @@ class Uygulama:
                 ayar = ayar_model_gecersiz(ayar, *kosu.model_gecersiz)
             koru[0] = ayar.otomatik_koru or kosu.onaysiz or izinler.koru()  # Ayarlar > Izinler: tum projelerde 'Keep' sorulmaz
             kosu.dogrulama_rolleri = frozenset(ad for ad, r in ayar.roller.items() if r.dogrulama)
+            seviye[0] = "hayir" if kosu.onaysiz else ayar.izin_sor
+            if any(r.calistirici.startswith("opencode") for r in ayar.roller.values()) and guard.seviye_oku(klasor) not in (None, seviye[0]):
+                guard.kur(klasor, seviye[0])  # OpenCode sormayi kendi izin dosyasindan ogrenir: seviye degistiyse dosya esitlenir
             kosu.sonuc = calistir_hat(klasor, kosu.gorev, ayar, uret, onay, bildir=lambda m: yayinla({"tur": "gunluk", "mesaj": m}), olay=olay, iptal=kosu.iptal, testsiz=kosu.testsiz, testi_atla=kosu.testi_atla, sohbet=kosu.sohbet)
             oturum.son_hat = {"once": kosu.sonuc.once, "sonra": kosu.sonuc.sonra, "degisen": kosu.sonuc.degisen, "durum": kosu.sonuc.durum}
-        except (HatHatasi, KlasorHatasi, AyarHatasi, snapshot.GitHatasi, CalistiriciHatasi) as hata:
+        except (HatHatasi, KlasorHatasi, AyarHatasi, snapshot.GitHatasi, CalistiriciHatasi, guard.KoruyucuHatasi) as hata:
             yayinla({"tur": "bitti", "durum": "hata", "mesaj": str(hata), "kosu": kosu.kimlik})
         except Exception as hata:  # arayuz sunucusu hicbir hatayla dusmesin
             yayinla({"tur": "bitti", "durum": "hata", "mesaj": f"Beklenmeyen hata: {type(hata).__name__}: {hata}", "kosu": kosu.kimlik})
@@ -2758,6 +2798,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return "otomatik_onay uzaktan degistirilemez (plan onayini kapatir)"
                 if isinstance(yeni, dict) and bool(yeni.get("otomatik_koru", False)) != bool(app.ayar_oku().get("otomatik_koru", False)):
                     return "otomatik_koru uzaktan degistirilemez (koru/geri al kararini kapatir)"
+                if isinstance(yeni, dict) and yeni.get("izin_sor", "hayir") != app.ayar_oku().get("izin_sor", "hayir"):
+                    return "izin_sor uzaktan degistirilemez (gorev sirasindaki izin sorusunu kapatabilir)"
                 for ad, rol in (yeni.get("roller", {}) if isinstance(yeni, dict) and isinstance(yeni.get("roller"), dict) else {}).items():
                     if isinstance(rol, dict) and bool(rol.get("okuma_riski_kabul", False)) != bool((eski.get(ad) or {}).get("okuma_riski_kabul", False)):
                         return "okuma_riski_kabul uzaktan degistirilemez (gizli dosya korumasini kapatir)"
@@ -3195,10 +3237,12 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.kuyruktan_sil(g.get("sira")))
                 if yol == "/api/yarim":
                     return self._gonder(200, app.yarim_coz(g.get("islem")))
-                m = re.match(r"^/api/gorev/([0-9a-f]+)/(onayla|reddet|karar|durdur|testi-atla)$", yol)
+                m = re.match(r"^/api/gorev/([0-9a-f]+)/(onayla|reddet|karar|durdur|testi-atla|izin)$", yol)
                 if m:
                     kimlik, islem = m.groups()
-                    if islem == "onayla":
+                    if islem == "izin":
+                        app.izin_yanitla(kimlik, g.get("karar"), g.get("istek") if isinstance(g.get("istek"), str) else None)
+                    elif islem == "onayla":
                         app.onayla(kimlik, g.get("testsiz") if isinstance(g.get("testsiz"), bool) else None)
                     elif islem == "testi-atla":
                         return self._gonder(200, {"durduruldu": app.testi_atla(kimlik)})

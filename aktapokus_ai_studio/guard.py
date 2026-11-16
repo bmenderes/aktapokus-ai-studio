@@ -51,6 +51,44 @@ IZIN_AYARI: dict = {
 }
 
 
+SEVIYELER = ("hayir", "riskli", "hepsi")  # gorev sirasinda kullaniciya izin sorma seviyesi (proje ayari 'izin_sor')
+
+
+def izin_ayari(seviye: str = "hayir") -> dict:
+    """Seviyeye gore izin ayari. 'hayir' = IZIN_AYARI (sormaz). 'riskli' = kabuk komutu ve web getirme SORULUR. 'hepsi' = dosya duzenleme de sorulur.
+    Yasaklar (klasor disi, .env, kendi ayar dosyalari) HER seviyede yasak kalir: sormak korumayi gevsetmez."""
+    import copy
+
+    a = copy.deepcopy(IZIN_AYARI)
+    if seviye in ("riskli", "hepsi"):
+        a["shell"]["*"] = "ask"
+        a["webfetch"] = "ask"
+    if seviye == "hepsi":
+        a["edit"]["*"] = "ask"
+    return a
+
+
+def _izin_oku(klasor: str | Path) -> dict | None:
+    try:
+        veri = json.loads(koruyucu_yolu(klasor).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    izin = veri.get("permission") if isinstance(veri, dict) else None
+    return izin if isinstance(izin, dict) else None
+
+
+def seviye_oku(klasor: str | Path) -> str | None:
+    """Dosyadaki ayar hangi seviyeyle TAM eslesiyor; hicbiriyle eslesmiyorsa None."""
+    izin = _izin_oku(klasor)
+    if izin is None:
+        return None
+    for s in reversed(SEVIYELER):
+        beklenen_ayar = izin_ayari(s)
+        if all(izin.get(ad) == beklenen for ad, beklenen in beklenen_ayar.items()):
+            return s
+    return None
+
+
 _SIR_ONEKLERI = (".env", "id_rsa", "id_ed25519", ".npmrc", ".pypirc", "credentials")
 _SIR_UZANTILARI = (".pem", ".key", ".pfx", ".p12", ".keystore", ".jks")
 _SIR_ORNEKLERI = (".env.example", ".env.sample", ".env.template", ".env.dist")
@@ -85,10 +123,15 @@ def koruyucu_yolu(klasor: str | Path) -> Path:
     return Path(klasor) / ".opencode" / "opencode.json"
 
 
-def kur(klasor: str | Path) -> str:
-    """Izin ayarini yazar/birlestirir. 'olusturuldu' | 'guncellendi' | 'zaten-etkin' dondurur."""
+def kur(klasor: str | Path, seviye: str | None = None) -> str:
+    """Izin ayarini yazar/birlestirir. 'olusturuldu' | 'guncellendi' | 'zaten-etkin' dondurur.
+    `seviye` verilmezse dosyadaki gecerli seviye korunur (yoksa 'hayir')."""
     klasor = Path(klasor)
     yol = koruyucu_yolu(klasor)
+    if seviye is not None and seviye not in SEVIYELER:
+        raise KoruyucuHatasi(f"Gecersiz izin seviyesi: {seviye!r}")
+    seviye = seviye or seviye_oku(klasor) or "hayir"
+    hedef = izin_ayari(seviye)
     if yol.exists():
         try:
             mevcut_metin = yol.read_text(encoding="utf-8")
@@ -97,7 +140,7 @@ def kur(klasor: str | Path) -> str:
             raise KoruyucuHatasi(f"{yol} okunamadi/bozuk; uzerine yazilmadi: {hata}") from hata
         if not isinstance(mevcut, dict):
             raise KoruyucuHatasi(f"{yol} bir JSON nesnesi degil; uzerine yazilmadi")
-        if not dogrula(klasor):
+        if not dogrula(klasor, seviye):
             return "zaten-etkin"
         yedek = klasor / AYAR_KLASORU / YEDEK_ADI
         if not yedek.exists():
@@ -105,18 +148,19 @@ def kur(klasor: str | Path) -> str:
             yedek.write_text(mevcut_metin, encoding="utf-8")
         izin = mevcut.get("permission")
         izin = dict(izin) if isinstance(izin, dict) else {}
-        izin.update(IZIN_AYARI)
+        izin.update(hedef)  # 'webfetch' yalniz sorulan seviyelerde yazilir; kullanicinin kendi webfetch ayarina 'hayir'da dokunulmaz
         mevcut["permission"] = izin
         sonuc, durum = mevcut, "guncellendi"
     else:
-        sonuc, durum = {"$schema": "https://opencode.ai/config.json", "permission": dict(IZIN_AYARI)}, "olusturuldu"
+        sonuc, durum = {"$schema": "https://opencode.ai/config.json", "permission": hedef}, "olusturuldu"
     yol.parent.mkdir(parents=True, exist_ok=True)
     yol.write_text(json.dumps(sonuc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return durum
 
 
-def dogrula(klasor: str | Path) -> list[str]:
-    """Eksik/degistirilmis koruma ogelerinin listesi; bos liste = koruyucu tam ve yerinde."""
+def dogrula(klasor: str | Path, seviye: str | None = None) -> list[str]:
+    """Eksik/degistirilmis koruma ogelerinin listesi; bos liste = koruyucu tam ve yerinde.
+    `seviye` verilmezse bilinen seviyelerden HERHANGI biriyle tam eslesme yeterlidir."""
     yol = koruyucu_yolu(klasor)
     if not yol.is_file():
         return [f"koruyucu ayar dosyasi yok: {yol}"]
@@ -127,4 +171,6 @@ def dogrula(klasor: str | Path) -> list[str]:
     izin = veri.get("permission") if isinstance(veri, dict) else None
     if not isinstance(izin, dict):
         return ["'permission' bolumu yok"]
-    return [f"'permission.{ad}' beklenen degerde degil" for ad, beklenen in IZIN_AYARI.items() if izin.get(ad) != beklenen]
+    if seviye is None:
+        seviye = seviye_oku(klasor) or "hayir"
+    return [f"'permission.{ad}' beklenen degerde degil" for ad, beklenen in izin_ayari(seviye).items() if izin.get(ad) != beklenen]

@@ -436,6 +436,24 @@ def hata_acikla(bilgi: dict, mesajlar: list[dict]) -> str:
 AZAMI_SUNUCU_ISTEMI = 200_000  # istem HTTP govdesiyle gider (komut satiri degil): 24.000'lik CLI siniri burada gecerli degil; 13 web sayfali otomasyon 38.000 karakter tutmustu
 
 
+def izin_ozeti(izin: dict) -> dict:
+    """OpenCode izin istegini ekranda gosterilecek sade bicime cevirir: {id, arac, ozet}. Alan adlari surume gore degisebilir; bulunamayan bos kalir."""
+    def metin(v: object) -> str:
+        if isinstance(v, str):
+            return v
+        if isinstance(v, (list, tuple)):
+            return " ".join(metin(x) for x in v if x)
+        return ""
+
+    ust = izin.get("metadata") if isinstance(izin.get("metadata"), dict) else {}
+    arac = metin(izin.get("permission") or izin.get("type") or izin.get("tool") or izin.get("action"))
+    ozet = ""
+    for kaynak in (ust, izin):
+        for ad in ("command", "filepath", "filePath", "path", "url", "title", "patterns", "pattern", "resources"):
+            ozet = ozet or metin(kaynak.get(ad))
+    return {"id": str(izin.get("id") or ""), "arac": arac[:60], "ozet": " ".join(ozet.split())[:400]}
+
+
 class SunucuCalistirici(Calistirici):
     """Kalici `opencode serve` uzerinden calistirir; sunucu cagrilar arasi acik kalir.
 
@@ -465,6 +483,7 @@ class SunucuCalistirici(Calistirici):
         self._sunucu_kilidi = threading.Lock()
         self.ilerleme = ilerleme
         self.izin_karari = izin_karari
+        self.izin_sor: Callable[[dict], str] | None = None  # verilirse izin istegi KULLANICIYA sorulur (yanit gelene kadar bekler): 'once' | 'always' | 'reject'
         self.yoklama_sn = yoklama_sn
 
     def _al(self) -> Istemci:
@@ -755,7 +774,21 @@ class SunucuCalistirici(Calistirici):
                 for izin in istemci.izinler(sid):
                     if izin.get("id") and izin["id"] not in islenen_izinler:
                         islenen_izinler.add(izin["id"])
-                        istemci.izin_yanitla(sid, izin["id"], self.izin_karari, "Aktapokus: izin istegi otomatik yanitlandi")
+                        if self.izin_sor is None:
+                            istemci.izin_yanitla(sid, izin["id"], self.izin_karari, "Aktapokus: izin istegi otomatik yanitlandi")
+                            continue
+                        sorulan = time.monotonic()
+                        try:
+                            karar = self.izin_sor(izin_ozeti(izin))
+                        except Exception:  # soran taraf dusse de gorev asili kalmasin
+                            karar = "reject"
+                        if karar not in ("once", "always", "reject"):
+                            karar = "reject"
+                        istemci.izin_yanitla(sid, izin["id"], karar, "Aktapokus: kullanici reddetti" if karar == "reject" else None)
+                        bekleme = time.monotonic() - sorulan  # kullaniciyi beklerken gecen sure zaman asimina sayilmaz
+                        mutlak += bekleme
+                        simdi = time.monotonic()
+                        son_hareket = etkinlik["zaman"] = simdi
                 self._formlari_kapat(istemci, sid, islenen_formlar)
                 if sid not in istemci.aktif_oturumlar():
                     break
