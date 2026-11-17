@@ -132,7 +132,7 @@ def golge_boyut_denetle(klasor: str | Path) -> None:
     if len(dosyalar) > AZAMI_GOLGE_DOSYA:
         raise GitHatasi(
             f"Bu klasor cok buyuk ({len(dosyalar)} dosya; sinir {AZAMI_GOLGE_DOSYA}). Geri alma icin anlik goruntu alinamaz. "
-            "Daha kucuk bir proje klasoru secin ya da buyuk klasorleri (node_modules, .venv...) .gitignore ile disarida birakin."
+            + _buyukler_metni(klasor, dosyalar, bayt=False)
         )
     toplam = 0
     for d in dosyalar:
@@ -141,7 +141,29 @@ def golge_boyut_denetle(klasor: str | Path) -> None:
         except OSError:
             continue
         if toplam > AZAMI_GOLGE_BAYT:
-            raise GitHatasi("Bu klasor cok buyuk (1 GB'i asiyor). Geri alma icin anlik goruntu alinamaz; daha kucuk bir proje klasoru secin ya da buyuk dosyalari .gitignore ile disarida birakin.")
+            raise GitHatasi("Bu klasor cok buyuk (1 GB'i asiyor). Geri alma icin anlik goruntu alinamaz. " + _buyukler_metni(klasor, dosyalar))
+
+
+def _buyukler_metni(klasor: Path, dosyalar: list[str], bayt: bool = True, adet: int = 3) -> str:
+    """Hata mesajina: en buyuk klasorler ve .gitignore'a yazilacak satirlar. Gercek durum: kullanici hangi klasorun buyuk oldugunu
+    bilemedi; model de yardim edemedi cunku hata modelden ONCE (geri alma adiminda) olusuyor."""
+    import collections
+
+    sayac: collections.Counter = collections.Counter()
+    for d in dosyalar:
+        parca = d.split("/")
+        anahtar = "/".join(parca[:2]) if len(parca) > 2 else parca[0] if len(parca) > 1 else "(kok dosyalar)"
+        try:
+            sayac[anahtar] += (klasor / d).stat().st_size if bayt else 1
+        except OSError:
+            continue
+    en = [(a, n) for a, n in sayac.most_common(adet) if a != "(kok dosyalar)"]
+    if not en:
+        return "Daha kucuk bir proje klasoru secin ya da buyuk dosyalari .gitignore ile disarida birakin."
+    liste = ", ".join(f"{a} ({n // 2**20} MB)" if bayt else f"{a} ({n} dosya)" for a, n in en)
+    satirlar = " ".join(f"{a}/" for a, _ in en)
+    return (f"En buyukler: {liste}. Bunlar yalniz okunacak belgeler ya da ornek projelerse proje klasorundeki .gitignore dosyasina "
+            f"su satirlari ekleyin: {satirlar} (model yine okuyabilir; yalniz geri alma kopyasina girmez).")
 
 
 def _git(klasor: Path, *args: str, env: dict | None = None, kontrol: bool = True) -> str:

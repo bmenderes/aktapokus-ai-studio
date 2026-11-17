@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from . import baglam, guard, motorlar, snapshot
+from . import baglam, disla, guard, motorlar, snapshot
 from .config import AYAR_KLASORU, VARSAYILAN_AYAR, ayar_yolu
 from .klasor import guvenli_klasor
 
@@ -19,6 +19,7 @@ def hazirla(klasor: str | Path, git_baslat: bool = False) -> dict:
     Hatalar: KlasorHatasi, GitGerekli, snapshot.GitHatasi, guard.KoruyucuHatasi."""
     klasor = guvenli_klasor(klasor)
     git = "mevcut"
+    dislanan: list[dict] = []
     if git_baslat and snapshot.golge_mi(klasor):  # golge depolu klasorde de gercek depo istenebilir ("Git'e aktar"); golge dizini kalir, .git eklenir
         if snapshot.ust_depoda_mi(klasor):
             raise snapshot.GitHatasi("Bu klasor baska bir git deposunun icinde; ic ice depo olusturulmaz (geri alma golge yedekle calismaya devam eder)")
@@ -31,6 +32,7 @@ def hazirla(klasor: str | Path, git_baslat: bool = False) -> dict:
         else:  # git ISTENMEZ: geri alma klasorun disindaki golge depoda tutulur
             yeni = snapshot.golge_baslat(klasor)
             try:
+                dislanan = disla.uygula(klasor)  # buyuk/hassas dosyalar .gitignore'a: boyut denetiminden ONCE
                 snapshot.golge_boyut_denetle(klasor)
             except snapshot.GitHatasi:
                 if yeni:
@@ -38,8 +40,11 @@ def hazirla(klasor: str | Path, git_baslat: bool = False) -> dict:
                 raise
             git = "golge"
     elif snapshot.golge_mi(klasor):
+        dislanan = disla.uygula(klasor)
         snapshot.golge_boyut_denetle(klasor)
         git = "golge"
+    else:
+        dislanan = disla.uygula(klasor)
     hariclik = snapshot.git_dizini(klasor) / "info" / "exclude"
     hariclik.parent.mkdir(parents=True, exist_ok=True)
     mevcut = hariclik.read_text(encoding="utf-8") if hariclik.exists() else ""
@@ -55,4 +60,4 @@ def hazirla(klasor: str | Path, git_baslat: bool = False) -> dict:
         # Yeni projenin varsayilan rolleri KURULU motora gore (OpenCode yoksa ama Claude Code/Codex varsa onlarla); mevcut ayar asla ezilmez
         yol.write_text(json.dumps(motorlar.ayar_uret(motorlar.tercih()), ensure_ascii=False, indent=2), encoding="utf-8")
         ayar = "olusturuldu"
-    return {"klasor": klasor, "git": git, "koruyucu": koruyucu, "ayar": ayar, "baglam": baglam_kaynak}
+    return {"klasor": klasor, "git": git, "koruyucu": koruyucu, "ayar": ayar, "baglam": baglam_kaynak, "dislanan": dislanan}

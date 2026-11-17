@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Callable
 
-from . import baglam as baglam_modulu, guard, snapshot
+from . import baglam as baglam_modulu, disla, guard, snapshot
 from .config import AYAR_KLASORU, Ayar, Rol
 from .klasor import guvenli_klasor
 from .runners import Calistirici, CalistirmaSonucu
@@ -152,6 +152,12 @@ def calistir_hat(
                 bildir("Ortak baglam guncellendi: " + ", ".join(f"{d} ({s})" for d, s in degisen_baglam.items()))
         except OSError as hata:
             bildir(f"UYARI: ortak baglam dosyalari yazilamadi ({hata}); devam ediliyor.")
+    try:  # yeni gelen buyuk/hassas dosyalar geri alma kopyasina girmeden .gitignore'a (gorev modelden ONCE durmasin)
+        eklenen = disla.uygula(klasor)
+        if eklenen:
+            bildir(disla.bildirim(eklenen))
+    except Exception:
+        pass
     kimlik = _yeni_kayit_kimligi()
     once = snapshot.anlik_goruntu(klasor, f"aktapokus {kimlik} oncesi")
     sonuc = HatSonucu(durum="", once=once)

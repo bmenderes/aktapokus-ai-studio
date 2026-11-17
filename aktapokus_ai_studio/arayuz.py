@@ -482,6 +482,10 @@ class Uygulama:
             except OSError:
                 pass
             self._yayinla(self.oturumlar[kimlik], {"tur": "klasor", "klasor": str(sonuc["klasor"]), "git": sonuc["git"], "koruyucu": sonuc["koruyucu"]})
+            if sonuc.get("dislanan"):
+                from . import disla
+
+                self._yayinla(self.oturumlar[kimlik], {"tur": "gunluk", "mesaj": disla.bildirim(sonuc["dislanan"])})
             with self.proje_baglami(kimlik):
                 return self.durum()
 

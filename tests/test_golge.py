@@ -135,6 +135,22 @@ def test_buyuk_dosya_boyut_siniri(tmp_path, monkeypatch):
     assert not snapshot.golge_dizini(k).exists()
 
 
+def test_buyuk_klasor_hatasi_en_buyuk_klasorleri_ve_gitignore_satirini_soyler(tmp_path, monkeypatch):
+    """Gercek durum: kullanici hangi klasorun buyuk oldugunu bilemedi; hata modelden ONCE olustugu icin model de yardim edemedi."""
+    k = gitsiz(tmp_path)
+    (k / "SampleProject" / "a").mkdir(parents=True)
+    (k / "SampleProject" / "a" / "x.bin").write_bytes(b"x" * 3000)
+    (k / "docs" / "PacDrive").mkdir(parents=True)
+    (k / "docs" / "PacDrive" / "y.bin").write_bytes(b"y" * 2000)
+    (k / "kucuk.txt").write_text("z")
+    monkeypatch.setattr(snapshot, "AZAMI_GOLGE_BAYT", 1000)
+    with pytest.raises(snapshot.GitHatasi) as hata:
+        hazirla(k)
+    metin = str(hata.value)
+    assert "SampleProject/a" in metin and "docs/PacDrive" in metin and metin.index("SampleProject/a") < metin.index("docs/PacDrive")
+    assert ".gitignore" in metin and "SampleProject/a/" in metin and "kok dosyalar" not in metin
+
+
 def test_klasor_sonradan_sisince_anlik_goruntu_reddedilir(tmp_path, monkeypatch):
     k = gitsiz(tmp_path)
     hazirla(k)
