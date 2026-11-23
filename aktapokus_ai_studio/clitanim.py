@@ -32,6 +32,7 @@ from .runners import (
     claude_bul,
     codex_bul,
     dsh_bul,
+    agy_modelleri,
     gemini_bul,
     opencode_bul,
     vibe_bul,
@@ -211,7 +212,7 @@ def listele() -> list[dict]:
         ("gemini", "Gemini CLI", gemini_bul(), ["auto", "pro", "flash"], "Koruyucusuz: klasor disi erisim ve gizli dosya okuma engeli YOK; onayli adimlarda araclar sormadan calisir"),
         ("mistral", "Mistral Vibe", vibe_bul(), [], "Koruyucusuz: klasor disi erisim ve gizli dosya okuma engeli YOK; model Vibe'in kendi ayarindan secilir"),
         ("deepseek", "DeepSeek Harness", dsh_bul(), [], "Koruyucusuz: klasor disi erisim ve gizli dosya okuma engeli YOK; dsh --profile headless ile calisir"),
-        ("antigravity", "Antigravity CLI", agy_bul(), [], "Koruyucusuz: klasor disi erisim ve gizli dosya okuma engeli YOK; Google/Antigravity aboneligiyle agy uzerinden calisir"),
+        ("antigravity", "Antigravity CLI", agy_bul(), agy_modelleri(), "Koruyucusuz: klasor disi erisim ve gizli dosya okuma engeli YOK; Google/Antigravity aboneligiyle agy uzerinden calisir"),
     ]
     cikti = [
         {"ad": ad, "gorunen_ad": g, "yerlesik": True, "kurulu": bool(yol), "modeller": m, "aciklama": a, "kurulum": KURULUM.get(ad, "")}

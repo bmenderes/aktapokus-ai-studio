@@ -72,3 +72,20 @@ def test_google_kota_hatasi_opencode_kotasi_diye_yazilmaz():
     from aktapokus_ai_studio import sunucu
     h = sunucu.hata_acikla({"outcome": "failed", "error": "You exceeded your current quota ... https://aistudio.google.com/docs/rate-limits ... generativelanguage.googleapis.com"}, [])
     assert h.startswith("Google API anahtari (GEMINI_API_KEY) kotasi doldu") and "OpenCode" not in h
+
+
+def test_agy_model_listesi_cozulur_ve_guvenli():
+    from aktapokus_ai_studio import runners
+    cikti = "Fetching available models...\ngemini-4-neon-high\tGemini 4 Neon (High)\nclaude-opus-5-5-low\tClaude Opus 5.5 (Low)\n--kotu\tX\nbozuk satir\ngemini-4-neon-high\tTekrar\n"
+    assert runners.agy_modelleri_coz(cikti) == ["gemini-4-neon-high", "claude-opus-5-5-low"]
+
+
+def test_agy_model_listesi_arayuzu_bekletmez(monkeypatch):
+    from aktapokus_ai_studio import runners
+    import threading
+    bekle = threading.Event()
+    monkeypatch.setattr(runners, "agy_bul", lambda: "agy.exe")
+    monkeypatch.setattr(runners, "_agy_model_onbellek", {"zaman": 0.0, "liste": [], "calisiyor": False})
+    monkeypatch.setattr(runners, "_agy_modelleri_getir", lambda: bekle.wait(5))
+    assert runners.agy_modelleri() == []  # ag cagrisi arka planda; liste hemen doner
+    bekle.set()

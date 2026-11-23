@@ -1597,6 +1597,49 @@ def agy_bul() -> str | None:
     return None
 
 
+AGY_MODEL_OMRU_SN = 600
+AGY_MODEL_DESENI = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,99}")
+_agy_model_onbellek: dict = {"zaman": 0.0, "liste": [], "calisiyor": False}
+_agy_model_kilit = threading.Lock()
+
+
+def agy_modelleri_coz(cikti: str) -> list[str]:
+    """`agy models` ciktisi: her satir `<kimlik>\t<ad>`. Yalniz guvenli kimlikler (bayrak sanilacak '-' ile baslayan yok)."""
+    sonuc: list[str] = []
+    for satir in cikti.splitlines():
+        kimlik = satir.split("\t", 1)[0].strip()
+        if "\t" in satir and AGY_MODEL_DESENI.fullmatch(kimlik) and kimlik not in sonuc:
+            sonuc.append(kimlik)
+    return sonuc[:200]
+
+
+def _agy_modelleri_getir() -> None:
+    liste: list[str] = []
+    try:
+        yol = agy_bul()
+        if yol:
+            p = subprocess.run([yol, "models"], stdin=subprocess.DEVNULL, capture_output=True, timeout=30, env=_alt_surec_ortami(Path.home()))
+            if p.returncode == 0:
+                liste = agy_modelleri_coz(p.stdout.decode("utf-8", errors="replace"))
+    except (OSError, subprocess.SubprocessError):
+        pass
+    with _agy_model_kilit:
+        if liste:
+            _agy_model_onbellek.update(zaman=time.monotonic(), liste=liste)
+        _agy_model_onbellek["calisiyor"] = False
+
+
+def agy_modelleri() -> list[str]:
+    """Antigravity aboneliginin modelleri (`agy models`). Ag gerektirir ve birkac sn surer: arayuzu BEKLETMEZ; ilk cagrida arka planda
+    getirilir, sonraki cagrilarda onbellekten (10 dk) doner. Getirilemezse bos liste (model serbest metinle yazilabilir)."""
+    with _agy_model_kilit:
+        taze = _agy_model_onbellek["liste"] and time.monotonic() - _agy_model_onbellek["zaman"] < AGY_MODEL_OMRU_SN
+        if not taze and not _agy_model_onbellek["calisiyor"] and agy_bul():
+            _agy_model_onbellek["calisiyor"] = True
+            threading.Thread(target=_agy_modelleri_getir, daemon=True, name="agy-modeller").start()
+        return list(_agy_model_onbellek["liste"])
+
+
 def _agy_hata_mesaji(olay: dict, varsayilan: str = "Antigravity hatasi") -> str:
     ham = olay.get("error") or olay.get("message") or olay.get("content")
     if isinstance(ham, dict):
