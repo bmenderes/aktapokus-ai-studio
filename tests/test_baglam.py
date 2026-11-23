@@ -86,6 +86,10 @@ def test_dosya_adlari_rollere_gore():
     v = copy.deepcopy(VARSAYILAN_AYAR)
     v["roller"]["test"]["calistirici"] = "claude"
     assert baglam.dosya_adlari(ayar_coz(v)) == ["AGENTS.md", "CLAUDE.md"]
+    v2 = copy.deepcopy(VARSAYILAN_AYAR)
+    v2["roller"]["kodcu"]["calistirici"] = "antigravity"
+    assert baglam.dosya_adlari(ayar_coz(v2)) == ["AGENTS.md", "GEMINI.md"]
+    assert ".aktapokus/KONUSMA-OZETI.md" in baglam.DURUM_ISARETI
 
 
 def test_durum_metni_bos_siralama_yarim_ve_bozuk_kayit(tmp_path):
@@ -113,6 +117,8 @@ def test_guncelle_idempotent_ve_blok_kararli(tmp_path):
     s = baglam.guncelle(tmp_path, a)
     assert s["AGENTS.md"] == "ayni" and md5(tmp_path / "AGENTS.md") == onceki  # yeni calistirma AGENTS.md'yi DEGISTIRMEZ (git gurultusu yok)
     assert s[".aktapokus/DURUM.md"] == "guncellendi" and "ornek gorev" in (tmp_path / ".aktapokus" / "DURUM.md").read_text(encoding="utf-8")
+    assert "ornek gorev" in (tmp_path / ".aktapokus" / "hafiza" / "ilk.md").read_text(encoding="utf-8")
+    assert "ornek gorev" in (tmp_path / ".aktapokus" / "KONUSMA-OZETI.md").read_text(encoding="utf-8")
     assert baglam.guncelle(tmp_path, a)[".aktapokus/DURUM.md"] == "ayni"
 
 

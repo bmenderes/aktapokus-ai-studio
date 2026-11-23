@@ -34,7 +34,7 @@ VARSAYILAN_KURALLAR = (
     "- İş bitince ne yaptığını kısaca özetle; yarım kalanı açıkça belirt.\n"
     "- Hedef makinede ek kurulum (Python, SDK) gerektirme.\n"
 )
-DURUM_ISARETI = "Önceki çalışmaların özeti ve yarım kalanlar: `.aktapokus/DURUM.md` (varsa önce oku)."
+DURUM_ISARETI = "Önceki çalışmaların özeti ve yarım kalanlar: `.aktapokus/DURUM.md`; aktif sohbet hafızası: `.aktapokus/KONUSMA-OZETI.md` (varsa önce oku)."
 
 
 def kaynak_yolu(klasor: str | Path) -> Path:
@@ -66,7 +66,7 @@ def dosya_adlari(ayar: Ayar) -> list[str]:
     kullanilan = {r.calistirici for r in ayar.roller.values()}
     if "claude" in kullanilan:
         adlar.append("CLAUDE.md")
-    if "gemini" in kullanilan:
+    if "gemini" in kullanilan or "antigravity" in kullanilan:
         adlar.append("GEMINI.md")
     return adlar
 
@@ -127,6 +127,11 @@ def guncelle(klasor: str | Path, ayar: Ayar, sohbet: str | None = None) -> dict[
     if onceki != metin:
         yol.write_text(metin, encoding="utf-8")
     sonuc[f"{AYAR_KLASORU}/{DURUM_ADI}"] = "ayni" if onceki == metin else ("olusturuldu" if onceki is None else "guncellendi")
+    if sohbet_kayitlari(klasor, sohbet):
+        try:
+            konusma_ozeti_yaz(klasor, sohbet)
+        except OSError:
+            pass
     return sonuc
 
 
@@ -149,7 +154,7 @@ def istem_baglami(klasor: str | Path) -> str:
 SINIR_DOSYASI = "konusma-basi.json"
 HAFIZA_KLASORU = "hafiza"
 ILK_SOHBET = "ilk"
-AZAMI_ENJEKSIYON = 2500  # model degisince isteme eklenen hafiza parcasi (karakter)
+AZAMI_ENJEKSIYON = 6000  # model degisince isteme eklenen hafiza parcasi (karakter)
 SONSUZ = "9999-99-99 99:99:99"
 
 
@@ -311,7 +316,7 @@ def hafiza_istemi_nedenli(klasor: str | Path, rol: str, calistirici: str, model:
 
 
 def _hafiza_parcasi(kayitlar: list[dict], sohbet: str, baslik: str) -> str:
-    govde = "\n".join(_ozet_satirlari(kayitlar, ayrintili=3, kisa=True))
+    govde = "\n".join(_ozet_satirlari(kayitlar, ayrintili=6, kisa=True))
     if len(govde) > AZAMI_ENJEKSIYON:
         govde = govde[-AZAMI_ENJEKSIYON:].lstrip()
         govde = "... (daha eski kisim atlandi)\n" + govde
@@ -391,13 +396,13 @@ def _ozet_satirlari(kayitlar: list[dict], ayrintili: int = OZET_AYRINTILI, kisa:
     for k in son:
         roller = ", ".join(f"{a.get('rol')}({a.get('calistirici', '?')})" for a in k["adimlar"][:4] if isinstance(a, dict))
         satir.append(f"### {k.get('zaman', '?')} — {k.get('durum', '?')} — {roller}")
-        satir.append(f"**İstek:** {_kisalt(k.get('gorev'), 300 if kisa else 500)}")
+        satir.append(f"**İstek:** {_kisalt(k.get('gorev'), 400 if kisa else 500)}")
         degisen = list((k.get("degisen") or {}).items())
         if degisen:
             satir.append("**Değişen dosyalar:** " + ", ".join(f"{y} ({d})" for y, d in degisen[:10]) + (f" … (+{len(degisen) - 10})" if len(degisen) > 10 else ""))
         yanit = next((a.get("metin") for a in reversed(k["adimlar"]) if isinstance(a, dict) and a.get("ok") and a.get("metin") and not a.get("dogrulama")), "")
         if yanit:
-            satir.append("**Son yanıt:** " + _kisalt(yanit, 500 if kisa else 1500))
+            satir.append("**Son yanıt:** " + _kisalt(yanit, 900 if kisa else 1500))
         if k.get("mesaj") and k.get("durum") not in ("onaylandi", "degisiklik_yok", "geri_alindi"):
             satir.append("**Sorun/not:** " + _kisalt(k.get("mesaj"), 300))
         satir.append("")

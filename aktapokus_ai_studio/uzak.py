@@ -323,7 +323,7 @@ UZAK_BILINEN_UCLAR = frozenset({
     "/api/opcua/degerler", "/api/opcua/durdur", "/api/opcua/goz", "/api/opcua/oku", "/api/opcua/ozellik", "/api/opcua/topla", "/api/opcua/toplama",
     "/api/opcua/veri", "/api/otomasyon-calistir", "/api/otomasyonlar", "/api/otomasyonlar/izin", "/api/otomasyonlar/sil", "/api/otomatik-baslat",
     "/api/oturumlar", "/api/proje-gruplari", "/api/projeler", "/api/projeler/unut", "/api/saglayicilar", "/api/saglayicilar/baglan",
-    "/api/saglayicilar/kaldir", "/api/sohbet-ad", "/api/sohbet-kararlar", "/api/sohbet-ozeti", "/api/sohbet-sec", "/api/telegram", "/api/terminal",
+    "/api/saglayicilar/kaldir", "/api/konusma-hafiza", "/api/sohbet-ad", "/api/sohbet-kararlar", "/api/sohbet-ozeti", "/api/sohbet-sec", "/api/telegram", "/api/terminal",
     "/api/terminal/ac", "/api/uzak", "/api/uzak/anahtar-yenile", "/api/yarim", "/api/yeni-konusma", "/api/yeni-sohbet",
 })
 

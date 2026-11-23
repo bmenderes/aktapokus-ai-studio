@@ -50,3 +50,13 @@ def test_canli_durum_tek_satir_ve_yanitta_yuvarlak_kopyala_dugmesi():
     assert 'S.canliTam.split("\\n").filter(x=>x.trim()).pop()' in govde  # yalniz son satir gosterilir
     assert 'class:"ikon-yuvarlak",title:"Kopyala"' in govde and "navigator.clipboard.writeText(o.metin)" in govde
     assert ".ikon-yuvarlak{flex:none;width:22px;height:22px" in html and "border-radius:50%" in html.split(".ikon-yuvarlak{")[1].split("}")[0]
+
+
+def test_cli_rozetleri_renkli_saglayicilar_kaldirildi_hafiza_ve_canli_geri_bildirim_var():
+    html = _html()
+    assert '.badge[class*="b-"]' not in html
+    assert ".badge.b-ok{background:var(--okbg)!important" in html and ".badge.b-err{background:var(--errbg)!important" in html
+    assert '["saglayicilar",' not in html
+    assert "cliDenemeKaydet" in html and "aktapokus.cliDeneme" in html
+    assert "Hafıza (.md)" in html and "async function hafizaAc(" in html and "/api/konusma-hafiza" in html
+    assert "function fbGrubu(" in html and 'o.alt==="arac-sonuc"' in html

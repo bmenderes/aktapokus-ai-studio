@@ -536,8 +536,9 @@ def test_gecmis_klasor_secilmeden_hata(kur):
 def test_arayuz_sayfasi_ayarlar_iskeletini_icerir():
     html = (Path(__file__).parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     assert 'id="ayarlar"' in html and 'id="ayarDugme"' in html and 'id="ayarMenu"' in html and 'id="ayarIcerik"' in html
-    for bolum in ("genel", "saglayicilar", "modeller", "clilar", "roller", "kullanim", "hakkinda"):
+    for bolum in ("genel", "modeller", "clilar", "roller", "kullanim", "hakkinda"):
         assert f'["{bolum}",' in html, bolum
+    assert '["saglayicilar",' not in html
     assert "p-ajanlar" not in html and "p-istatistik" not in html  # eski dagnik sekmeler kalktı: her sey Ayarlar'da
 
 

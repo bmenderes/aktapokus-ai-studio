@@ -50,6 +50,7 @@ GIZLI_ADLAR = ("id_rsa", "id_ed25519", ".npmrc", ".pypirc", "credentials")
 AZAMI_DOSYA_SAYISI = 1500
 AZAMI_OKUMA = 300_000
 AZAMI_GOVDE = 1_000_000
+_GECMIS_ONBELLEK: dict[tuple[str, int, int], tuple[dict, dict]] = {}  # (dosya_yolu, mtime_ns, boyut) -> (ozet, sohbet_verisi)
 def github_deposu_mu(klasor: Path) -> bool:
     """Projenin git deposu bir GitHub adresine (origin) bagliysa True; yalniz .git/config okunur (surec baslatmaz)."""
     try:
@@ -1881,14 +1882,24 @@ class Uygulama:
         cikti = []
         for d in dosyalar:
             try:
-                k = json.loads(d.read_text(encoding="utf-8"))
+                st = d.stat()
+                anahtar = (str(d), st.st_mtime_ns, st.st_size)
+                kayitli = _GECMIS_ONBELLEK.get(anahtar)
+                if kayitli is None:
+                    k = json.loads(d.read_text(encoding="utf-8"))
+                    ozet = {
+                        "id": k.get("id"), "zaman": k.get("zaman"), "gorev": str(k.get("gorev", ""))[:200], "durum": k.get("durum"),
+                        "token_toplam": k.get("token_toplam", 0), "akis": k.get("akis", []), "degisen_sayisi": len(k.get("degisen") or {}),
+                    }
+                    kayitli = (ozet, {"sohbet": k.get("sohbet"), "zaman": k.get("zaman")})
+                    if len(_GECMIS_ONBELLEK) >= 2000:
+                        for eski in list(_GECMIS_ONBELLEK)[:500]:
+                            _GECMIS_ONBELLEK.pop(eski, None)
+                    _GECMIS_ONBELLEK[anahtar] = kayitli
+                ozet, ham_sohbet = kayitli
             except (OSError, json.JSONDecodeError):
                 continue
-            cikti.append({
-                "id": k.get("id"), "zaman": k.get("zaman"), "gorev": str(k.get("gorev", ""))[:200], "durum": k.get("durum"),
-                "token_toplam": k.get("token_toplam", 0), "akis": k.get("akis", []), "degisen_sayisi": len(k.get("degisen") or {}),
-                "sohbet": baglam_modulu.kayit_sohbeti(k, sinirlar),
-            })
+            cikti.append({**ozet, "sohbet": baglam_modulu.kayit_sohbeti(ham_sohbet, sinirlar)})
         return cikti
 
     def proje_gruplari(self, adet: int = 8, son_adet: int = 10) -> dict:
@@ -2194,6 +2205,10 @@ class Uygulama:
             raise UygulamaHatasi("Sohbet bulunamadi", 404)
         try:
             sohbetler.aktif_yap(klasor, sohbet)
+            try:
+                baglam_modulu.konusma_ozeti_yaz(klasor, sohbet)
+            except OSError:
+                pass
         except OSError as hata:
             raise UygulamaHatasi(f"Yazilamadi: {hata}", 500) from None
         return {"sohbet": sohbet}
@@ -2535,6 +2550,21 @@ class Uygulama:
             return baglam_modulu.konusma_ozeti_yaz(klasor, sohbet)
         except OSError as hata:
             raise UygulamaHatasi(f"Ozet yazilamadi: {hata}", 500) from None
+
+    def konusma_hafizasi(self, sohbet: object = None) -> dict:
+        """Secili (ya da istenen) konunun `.aktapokus/hafiza/<sohbet>.md` hafiza dosyasini guncelleyip icerigiyle dondurur."""
+        from . import baglam as baglam_modulu
+
+        klasor = self._klasor()
+        if sohbet is not None:
+            if not isinstance(sohbet, str) or not sohbetler.KIMLIK.fullmatch(sohbet):
+                raise UygulamaHatasi("Gecersiz sohbet kimligi", 400)
+        try:
+            r = baglam_modulu.konusma_ozeti_yaz(klasor, sohbet if isinstance(sohbet, str) else None)
+            icerik = (klasor / r["yol"]).read_text(encoding="utf-8")
+        except OSError as hata:
+            raise UygulamaHatasi(f"Hafiza okunamadi: {hata}", 500) from None
+        return {**r, "icerik": icerik, "dosya": f".aktapokus/hafiza/{r['sohbet']}.md"}
 
     # --- kapanista gorev kurtarma (devam.py) ---
     def _devam_yaz(self, oturum: ProjeOturumu) -> None:
@@ -3027,6 +3057,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.sohbet_ozeti(q.get("sohbet")))
                 if yol == "/api/sohbet-kararlar":
                     return self._gonder(200, app.sohbet_kararlari(q.get("sohbet")))
+                if yol == "/api/konusma-hafiza":
+                    return self._gonder(200, app.konusma_hafizasi(q.get("sohbet")))
                 if yol == "/api/hesaplar":
                     return self._gonder(200, app.hesaplar())
                 if yol == "/api/gecmis":

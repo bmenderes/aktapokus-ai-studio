@@ -126,6 +126,25 @@ def test_uygulama_acilinca_hafiza_bir_kere_okutulur_sonraki_mesajlarda_tekrarlan
     assert baglam.hafiza_istemi_nedenli(proje, "kodcu", "opencode-sunucu", "deepseek", acilista=True)[1] == "acilis"
 
 
+def test_uygulama_sohbet_sec_ve_konusma_hafizasi_md_dosyalarini_yeniler(proje):
+    from aktapokus_ai_studio import projeler, sohbetler
+    from aktapokus_ai_studio.arayuz import ProjeOturumu, Uygulama, UygulamaHatasi
+
+    app = Uygulama()
+    pid = projeler.proje_kimligi(proje)
+    app.oturumlar[pid] = ProjeOturumu(pid, proje)
+    app.secili_kimlik = pid
+    sohbetler.ayarla(proje, "ilk", ad="Ilk konu")
+    sohbetler.ayarla(proje, KIM1, ad="Ikinci konu")
+    app.sohbet_sec("ilk")
+    d = app.konusma_hafizasi()
+    assert d["sohbet"] == "ilk" and d["dosya"] == ".aktapokus/hafiza/ilk.md"
+    assert "birinci sohbet yaniti" in d["icerik"] and "ikinci sohbet yaniti" not in d["icerik"]
+    assert "birinci sohbet yaniti" in (proje / ".aktapokus" / "KONUSMA-OZETI.md").read_text(encoding="utf-8")
+    with pytest.raises(UygulamaHatasi):
+        app.konusma_hafizasi("../kotu")
+
+
 def test_acilista_bos_sohbette_hafiza_verilmez_ve_baska_sohbet_karismaz(tmp_path, proje):
     baglam._ACILIS.clear()
     assert baglam.hafiza_istemi_nedenli(tmp_path / "yeni-proje", "kodcu", "claude", "sonnet", acilista=True) == ("", "")
