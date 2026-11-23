@@ -83,7 +83,7 @@ def test_https_acilinca_serve_vekili_kurulur_baglanti_https_olur(sunucu, serve):
     port, d = ac(yerel, https=True)
     h = d["dinleyici"]["https"]
     assert h["calisiyor"] and h["url"] == f"https://{DNS}" and not h["hata"]
-    assert d["dinleyici"]["baglantilar"][0].startswith(f"https://{DNS}/#t=")
+    assert d["dinleyici"]["adresler"][0].startswith(f"https://{DNS}/")
     vekil = _cfg(serve)["Web"][f"{DNS}:443"]["Handlers"]["/"]["Proxy"]
     assert vekil == f"http://127.0.0.2:{port}"  # yalniz Tailscale (burada loopback) dinleyicisine; funnel/0.0.0.0 yok
     assert uzak.serve_acik_mi("127.0.0.2", port)
@@ -127,7 +127,7 @@ def test_https_tailscale_tarafinda_kapaliysa_anlasilir_hata_dinleyici_calismaya_
     port, d = ac(yerel, https=True)
     h = d["dinleyici"]["https"]
     assert not h["calisiyor"] and "HTTPS Certificates" in h["hata"]
-    assert d["dinleyici"]["calisiyor"] and not d["dinleyici"]["baglantilar"][0].startswith("https://")  # http baglantisi calismaya devam
+    assert d["dinleyici"]["calisiyor"] and not d["dinleyici"]["adresler"][0].startswith("https://")  # http baglantisi calismaya devam
     assert uzak_istek(port, "GET", "/api/durum")[0] == 200
 
 

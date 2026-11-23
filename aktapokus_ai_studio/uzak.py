@@ -4,13 +4,17 @@ Guvenlik modeli:
 - Uzak istekler AYRI bir dinleyiciye gelir; bu dinleyici yalniz Tailscale adresine (100.64.0.0/10) -test icin loopback- baglanir, ASLA 0.0.0.0'a.
   Sade LAN adresleri reddedilir (HTTP, sifresiz: belirtec ag dinleyicisine gorunurdu). Tailscale trafigi zaten WireGuard ile sifrelidir.
 - Host/Origin yalniz bu dinleyicinin adreslerinden (Tailscale IP'si ve MagicDNS adi) kabul edilir (DNS-rebinding korumasi).
-- Kimlik: sabit "uzak anahtar" (dosyada, yenilenebilir) ya da yerel belirtec. Anahtar yalniz YEREL arayuzde gosterilir.
+- Kimlik: CIHAZ BASINA ayri anahtar (ad, olusturma, son kullanim zamani/IP, son kullanma tarihi; varsayilan 90 gun) ya da yerel belirtec.
+  Diskte yalniz anahtarin SHA-256 ozeti (DPAPI ile) saklanir; anahtar yalniz eklendiginde, YEREL arayuzde BIR KEZ gosterilir.
+  Iptal edilen/suresi dolan anahtar aninda (acik akislar dahil) reddedilir; reddedilmeler uzak-erisim.log dosyasina yazilir (anahtarin kendisi asla).
 - YETKI DARALTMA: uzak istemci gorev verebilir/onaylayabilir, dosya/fark/Git gorebilir; ama varsayilan olarak su islemler UZAKTAN YAPILAMAZ: terminal,
   CLI/MCP/saglayici/Telegram/beceri TANIMLAMA (bilgisayarda program calistirmak demektir), kayitsiz klasor acma, klasor gezme, depo klonlama.
   `terminal` ve `yonetim` anahtarlari bilerek ve ayri ayri acilir; uzak erisim ayarlarinin KENDISI hicbir kosulda uzaktan degistirilemez."""
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import ipaddress
 import json
 import os
@@ -19,6 +23,8 @@ import secrets
 import shutil
 import subprocess
 import sys
+import threading
+import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -26,7 +32,12 @@ AYAR_ORTAMI = "AKTAPOKUS_UZAK"
 TAILSCALE_ORTAMI = "AKTAPOKUS_TAILSCALE"
 VARSAYILAN_PORT = 47650
 TAILSCALE_AGI = ipaddress.ip_network("100.64.0.0/10")
+VARSAYILAN_GUN = 90  # yeni cihaz anahtarinin varsayilan omru
+AZAMI_CIHAZ = 20
+ESKI_CIHAZ_ADI = "eski cihaz"  # tek anahtarli surumden tasinan anahtar
 from . import gizli
+
+_KILIT = threading.RLock()  # ayar dosyasini oku-degistir-yaz islemleri (arayuz + uzak istek iplikleri) birbirini ezmesin
 
 
 class UzakHatasi(Exception):
@@ -42,13 +53,57 @@ class Ayar:
     uyanik: bool = False  # uzak erisim ACIKKEN bilgisayar uyumasin (uyanik.py; Windows). Varsayilan kapali
     https: bool = False  # Tailscale `serve` ile https://<ad>.ts.net (ana ekrana uygulama olarak eklemek icin); dinleyici yine yalniz Tailscale adresinde
     kok: str = ""  # uzaktan secilebilen/gezilebilen klasor kokunun en ustu; bos: acik projenin ust klasoru (proje yoksa ev)
-    anahtar: str = field(default_factory=lambda: secrets.token_urlsafe(32))
+    cihazlar: list = field(default_factory=list)  # list[Cihaz]; bossa hicbir uzak anahtar gecmez
 
-    def sozluk(self, anahtarli: bool = False) -> dict:
-        d = asdict(self)
-        if not anahtarli:
-            d.pop("anahtar")
+    def sozluk(self) -> dict:
+        """API/arayuz icin: anahtar ozetleri DAHIL DEGIL."""
+        d = {k: getattr(self, k) for k in ("acik", "port", "terminal", "yonetim", "uyanik", "https", "kok")}
+        d["cihazlar"] = [c.disari() for c in self.cihazlar]
         return d
+
+
+@dataclass
+class Cihaz:
+    kimlik: str  # 8 onaltilik karakter; gizli degil (iptal icin)
+    ad: str
+    ozet: str  # anahtarin SHA-256 ozeti (onaltilik); anahtarin kendisi saklanmaz
+    olusturma: float
+    bitis: float | None = None  # None: suresiz
+    son_zaman: float | None = None
+    son_ip: str | None = None
+
+    def suresi_doldu(self, simdi: float | None = None) -> bool:
+        return self.bitis is not None and (time.time() if simdi is None else simdi) >= self.bitis
+
+    def disari(self) -> dict:
+        return {"kimlik": self.kimlik, "ad": self.ad, "olusturma": self.olusturma, "bitis": self.bitis, "son_zaman": self.son_zaman,
+                "son_ip": self.son_ip, "suresi_doldu": self.suresi_doldu()}
+
+    def disk(self) -> dict:
+        return {"kimlik": self.kimlik, "ad": self.ad, "ozet": gizli.koru(self.ozet), "olusturma": self.olusturma, "bitis": self.bitis,
+                "son_zaman": self.son_zaman, "son_ip": self.son_ip}
+
+
+def ozet(anahtar: str | bytes) -> str:
+    """Anahtarlar 256 bit rastgeledir: tuzsuz SHA-256 yeterli (kaba kuvvetle tersine cevrilemez)."""
+    return hashlib.sha256(anahtar.encode("utf-8") if isinstance(anahtar, str) else anahtar).hexdigest()
+
+
+def _sayi(v: object) -> float | None:
+    return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) and v >= 0 else None
+
+
+def _cihaz_oku(h: object) -> Cihaz | None:
+    if not isinstance(h, dict):
+        return None
+    oz = gizli.ac(h.get("ozet"))
+    kimlik, ad = h.get("kimlik"), h.get("ad")
+    if not (isinstance(oz, str) and re.fullmatch(r"[0-9a-f]{64}", oz) and isinstance(kimlik, str) and re.fullmatch(r"[0-9a-f]{8}", kimlik)
+            and isinstance(ad, str) and ad.strip() and _sayi(h.get("olusturma")) is not None):
+        return None  # acilamayan (baska kullanici/makine) ya da bozuk kayit: bu cihaz gecmez
+    ip = h.get("son_ip")
+    return Cihaz(kimlik=kimlik, ad=ad[:40], ozet=oz, olusturma=_sayi(h["olusturma"]), bitis=_sayi(h.get("bitis")), son_zaman=_sayi(h.get("son_zaman")),
+                 son_ip=ip if isinstance(ip, str) and len(ip) <= 64 else None)
 
 
 def dosya_yolu() -> Path:
@@ -61,42 +116,69 @@ def port_gecerli(port: object) -> bool:
 
 
 def oku() -> Ayar:
-    """Ayar dosyasi yoksa/bozuksa KAPALI varsayilan (yeni anahtarla) doner; yalniz yazildiginda kalicilasir."""
-    try:
-        h = json.loads(dosya_yolu().read_text(encoding="utf-8"))
-        if not isinstance(h, dict):
-            raise ValueError
-        anahtar = gizli.ac(h.get("anahtar"))  # DPAPI ile korunur; eski duz metin de okunur
-        ayar = Ayar(
-            acik=h.get("acik") is True, port=h["port"] if port_gecerli(h.get("port")) else VARSAYILAN_PORT,
-            terminal=h.get("terminal") is True, yonetim=h.get("yonetim") is True, https=h.get("https") is True, uyanik=h.get("uyanik") is True,
-            kok=h["kok"] if isinstance(h.get("kok"), str) else "",
-            anahtar=anahtar if isinstance(anahtar, str) and len(anahtar) >= 32 else secrets.token_urlsafe(32),
-        )
-    except (OSError, ValueError, json.JSONDecodeError):
-        return Ayar()
-    if not gizli.korumali_mi(h.get("anahtar")) and gizli.koru(ayar.anahtar) != ayar.anahtar:  # duz metin anahtar: korumali bicime gecir
+    """Ayar dosyasi yoksa/bozuksa KAPALI varsayilan (cihazsiz: hicbir uzak anahtar gecmez) doner.
+    GECIS: tek anahtarli eski dosyadaki `anahtar`, ozeti alinarak 'eski cihaz' olarak listeye tasinir ve dosyadan silinir (bagli telefon kopmaz;
+    diger cihazlar gibi 90 gun sonra suresi dolar)."""
+    with _KILIT:
         try:
-            yaz(ayar)
-        except OSError:
-            pass
-    return ayar
+            h = json.loads(dosya_yolu().read_text(encoding="utf-8"))
+            if not isinstance(h, dict):
+                raise ValueError
+            ham = h.get("cihazlar")
+            cihazlar = [c for c in (_cihaz_oku(x) for x in ham) if c] if isinstance(ham, list) else []
+            ayar = Ayar(
+                acik=h.get("acik") is True, port=h["port"] if port_gecerli(h.get("port")) else VARSAYILAN_PORT,
+                terminal=h.get("terminal") is True, yonetim=h.get("yonetim") is True, https=h.get("https") is True, uyanik=h.get("uyanik") is True,
+                kok=h["kok"] if isinstance(h.get("kok"), str) else "", cihazlar=cihazlar[:AZAMI_CIHAZ],
+            )
+        except (OSError, ValueError, json.JSONDecodeError):
+            return Ayar()
+        yeniden_yaz = False
+        if "anahtar" in h:  # eski tek anahtar (DPAPI ile korunur; eski duz metin de okunur)
+            eski = gizli.ac(h.get("anahtar"))
+            if isinstance(eski, str) and len(eski) >= 32 and not any(hmac.compare_digest(c.ozet, ozet(eski)) for c in ayar.cihazlar):
+                simdi = time.time()
+                ayar.cihazlar.insert(0, Cihaz(kimlik=_yeni_kimlik(ayar), ad=ESKI_CIHAZ_ADI, ozet=ozet(eski), olusturma=simdi, bitis=simdi + VARSAYILAN_GUN * 86400))
+            yeniden_yaz = True
+        if isinstance(ham, list) and any(isinstance(x, dict) and not gizli.korumali_mi(x.get("ozet")) for x in ham) and gizli.koru("0") != "0":
+            yeniden_yaz = True  # duz metin ozet: korumali bicime gecir
+        if yeniden_yaz:
+            try:
+                yaz(ayar)
+            except OSError:
+                pass
+        return ayar
+
+
+def _yeni_kimlik(ayar: Ayar) -> str:
+    while True:
+        k = secrets.token_hex(4)
+        if all(c.kimlik != k for c in ayar.cihazlar):
+            return k
 
 
 def yaz(ayar: Ayar) -> None:
-    yol = dosya_yolu()
-    yol.parent.mkdir(parents=True, exist_ok=True)
-    gecici = yol.with_suffix(".tmp")
-    gecici.write_text(json.dumps({**asdict(ayar), "anahtar": gizli.koru(ayar.anahtar)}, indent=2), encoding="utf-8")
-    os.replace(gecici, yol)
-    try:
-        os.chmod(yol, 0o600)  # anahtar iceriyor
-    except OSError:
-        pass
+    with _KILIT:
+        yol = dosya_yolu()
+        yol.parent.mkdir(parents=True, exist_ok=True)
+        gecici = yol.with_suffix(".tmp")
+        veri = {k: v for k, v in asdict(ayar).items() if k != "cihazlar"}
+        veri["cihazlar"] = [c.disk() for c in ayar.cihazlar]
+        gecici.write_text(json.dumps(veri, indent=2), encoding="utf-8")
+        os.replace(gecici, yol)
+        try:
+            os.chmod(yol, 0o600)  # anahtar ozetleri iceriyor
+        except OSError:
+            pass
 
 
 def guncelle(degisiklik: dict) -> Ayar:
     """Yerel arayuzden gelen degisiklik. Yalniz bilinen alanlar, tipleri dogrulanir."""
+    with _KILIT:
+        return _guncelle(degisiklik)
+
+
+def _guncelle(degisiklik: dict) -> Ayar:
     ayar = oku()
     for alan in ("acik", "terminal", "yonetim", "https", "uyanik"):
         if alan in degisiklik:
@@ -135,23 +217,107 @@ def kokun_icinde(yol: str | Path, kok: Path | None) -> bool:
         return False
 
 
+AZAMI_KAYIT = 1_000_000  # uzak-erisim.log bu boyutu asinca .log.1'e devredilir (reddedilen istek seli diski doldurmasin)
+
+
 def kayit_yaz(olay: str) -> None:
-    """Uzaktan yapilan klasor secimlerini ~/.aktapokus/uzak-erisim.log dosyasina ekler (kayit basarisizsa sessiz)."""
+    """Uzaktan yapilan klasor secimlerini ve reddedilen anahtarlari ~/.aktapokus/uzak-erisim.log dosyasina ekler (kayit basarisizsa sessiz).
+    Cagiranlar ANAHTARI asla yazmaz; denetim karakterleri temizlenir (sahte kayit satiri eklenemesin)."""
     try:
-        import time
         yol = dosya_yolu().with_suffix(".log")
         yol.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            if yol.stat().st_size > AZAMI_KAYIT:
+                os.replace(yol, yol.with_suffix(".log.1"))
+        except FileNotFoundError:
+            pass
+        temiz = "".join(c if c.isprintable() else "?" for c in olay)[:500]
         with yol.open("a", encoding="utf-8") as f:
-            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {olay}\n")
+            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {temiz}\n")
     except OSError:
         pass
 
 
-def anahtari_yenile() -> Ayar:
-    ayar = oku()
-    ayar.anahtar = secrets.token_urlsafe(32)
-    yaz(ayar)
-    return ayar
+# ---- cihaz anahtarlari ---------------------------------------------------------------------------------------------------
+def ad_dogrula(ad: object) -> str:
+    if not isinstance(ad, str) or not ad.strip():
+        raise UzakHatasi("Cihaz adi gerekli")
+    ad = ad.strip()
+    if len(ad) > 40 or any(not c.isprintable() for c in ad):
+        raise UzakHatasi("Cihaz adi en fazla 40 yazdirilabilir karakter olmali")
+    return ad
+
+
+def cihaz_ekle(ad: object, gun: object = VARSAYILAN_GUN) -> tuple[Ayar, Cihaz, str]:
+    """Yeni cihaz anahtari uretir. Anahtar YALNIZ bu donuste vardir (diskte ozeti kalir). gun: 1-3650 ya da 0 (suresiz)."""
+    ad = ad_dogrula(ad)
+    if not isinstance(gun, int) or isinstance(gun, bool) or not 0 <= gun <= 3650:
+        raise UzakHatasi("'gun' 0 (suresiz) ile 3650 arasinda bir sayi olmali")
+    with _KILIT:
+        ayar = oku()
+        if len(ayar.cihazlar) >= AZAMI_CIHAZ:
+            raise UzakHatasi(f"En fazla {AZAMI_CIHAZ} cihaz eklenebilir; kullanmadiklarinizi iptal edin")
+        if any(c.ad.casefold() == ad.casefold() for c in ayar.cihazlar):
+            raise UzakHatasi("Bu adla bir cihaz zaten var")
+        anahtar = secrets.token_urlsafe(32)
+        simdi = time.time()
+        c = Cihaz(kimlik=_yeni_kimlik(ayar), ad=ad, ozet=ozet(anahtar), olusturma=simdi, bitis=simdi + gun * 86400 if gun else None)
+        ayar.cihazlar.append(c)
+        yaz(ayar)
+        return ayar, c, anahtar
+
+
+def cihaz_iptal(kimlik: object) -> Ayar:
+    with _KILIT:
+        ayar = oku()
+        kalan = [c for c in ayar.cihazlar if c.kimlik != kimlik]
+        if len(kalan) == len(ayar.cihazlar):
+            raise UzakHatasi("Cihaz bulunamadi")
+        ayar.cihazlar = kalan
+        yaz(ayar)
+        return ayar
+
+
+def cihaz_bul(ayar: Ayar, jeton: str | bytes) -> tuple[Cihaz | None, str]:
+    """Jetonun cihazi ve (reddedilirse) Turkce sebep. Ozetler hmac.compare_digest ile, ERKEN CIKMADAN hepsiyle karsilastirilir."""
+    if not jeton:
+        return None, "anahtar yok"
+    oz = ozet(jeton)
+    bulunan = None
+    for c in ayar.cihazlar:
+        if hmac.compare_digest(c.ozet, oz):
+            bulunan = c
+    if bulunan is None:
+        return None, "gecersiz ya da iptal edilmis anahtar"
+    if bulunan.suresi_doldu():
+        return None, f"suresi dolmus anahtar (cihaz: {bulunan.ad})"
+    return bulunan, ""
+
+
+def cihaz_kullanildi(kimlik: str, ip: str, zaman: float) -> None:
+    """Son kullanim zamani/IP'yi diske yazar (iptal edilmis cihazi geri getirmez)."""
+    with _KILIT:
+        ayar = oku()
+        for c in ayar.cihazlar:
+            if c.kimlik == kimlik:
+                c.son_zaman, c.son_ip = zaman, ip
+                try:
+                    yaz(ayar)
+                except OSError:
+                    pass
+                return
+
+
+def qr_veri_adresi(metin: str) -> str | None:
+    """Baglantinin QR kodu (data:image/svg+xml). Istege bagli 'segno' paketi yoksa None (baglanti yine gosterilir)."""
+    try:
+        import segno
+    except ImportError:
+        return None
+    try:
+        return segno.make(metin, error="m").svg_data_uri(scale=5, border=2)
+    except Exception:
+        return None
 
 
 def adres_gecerli(adres: object) -> bool:
@@ -335,7 +501,7 @@ UZAK_BILINEN_UCLAR = frozenset({
     "/api/opcua/veri", "/api/otomasyon-calistir", "/api/otomasyonlar", "/api/otomasyonlar/izin", "/api/otomasyonlar/sil", "/api/otomatik-baslat",
     "/api/oturumlar", "/api/proje-gruplari", "/api/projeler", "/api/projeler/unut", "/api/saglayicilar", "/api/saglayicilar/baglan",
     "/api/saglayicilar/kaldir", "/api/konusma-hafiza", "/api/sohbet-ad", "/api/sohbet-kararlar", "/api/sohbet-ozeti", "/api/sohbet-sec", "/api/telegram", "/api/terminal",
-    "/api/terminal/ac", "/api/uzak", "/api/uzak/anahtar-yenile", "/api/yarim", "/api/yeni-konusma", "/api/yeni-sohbet",
+    "/api/terminal/ac", "/api/uzak", "/api/uzak/cihaz-ekle", "/api/uzak/cihaz-iptal", "/api/yarim", "/api/yeni-konusma", "/api/yeni-sohbet",
 })
 
 

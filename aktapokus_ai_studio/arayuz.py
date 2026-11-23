@@ -1290,7 +1290,10 @@ class Uygulama:
         return self.sunucu
 
     def uzak_durum(self) -> dict:
-        return {"ayar": uzak.oku().sozluk(), "tailscale": uzak.tailscale_durum(), "dinleyici": self._sunucu().uzak_bilgi()}
+        sunucu = self._sunucu()
+        ayar = uzak.oku().sozluk()
+        ayar["cihazlar"] = [c.disari() for c in sunucu.uzak_ayar.cihazlar]  # bellekteki liste: son kullanim diske dakikada bir yazilir
+        return {"ayar": ayar, "tailscale": uzak.tailscale_durum(), "dinleyici": sunucu.uzak_bilgi()}
 
     def uzak_ayarla(self, veri: object) -> dict:
         if not isinstance(veri, dict):
@@ -1303,10 +1306,28 @@ class Uygulama:
         sunucu.uzak_uygula()  # her degisiklikte dinleyici yeniden kurulur: acik uzak baglantilar kesilir, yeni ayar gecerli olur
         return self.uzak_durum()
 
-    def uzak_anahtar_yenile(self) -> dict:
+    def uzak_cihaz_ekle(self, veri: object) -> dict:
+        """Yeni cihaz anahtari. Anahtarli baglanti(lar) YALNIZ bu yanitta, bir kez doner; diskte ve sonraki yanitlarda yalniz ozeti/adi vardir."""
+        if not isinstance(veri, dict):
+            raise UygulamaHatasi("Govde bir nesne olmali")
         sunucu = self._sunucu()
-        uzak.anahtari_yenile()
-        sunucu.uzak_uygula()  # eski anahtarla acik kalmis uzak baglantilar da kesilir
+        try:
+            _, cihaz, anahtar = uzak.cihaz_ekle(veri.get("ad"), veri.get("gun", uzak.VARSAYILAN_GUN))
+        except uzak.UzakHatasi as hata:
+            raise UygulamaHatasi(str(hata)) from None
+        sunucu.uzak_cihazlari_yenile()
+        baglantilar = [f"{a}#t={anahtar}" for a in sunucu.uzak_adresleri()]
+        return {**self.uzak_durum(), "yeni": {"cihaz": cihaz.disari(), "baglantilar": baglantilar, "qr": uzak.qr_veri_adresi(baglantilar[0]) if baglantilar else None}}
+
+    def uzak_cihaz_iptal(self, veri: object) -> dict:
+        if not isinstance(veri, dict):
+            raise UygulamaHatasi("Govde bir nesne olmali")
+        sunucu = self._sunucu()
+        try:
+            uzak.cihaz_iptal(veri.get("kimlik"))
+        except uzak.UzakHatasi as hata:
+            raise UygulamaHatasi(str(hata), 404) from None
+        sunucu.uzak_cihazlari_yenile()  # bu cihazin acik akislari 1 sn icinde kesilir; digerleri etkilenmez
         return self.uzak_durum()
 
     # --- Motorlar (ajan CLI'lari): kurulu olanlar + bu projede kurulu olmayan CLI'a bagli roller; roller yalniz kullanici isteyince gecirilir ---
@@ -2835,6 +2856,11 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 raise UygulamaHatasi(f"Dosya cok buyuk (en fazla {azami // 1_000_000} MB)", 413)
             return self.rfile.read(n)
 
+        def _uzak_gecerli(self) -> bool:
+            """Acik uzak akis (SSE/terminal) icin: baglanan cihazin anahtari hala gecerli mi (iptal/sure dolumu akisi 1 sn icinde keser)."""
+            kimlik = getattr(self, "_uzak_cihaz", None)
+            return kimlik is None or sunucu.uzak_cihaz_gecerli(kimlik)
+
         def _uzak_denetle(self, yontem: str, yol: str) -> str | None:
             """Uzak istek icin ek denetimler (genel politika + govdeye bakan ozel kurallar). Ret sebebi ya da None."""
             sebep = uzak.politika(yontem, yol, sunucu.uzak_ayar)
@@ -2961,8 +2987,14 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 return self._gonder(404, {"hata": "yok"})
             jeton = (self.headers.get("X-Aktapokus-Token", "") or "").encode("utf-8", "replace")
             gecerli = hmac.compare_digest(jeton, app.token.encode())
-            if not gecerli and dinleyici is not None:
-                gecerli = hmac.compare_digest(jeton, sunucu.uzak_ayar.anahtar.encode())  # uzak anahtar YALNIZ uzak dinleyicide gecerli
+            self._uzak_cihaz = None  # ayni baglantidaki (keep-alive) her istek kendi anahtariyla degerlendirilir
+            if not gecerli and dinleyici is not None:  # cihaz anahtarlari YALNIZ uzak dinleyicide gecerli
+                cihaz, ret = uzak.cihaz_bul(sunucu.uzak_ayar, jeton)
+                if cihaz is None:
+                    uzak.kayit_yaz(f"ANAHTAR-REDDEDILDI {self.client_address[0]} {ret}")  # anahtarin kendisi ASLA yazilmaz
+                else:
+                    gecerli, self._uzak_cihaz = True, cihaz.kimlik
+                    sunucu.uzak_kullanim(cihaz, self.client_address[0])
             if not gecerli:
                 return self._gonder(401, {"hata": "Token gerekli"})
             if dinleyici is not None:
@@ -3172,8 +3204,10 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     return self._gonder(200, app.claude_surdur(g.get("id"), g.get("kaynak")))
                 if yol == "/api/uzak":
                     return self._gonder(200, app.uzak_ayarla(g))
-                if yol == "/api/uzak/anahtar-yenile":
-                    return self._gonder(200, app.uzak_anahtar_yenile())
+                if yol == "/api/uzak/cihaz-ekle":
+                    return self._gonder(200, app.uzak_cihaz_ekle(g))
+                if yol == "/api/uzak/cihaz-iptal":
+                    return self._gonder(200, app.uzak_cihaz_iptal(g))
                 if yol == "/api/github/giris/baslat":
                     return self._gonder(200, app.github_giris_baslat(g.get("ek")))
                 if yol == "/api/github/giris/iptal":
@@ -3341,7 +3375,7 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 for o in tekrar:
                     self.wfile.write(f"id: {o['id']}\ndata: {json.dumps(o, ensure_ascii=False)}\n\n".encode())
                 self.wfile.flush()
-                while not (sunucu.kapaniyor.is_set() or (dinleyici is not None and dinleyici.durdu.is_set())):
+                while not (sunucu.kapaniyor.is_set() or (dinleyici is not None and (dinleyici.durdu.is_set() or not self._uzak_gecerli()))):
                     try:
                         o = q.get(timeout=1)  # kisa: uzak erisim kapaninca/anahtar yenilenince akis 1 sn icinde kesilir
                         self.wfile.write(f"id: {o['id']}\ndata: {json.dumps(o, ensure_ascii=False)}\n\n".encode())
@@ -3362,7 +3396,7 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
             self.end_headers()
             self.close_connection = True
             try:
-                while not (sunucu.kapaniyor.is_set() or (dinleyici is not None and dinleyici.durdu.is_set())):
+                while not (sunucu.kapaniyor.is_set() or (dinleyici is not None and (dinleyici.durdu.is_set() or not self._uzak_gecerli()))):
                     parcalar, bitti = t.bekle(son, 1.0)
                     for sira, veri in parcalar:
                         son = sira
@@ -3578,14 +3612,38 @@ class ArayuzSunucusu:
         except uzak.UzakHatasi as hata:
             self.uzak_https["hata"] = str(hata)
 
+    def uzak_adresleri(self) -> list[str]:
+        """Uzak arayuzun anahtarSIZ adresleri (https once, MagicDNS adi sonra, IP en son). Anahtar yalniz cihaz eklenirken bir kez eklenir."""
+        d = self.uzak_dinleyici
+        if d is None:
+            return []
+        adresler = [f"http://{h}:{d.port}/" for h in sorted(d.hostlar, key=lambda x: (x == d.adres, x))]
+        if self.uzak_https.get("calisiyor"):
+            adresler.insert(0, f"{self.uzak_https['url']}/")
+        return adresler
+
     def uzak_bilgi(self) -> dict:
         d = self.uzak_dinleyici
-        adresler = []
-        if d is not None:
-            adresler = [f"http://{h}:{d.port}/#t={self.uzak_ayar.anahtar}" for h in sorted(d.hostlar, key=lambda x: (x == d.adres, x))]  # MagicDNS adi once, IP sonra
-            if self.uzak_https.get("calisiyor"):
-                adresler.insert(0, f"{self.uzak_https['url']}/#t={self.uzak_ayar.anahtar}")
-        return {"uyanik": {"aktif": self.uyku_engeli.aktif, "desteklenir": self.uyku_engeli.desteklenir, "hata": self.uyku_engeli.hata}, "calisiyor": d is not None, "adres": d.adres if d else None, "port": d.port if d else None, "hata": self.uzak_hata, "baglantilar": adresler, "son_erisim": self.uzak_son, "https": dict(self.uzak_https)}
+        return {"uyanik": {"aktif": self.uyku_engeli.aktif, "desteklenir": self.uyku_engeli.desteklenir, "hata": self.uyku_engeli.hata}, "calisiyor": d is not None, "adres": d.adres if d else None, "port": d.port if d else None, "hata": self.uzak_hata, "adresler": self.uzak_adresleri(), "son_erisim": self.uzak_son, "https": dict(self.uzak_https)}
+
+    def uzak_cihaz_gecerli(self, kimlik: str) -> bool:
+        c = next((c for c in self.uzak_ayar.cihazlar if c.kimlik == kimlik), None)
+        return c is not None and not c.suresi_doldu()
+
+    def uzak_cihazlari_yenile(self) -> None:
+        """Cihaz eklenince/iptal edilince bellekteki liste diskten yenilenir: iptal edilen anahtar sonraki istekte ve acik akislarda reddedilir.
+        Dinleyici yeniden kurulmaz (diger cihazlarin acik oturumlari kesilmez)."""
+        yeni = uzak.oku()
+        with self._uzak_kilit:
+            self.uzak_ayar.cihazlar = yeni.cihazlar
+
+    def uzak_kullanim(self, cihaz: "uzak.Cihaz", ip: str) -> None:
+        """Son kullanim zamani/IP bellekte hemen, diskte en cok dakikada bir (ya da IP degisince) guncellenir."""
+        simdi = time.time()
+        yaz = cihaz.son_zaman is None or simdi - cihaz.son_zaman > 60 or cihaz.son_ip != ip
+        cihaz.son_zaman, cihaz.son_ip = simdi, ip
+        if yaz:
+            uzak.cihaz_kullanildi(cihaz.kimlik, ip, simdi)
 
     def url(self) -> str:
         return f"http://127.0.0.1:{self.port}/#t={self.app.token}"
@@ -3639,7 +3697,7 @@ def ui_calistir(klasor: str | None = None, port: int = 0, tarayici: bool = False
     sunucu.zamanlayici_baslat()
     uzak_bilgi = sunucu.uzak_uygula()  # Ayarlar > Uzak erisim aciksa Tailscale dinleyicisi kurulur (varsayilan kapali)
     if uzak_bilgi["calisiyor"]:
-        print(f"Uzak erisim ACIK (Tailscale): http://{uzak_bilgi['adres']}:{uzak_bilgi['port']}/  (anahtar yalniz Ayarlar > Uzak erisim'de gosterilir)", flush=True)
+        print(f"Uzak erisim ACIK (Tailscale): http://{uzak_bilgi['adres']}:{uzak_bilgi['port']}/  (cihaz anahtarlari yalniz Ayarlar > Uzak erisim'den eklenir/iptal edilir)", flush=True)
     elif uzak_bilgi["hata"]:
         print(f"Uzak erisim kurulamadi: {uzak_bilgi['hata']}", flush=True)
     if klasor:

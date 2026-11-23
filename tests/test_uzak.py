@@ -47,20 +47,33 @@ def sunucu(ortam, proje):
     sv.kapat()
 
 
+_ANAHTAR = {"v": None}  # son ac() cagrisinda eklenen "telefon" cihazinin anahtari (yalniz ekleme yanitinda bir kez doner)
+
+
+def anahtar():
+    return _ANAHTAR["v"]
+
+
+def cihaz_ekle(yerel, ad="telefon", gun=90):
+    st, d = yerel("POST", "/api/uzak/cihaz-ekle", {"ad": ad, "gun": gun})
+    assert st == 200, d
+    return d["yeni"]["baglantilar"][0].split("#t=")[1], d
+
+
 def ac(yerel, **ek):
     port = bos_port()
     st, d = yerel("POST", "/api/uzak", {"acik": True, "port": port, **ek})
     assert st == 200, d
+    _ANAHTAR["v"], _ = cihaz_ekle(yerel)
     return port, d
 
 
 def uzak_istek(port, yontem, yol, veri=None, token="__anahtar__", host="__dogru__", origin=None, adres="127.0.0.2"):
-    anahtar = uzak.oku().anahtar
     c = http.client.HTTPConnection(adres, port, timeout=10)
     b = {"Content-Type": "application/json", "Host": f"{DNS if host == '__dogru__' else host}:{port}" if host in ("__dogru__",) else host}
     if host == "__dogru__":
         b["Host"] = f"{adres}:{port}"
-    t = anahtar if token == "__anahtar__" else token
+    t = anahtar() if token == "__anahtar__" else token
     if t is not None:
         b["X-Aktapokus-Token"] = t
     if origin:
@@ -87,7 +100,7 @@ def test_adres_gecerli(adres, beklenen):
 
 def test_ayar_varsayilan_kapali_ve_dogrulanir(ortam):
     a = uzak.oku()
-    assert (a.acik, a.terminal, a.yonetim, a.port) == (False, False, False, uzak.VARSAYILAN_PORT) and len(a.anahtar) >= 32
+    assert (a.acik, a.terminal, a.yonetim, a.port, a.cihazlar) == (False, False, False, uzak.VARSAYILAN_PORT, [])  # cihazsiz: hicbir uzak anahtar gecmez
     assert "anahtar" not in a.sozluk() and uzak.guncelle({"acik": True, "terminal": True}).terminal is True
     for kotu in ({"acik": "evet"}, {"terminal": 1}, {"yonetim": None}, {"port": 80}, {"port": 70000}, {"port": "47650"}, {"port": True}, {"port": 1023}):
         with pytest.raises(uzak.UzakHatasi):
@@ -95,11 +108,17 @@ def test_ayar_varsayilan_kapali_ve_dogrulanir(ortam):
     assert uzak.oku().terminal is True  # reddedilen degisiklik dosyaya yazilmadi
 
 
-def test_anahtar_kalici_ve_yenilenebilir(ortam):
+def test_cihaz_anahtari_kalici_yalniz_ozeti_saklanir(ortam):
     uzak.guncelle({"acik": True})
-    a1 = uzak.oku().anahtar
-    assert uzak.oku().anahtar == a1
-    assert uzak.anahtari_yenile().anahtar != a1 and uzak.oku().anahtar != a1
+    _, c, k = uzak.cihaz_ekle("telefon")
+    assert len(k) >= 32 and c.ozet == uzak.ozet(k) and uzak.oku().cihazlar[0].ozet == c.ozet
+    ham = uzak.dosya_yolu().read_text(encoding="utf-8")
+    assert k not in ham and '"anahtar"' not in ham  # diskte anahtar YOK; yalniz (korumali) ozet
+    if uzak.gizli.koru("x") != "x":
+        assert c.ozet not in ham  # Windows: ozet de DPAPI ile korunur
+    assert uzak.cihaz_bul(uzak.oku(), k)[0].kimlik == c.kimlik
+    guncel = uzak.guncelle({"terminal": True})  # ayar degisikligi cihazlari silmez
+    assert [x.kimlik for x in guncel.cihazlar] == [c.kimlik]
 
 
 def test_bozuk_ya_da_eksik_dosya_kapali_varsayilan(ortam):
@@ -107,7 +126,10 @@ def test_bozuk_ya_da_eksik_dosya_kapali_varsayilan(ortam):
     assert uzak.oku().acik is False
     uzak.dosya_yolu().write_text(json.dumps({"acik": "true", "port": 5, "terminal": "evet", "anahtar": "kisa"}), encoding="utf-8")
     a = uzak.oku()
-    assert (a.acik, a.terminal, a.port) == (False, False, uzak.VARSAYILAN_PORT) and len(a.anahtar) >= 32  # gecersiz degerler guvenli varsayilana
+    assert (a.acik, a.terminal, a.port, a.cihazlar) == (False, False, uzak.VARSAYILAN_PORT, [])  # gecersiz degerler guvenli varsayilana; kisa anahtar tasinmaz
+    uzak.dosya_yolu().write_text(json.dumps({"cihazlar": [{"kimlik": "zz", "ad": "x", "ozet": "a" * 64, "olusturma": 1}, {"kimlik": "0123abcd", "ad": "", "ozet": "a" * 64, "olusturma": 1},
+                                                          {"kimlik": "0123abcd", "ad": "x", "ozet": "kisa", "olusturma": 1}, 5, None]}), encoding="utf-8")
+    assert uzak.oku().cihazlar == []  # bozuk cihaz kayitlari gecmez
 
 
 # ---------- tailscale algilama ----------
@@ -147,7 +169,7 @@ YASAK_VARSAYILAN = [
     ("POST", "/api/telegram/baslat"), ("POST", "/api/telegram/kok"), ("POST", "/api/telegram/eslestir"),
     ("POST", "/api/beceriler"), ("POST", "/api/beceriler/sil"),
     ("POST", "/api/github/klonla"), ("POST", "/api/github/yayin-hazirla"), ("GET", "/api/klasorler"),
-    ("GET", "/api/uzak"), ("POST", "/api/uzak"), ("POST", "/api/uzak/anahtar-yenile"),
+    ("GET", "/api/uzak"), ("POST", "/api/uzak"), ("POST", "/api/uzak/cihaz-ekle"), ("POST", "/api/uzak/cihaz-iptal"),
 ]
 IZINLI = [("GET", "/api/durum"), ("GET", "/api/ayar"), ("GET", "/api/proje-gruplari"), ("GET", "/api/oturumlar"), ("GET", "/api/dosyalar"), ("GET", "/api/ciktilar"),
           ("GET", "/api/github/proje"), ("GET", "/api/git/gecmis"), ("POST", "/api/gorev"), ("GET", "/api/mcp-sunuculari"), ("GET", "/api/beceriler"), ("GET", "/api/clilar"),
@@ -168,7 +190,7 @@ def test_politika_terminal_ve_yonetim_anahtarlari_ayri_calisir_uzak_ayari_hic_ac
     a = uzak.Ayar(yonetim=True)
     assert uzak.politika("POST", "/api/terminal/ac", a) and uzak.politika("POST", "/api/mcp-sunuculari", a) is None and uzak.politika("GET", "/api/klasorler", a) is None
     a = uzak.Ayar(terminal=True, yonetim=True)
-    for yontem, yol in (("GET", "/api/uzak"), ("POST", "/api/uzak"), ("POST", "/api/uzak/anahtar-yenile")):
+    for yontem, yol in (("GET", "/api/uzak"), ("POST", "/api/uzak"), ("POST", "/api/uzak/cihaz-ekle"), ("POST", "/api/uzak/cihaz-iptal")):
         assert uzak.politika(yontem, yol, a), (yontem, yol)  # ikisi de acik olsa bile uzak ayari uzaktan degistirilemez
 
 
@@ -184,9 +206,9 @@ def test_acinca_yalniz_tailscale_adresine_baglanir_0000a_degil(sunucu):
     port, d = ac(yerel)
     assert d["dinleyici"]["calisiyor"] and d["dinleyici"]["adres"] == "127.0.0.2" and d["dinleyici"]["port"] == port
     assert sv.uzak_http.server_address == ("127.0.0.2", port)  # 0.0.0.0 DEGIL
-    baglantilar = d["dinleyici"]["baglantilar"]
-    assert baglantilar[0].startswith(f"http://{DNS}:{port}/#t=") and baglantilar[1].startswith(f"http://127.0.0.2:{port}/#t=")
-    assert baglantilar[0].split("#t=")[1] == uzak.oku().anahtar
+    assert d["dinleyici"]["adresler"] == [f"http://{DNS}:{port}/", f"http://127.0.0.2:{port}/"]  # anahtarsiz
+    k, e = cihaz_ekle(yerel, "tablet")
+    assert e["yeni"]["baglantilar"] == [f"http://{DNS}:{port}/#t={k}", f"http://127.0.0.2:{port}/#t={k}"]
 
 
 @pytest.mark.parametrize("ip", ["192.168.1.5", "0.0.0.0"])
@@ -235,7 +257,7 @@ def test_kimlik_yerel_belirtec_ve_uzak_anahtar(sunucu):
     assert st == 200 and d["baglanti"] == {"uzak": True, "terminal": False, "yonetim": False}
     assert uzak_istek(port, "GET", "/api/durum", token=app.token)[0] == 200  # yerel belirtec de gecerli
     assert yerel("GET", "/api/durum")[1]["baglanti"] == {"uzak": False, "terminal": True, "yonetim": True}
-    assert yerel("GET", "/api/durum", token=uzak.oku().anahtar)[0] == 401  # uzak anahtar YEREL dinleyicide gecmez
+    assert yerel("GET", "/api/durum", token=anahtar())[0] == 401  # cihaz anahtari YEREL dinleyicide gecmez
 
 
 def test_host_ve_origin_denetimi(sunucu):
@@ -276,8 +298,10 @@ def test_terminal_ve_yonetim_anahtarlari_http_ile_acilir(sunucu):
     yerel("POST", "/api/uzak", {"yonetim": True})
     assert uzak_istek(port, "POST", "/api/mcp-sunuculari", {})[0] == 400  # politikadan gecti, govde gecersiz
     assert uzak_istek(port, "GET", "/api/klasorler")[0] == 200
-    for yontem, yol in (("GET", "/api/uzak"), ("POST", "/api/uzak"), ("POST", "/api/uzak/anahtar-yenile")):
-        assert uzak_istek(port, yontem, yol, {"acik": False} if yontem == "POST" else None)[0] == 403, yol  # her sey acikken bile
+    kimlik = yerel("GET", "/api/uzak")[1]["ayar"]["cihazlar"][0]["kimlik"]
+    for yontem, yol, govde in (("GET", "/api/uzak", None), ("POST", "/api/uzak", {"acik": False}), ("POST", "/api/uzak/cihaz-ekle", {"ad": "saldirgan"}),
+                               ("POST", "/api/uzak/cihaz-iptal", {"kimlik": kimlik})):
+        assert uzak_istek(port, yontem, yol, govde)[0] == 403, yol  # her sey acikken bile
     assert yerel("GET", "/api/uzak")[1]["dinleyici"]["calisiyor"] is True
 
 
@@ -328,7 +352,7 @@ def test_kapatinca_port_kapanir_ve_acik_akis_kesilir(sunucu):
     app, sv, yerel, proje = sunucu
     port, _ = ac(yerel)
     c = http.client.HTTPConnection("127.0.0.2", port, timeout=10)
-    c.request("GET", "/api/olaylar", headers={"Host": f"127.0.0.2:{port}", "X-Aktapokus-Token": uzak.oku().anahtar})
+    c.request("GET", "/api/olaylar", headers={"Host": f"127.0.0.2:{port}", "X-Aktapokus-Token": anahtar()})
     r = c.getresponse()
     assert r.status == 200
     bitti = threading.Event()
@@ -343,21 +367,148 @@ def test_kapatinca_port_kapanir_ve_acik_akis_kesilir(sunucu):
     assert yerel("GET", "/api/uzak")[1]["dinleyici"]["calisiyor"] is False
 
 
-def test_anahtar_yenilenince_eski_anahtar_ve_acik_akislar_gecersiz(sunucu):
-    app, sv, yerel, proje = sunucu
-    port, _ = ac(yerel)
-    eski = uzak.oku().anahtar
+def _akis_ac(port, jeton):
     c = http.client.HTTPConnection("127.0.0.2", port, timeout=10)
-    c.request("GET", "/api/olaylar", headers={"Host": f"127.0.0.2:{port}", "X-Aktapokus-Token": eski})
+    c.request("GET", "/api/olaylar", headers={"Host": f"127.0.0.2:{port}", "X-Aktapokus-Token": jeton})
     r = c.getresponse()
+    assert r.status == 200
     bitti = threading.Event()
     threading.Thread(target=lambda: (r.read(), bitti.set()), daemon=True).start()
-    st, d = yerel("POST", "/api/uzak/anahtar-yenile", {})
-    assert st == 200 and d["dinleyici"]["calisiyor"] is True
-    yeni = uzak.oku().anahtar
-    assert yeni != eski and bitti.wait(6)
-    assert uzak_istek(port, "GET", "/api/durum", token=eski)[0] == 401 and uzak_istek(port, "GET", "/api/durum", token=yeni)[0] == 200
+    return c, bitti
+
+
+def test_cihaz_iptal_edilince_anahtari_ve_acik_akisi_aninda_gecersiz_digerleri_etkilenmez(sunucu):
+    app, sv, yerel, proje = sunucu
+    port, _ = ac(yerel)
+    telefon = anahtar()
+    tablet, _ = cihaz_ekle(yerel, "tablet")
+    c1, bitti1 = _akis_ac(port, telefon)
+    c2, bitti2 = _akis_ac(port, tablet)
+    time.sleep(0.3)
+    kimlik = next(c["kimlik"] for c in yerel("GET", "/api/uzak")[1]["ayar"]["cihazlar"] if c["ad"] == "telefon")
+    st, d = yerel("POST", "/api/uzak/cihaz-iptal", {"kimlik": kimlik})
+    assert st == 200 and [c["ad"] for c in d["ayar"]["cihazlar"]] == ["tablet"] and d["dinleyici"]["calisiyor"] is True
+    assert bitti1.wait(6), "iptal edilen cihazin acik akisi kesilmedi"
+    assert not bitti2.is_set()  # diger cihazin oturumu surer (dinleyici yeniden kurulmadi)
+    assert uzak_istek(port, "GET", "/api/durum", token=telefon)[0] == 401 and uzak_istek(port, "GET", "/api/durum", token=tablet)[0] == 200
+    assert "ANAHTAR-REDDEDILDI 127.0.0.1 gecersiz ya da iptal edilmis anahtar" in uzak.dosya_yolu().with_suffix(".log").read_text(encoding="utf-8")
+    assert yerel("POST", "/api/uzak/cihaz-iptal", {"kimlik": kimlik})[0] == 404
+    c1.close()
+    c2.close()
+
+
+def test_suresi_dolan_anahtar_ve_acik_akisi_reddedilir(sunucu, monkeypatch):
+    app, sv, yerel, proje = sunucu
+    port, _ = ac(yerel)
+    c, bitti = _akis_ac(port, anahtar())
+    time.sleep(0.3)
+    assert not bitti.is_set()
+    gercek = time.time
+    monkeypatch.setattr(uzak.time, "time", lambda: gercek() + 91 * 86400)  # 90 gun sonrasi
+    assert bitti.wait(6), "suresi dolan anahtarin acik akisi kesilmedi"
+    assert uzak_istek(port, "GET", "/api/durum")[0] == 401
+    kayit = uzak.dosya_yolu().with_suffix(".log").read_text(encoding="utf-8")
+    assert "suresi dolmus anahtar (cihaz: telefon)" in kayit and anahtar() not in kayit
+    assert yerel("GET", "/api/uzak")[1]["ayar"]["cihazlar"][0]["suresi_doldu"] is True
     c.close()
+
+
+def test_suresiz_cihaz_ve_ekleme_dogrulamasi(sunucu):
+    app, sv, yerel, proje = sunucu
+    port, _ = ac(yerel)
+    k, d = cihaz_ekle(yerel, "masaustu", gun=0)
+    assert d["yeni"]["cihaz"]["bitis"] is None and uzak_istek(port, "GET", "/api/durum", token=k)[0] == 200
+    for kotu in ({"ad": ""}, {"ad": "  "}, {"ad": "x" * 41}, {"ad": "a\nb"}, {"ad": 5}, {"ad": "TELEFON"}, {"ad": "y", "gun": -1}, {"ad": "y", "gun": "90"},
+                 {"ad": "y", "gun": True}, {"ad": "y", "gun": 4000}):
+        assert yerel("POST", "/api/uzak/cihaz-ekle", kotu)[0] == 400, kotu
+    assert [c["ad"] for c in yerel("GET", "/api/uzak")[1]["ayar"]["cihazlar"]] == ["telefon", "masaustu"]
+
+
+def test_cihaz_son_kullanim_zamani_ve_ip_kaydedilir(sunucu):
+    app, sv, yerel, proje = sunucu
+    port, _ = ac(yerel)
+    assert yerel("GET", "/api/uzak")[1]["ayar"]["cihazlar"][0]["son_zaman"] is None
+    once = time.time()
+    uzak_istek(port, "GET", "/api/durum")
+    c = yerel("GET", "/api/uzak")[1]["ayar"]["cihazlar"][0]
+    assert c["son_ip"] == "127.0.0.1" and c["son_zaman"] >= once - 1
+    assert uzak.oku().cihazlar[0].son_ip == "127.0.0.1"  # diske de yazildi
+
+
+def test_gecis_eski_tek_anahtar_eski_cihaz_olur_ve_calismaya_devam_eder(ortam, proje):
+    eski = "e" * 43
+    port = bos_port()
+    uzak.dosya_yolu().write_text(json.dumps({"acik": True, "port": port, "terminal": False, "yonetim": False, "anahtar": uzak.gizli.koru(eski)}), encoding="utf-8")
+    a = uzak.oku()
+    assert [c.ad for c in a.cihazlar] == [uzak.ESKI_CIHAZ_ADI] and a.acik is True and a.port == port
+    c = a.cihazlar[0]
+    assert c.ozet == uzak.ozet(eski) and 89 * 86400 < c.bitis - c.olusturma <= 90 * 86400
+    ham = uzak.dosya_yolu().read_text(encoding="utf-8")
+    assert '"anahtar"' not in ham and eski not in ham  # eski anahtar dosyadan silindi
+    assert [x.kimlik for x in uzak.oku().cihazlar] == [c.kimlik]  # ikinci okumada yeniden tasinmaz
+    app = Uygulama()
+    sv = ArayuzSunucusu(app)
+    sv.baslat()
+    try:
+        assert sv.uzak_uygula()["calisiyor"] is True
+        assert uzak_istek(port, "GET", "/api/durum", token=eski)[0] == 200  # bagli telefon kopmaz
+    finally:
+        sv.kapat()
+
+
+def test_gecis_duz_metin_eski_anahtar_da_tasinir(ortam):
+    eski = "d" * 43
+    uzak.dosya_yolu().write_text(json.dumps({"anahtar": eski}), encoding="utf-8")
+    assert uzak.cihaz_bul(uzak.oku(), eski)[0].ad == uzak.ESKI_CIHAZ_ADI
+    assert eski not in uzak.dosya_yolu().read_text(encoding="utf-8")
+
+
+def test_karsilastirma_sabit_zamanli_ve_erken_cikmaz(ortam, monkeypatch):
+    for ad in ("a", "b", "c"):
+        uzak.cihaz_ekle(ad)
+    ayar = uzak.oku()
+    cagrilar = []
+    gercek = uzak.hmac.compare_digest
+    monkeypatch.setattr(uzak.hmac, "compare_digest", lambda x, y: cagrilar.append(1) or gercek(x, y))
+    eslesen = ayar.cihazlar[0]
+    _, _, k = uzak.cihaz_ekle("d")
+    ayar = uzak.oku()
+    cagrilar.clear()
+    assert uzak.cihaz_bul(ayar, k)[0].ad == "d" and len(cagrilar) == 4
+    cagrilar.clear()
+    assert uzak.cihaz_bul(ayar, "yanlis")[0] is None and len(cagrilar) == 4  # eslesme olsa da olmasa da hepsi karsilastirilir
+    assert eslesen.ad == "a"
+    assert uzak.cihaz_bul(ayar, "") == (None, "anahtar yok")
+    kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "uzak.py").read_text(encoding="utf-8")
+    govde = kaynak.split("def cihaz_bul")[1].split("\ndef ")[0]
+    assert "hmac.compare_digest" in govde and "==" not in govde and "break" not in govde and "return" not in govde.split("for c in")[1].split("if bulunan is None")[0]
+
+
+def test_anahtar_hicbir_api_yanitina_ve_gunluge_sizmaz(sunucu):
+    app, sv, yerel, proje = sunucu
+    port, _ = ac(yerel, terminal=True, yonetim=True)
+    k = anahtar()
+    oz = uzak.ozet(k)
+    uzak_istek(port, "GET", "/api/durum")
+    uzak_istek(port, "GET", "/api/durum", token=k[:-1] + ("A" if k[-1] != "A" else "B"))  # reddedilen (gunluge yazilir)
+    uzak_istek(port, "POST", "/api/klasor", {"yol": str(proje.parent.parent)})  # klasor reddi de gunluge yazilir
+    for yontem, yol in (("GET", "/api/uzak"), ("GET", "/api/durum"), ("GET", "/api/ayar"), ("GET", "/api/hesaplar"), ("GET", "/api/telegram")):
+        metin = json.dumps(yerel(yontem, yol)[1], ensure_ascii=False)
+        assert k not in metin and oz not in metin, yol
+    for yontem, yol in (("GET", "/api/durum"), ("GET", "/api/ayar"), ("GET", "/api/hesaplar")):
+        metin = json.dumps(uzak_istek(port, yontem, yol)[1], ensure_ascii=False)
+        assert k not in metin and oz not in metin, yol
+    kayit = uzak.dosya_yolu().with_suffix(".log").read_text(encoding="utf-8")
+    assert "ANAHTAR-REDDEDILDI" in kayit and k not in kayit and k[:-1] not in kayit and oz not in kayit
+    assert k not in uzak.dosya_yolu().read_text(encoding="utf-8")
+
+
+def test_gunluk_satir_enjeksiyonu_ve_boyut_siniri(ortam, monkeypatch):
+    uzak.kayit_yaz("REDDEDILDI 1.2.3.4 a\nSAHTE SATIR")
+    assert uzak.dosya_yolu().with_suffix(".log").read_text(encoding="utf-8").count("\n") == 1
+    monkeypatch.setattr(uzak, "AZAMI_KAYIT", 10)
+    uzak.kayit_yaz("ikinci")
+    assert uzak.dosya_yolu().with_suffix(".log.1").is_file() and "ikinci" in uzak.dosya_yolu().with_suffix(".log").read_text(encoding="utf-8")
 
 
 def test_ayar_degisince_dinleyici_yeniden_kurulur_terminal_kapaninca_akis_kesilir(sunucu):
@@ -417,12 +568,12 @@ def test_reddedilen_istegin_govdesi_ayni_baglantidaki_sonraki_istegi_bozmaz(sunu
     """Gercek hata: 401/403 govde okunmadan donunce kalan byte'lar keep-alive baglantida bir sonraki istegin basi sanildi (501)."""
     app, sv, yerel, proje = sunucu
     port, _ = ac(yerel)
-    anahtar = uzak.oku().anahtar
+    jeton_u = anahtar()
     govde = json.dumps({"x": "y" * 500})
     ornekler = [
-        ("127.0.0.2", port, f"127.0.0.2:{port}", anahtar, "/api/clilar"),      # uzak: politika 403
+        ("127.0.0.2", port, f"127.0.0.2:{port}", jeton_u, "/api/clilar"),      # uzak: politika 403
         ("127.0.0.2", port, f"127.0.0.2:{port}", None, "/api/gorev"),          # uzak: belirtec yok 401
-        ("127.0.0.2", port, f"evil.example:{port}", anahtar, "/api/gorev"),    # uzak: Host 403
+        ("127.0.0.2", port, f"evil.example:{port}", jeton_u, "/api/gorev"),    # uzak: Host 403
         ("127.0.0.1", sv.port, f"127.0.0.1:{sv.port}", None, "/api/gorev"),    # yerel: belirtec yok 401
         ("127.0.0.1", sv.port, f"127.0.0.1:{sv.port}", app.token, "/api/yok"), # yerel: 404
     ]
@@ -436,7 +587,7 @@ def test_reddedilen_istegin_govdesi_ayni_baglantidaki_sonraki_istegi_bozmaz(sunu
             r1 = c.getresponse()
             r1.read()
             assert r1.status in (401, 403, 404), (yol, r1.status)
-            geri = {"Host": f"127.0.0.2:{p}" if p == port else f"127.0.0.1:{p}", "X-Aktapokus-Token": anahtar if p == port else app.token}
+            geri = {"Host": f"127.0.0.2:{p}" if p == port else f"127.0.0.1:{p}", "X-Aktapokus-Token": jeton_u if p == port else app.token}
             c.request("GET", "/api/durum", headers=geri)  # AYNI baglanti
             r2 = c.getresponse()
             r2.read()
@@ -447,12 +598,14 @@ def test_reddedilen_istegin_govdesi_ayni_baglantidaki_sonraki_istegi_bozmaz(sunu
 
 def test_arayuz_uzak_erisim_bolumu_ve_telefon_duzeni():
     html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
-    for parca in ('["uzak","Uzak erişim"]', "function uzakBolumu", "function uzakDuzen", "/api/uzak/anahtar-yenile", 'id="mobilGezinme"', "function mobilGoster", "@media (max-width:900px)",
+    for parca in ('["uzak","Uzak erişim"]', "function uzakBolumu", "function uzakDuzen", "/api/uzak/cihaz-ekle", "/api/uzak/cihaz-iptal", 'id="mobilGezinme"', "function mobilGoster", "@media (max-width:900px)",
                   'data-m="sol"', 'data-m="orta"', 'data-m="sag"', 'id="motorUyari"'):
         assert parca in html, parca
     govde = html.split("function uzakBolumu")[1].split("/* ---- Telefon / dar ekran")[0]  # yalniz uzakBolumu govdesi (sonraki bolumlerdeki sabit simge tablosu innerHTML kullanir)
-    # terminal ve yonetim anahtarlari acilirken ortak degistir(govde, onay) onay penceresi gosterir; anahtar yenileme ayrica onaylidir
-    assert "confirm(onay)" in govde and govde.count("Yine de açılsın mı?") == 2 and "Uzak anahtar yenilensin mi?" in govde and "innerHTML" not in govde
+    # terminal ve yonetim anahtarlari acilirken ortak degistir(govde, onay) onay penceresi gosterir; cihaz iptali iki adimli dugmedir (acilir pencere yok)
+    assert "confirm(onay)" in govde and govde.count("Yine de açılsın mı?") == 2 and "innerHTML" not in govde
+    cihaz = govde.split("/* cihazlar")[1]
+    assert 'textContent="İptal?"' in cihaz and "confirm(" not in cihaz and "alert(" not in cihaz and "prompt(" not in cihaz and "yeni=null" in cihaz
     assert "TAM komut" in govde and "KAPALI" in govde  # riskli anahtarlar acikca anlatilir
     assert 'localStorage' in html.split("const T=")[1].split("})();")[0]  # uzak (telefon) kaynakta belirtec kalici; yerelde yalniz sekme oturumu
 

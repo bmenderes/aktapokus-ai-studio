@@ -54,9 +54,9 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 .onay-satir .onay-ozet{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.onay-satir button{flex:none}
 .izin-satir{flex-wrap:wrap}
 .onay-satir:has(.plan-ozet){flex-wrap:wrap;row-gap:6px}.onay-satir .plan-ozet{flex:1 1 100%;white-space:normal;display:flex;flex-direction:column;gap:2px}
-.plan-uyari{color:var(--warn);font-size:12px}
-#ilkAdim{position:relative;margin:10px 12px 0;padding:8px 40px 8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);display:flex;flex-direction:column;gap:6px}
-.ilk-satir{display:flex;align-items:center;gap:8px;white-space:nowrap;min-height:30px}.ilk-et{flex:none;min-width:120px}.ilk-deger{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.plan-uyari{color:var(--warn);font-size:12px}
+#ilkAdim{position:relative;margin:10px 12px 0;padding:8px 40px 8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);display:flex;flex-direction:column;gap:6px}
+.ilk-satir{display:flex;align-items:center;gap:8px;white-space:nowrap;min-height:30px}.ilk-et{flex:none;min-width:120px}.ilk-deger{overflow:hidden;text-overflow:ellipsis;min-width:0}
 .ilk-kapat{position:absolute;top:6px;right:6px}
 .izin-satir .onay-ozet{flex:1 1 100%;white-space:normal;word-break:break-word;max-height:7.5em;overflow:auto;font-family:var(--mono);font-size:12px}  /* izin istenen komut TAM okunur: kullanici neyi onayladigini gormeli */
 /* degisen dosya satiri: harf sabit, yol KENDI icinde sarilir (yatay kaydirma ve kesik harf olmaz) */
@@ -67,6 +67,7 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 .ayrinti-dugme{border:0;background:none;padding:0 2px;min-height:0;color:var(--tx3);font-size:12px;text-decoration:underline;cursor:pointer}
 .ayrac{display:flex;align-items:center;gap:8px;color:var(--tx3);font-size:12px;margin:14px 0 6px}.ayrac::before,.ayrac::after{content:"";flex:1;height:1px;background:var(--line)}
 .yuvarlak{border-radius:999px;flex:none;width:auto}.yuvarlak.simge{width:34px;height:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;font-size:14px;text-align:center}
+button.tehlike{color:var(--err);border-color:var(--err)}.yuvarlak.simge.tehlike{width:auto;padding:0 10px}
 #ekler{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;padding-top:4px;max-height:190px;overflow:auto}#ekler:empty{display:none}
 .ek-cip{display:inline-flex;align-items:center;gap:6px;max-width:190px;border:1px solid var(--line2);border-radius:999px;padding:2px 6px 2px 3px;background:var(--panel2);font-size:12px}.ek-cip.yukleniyor,.ek-kart.yukleniyor{opacity:.55}
 .ek-kart{position:relative;display:inline-block}.ek-kart img{display:block;width:84px;height:84px;object-fit:cover;border-radius:10px;border:1px solid var(--line2);cursor:zoom-in;background:var(--panel2)}
@@ -2096,11 +2097,30 @@ async function uzakBolumu(h){const kap=e("div");h.append(kap);
     const dKart=e("div",{class:"card"});kap.append(dKart);
     dKart.append(e("div",{class:"row",style:"gap:6px"},e("b",{text:"Durum"}),e("span",{class:"badge "+(di.calisiyor?"b-ok":ay.acik?"b-err":""),text:di.calisiyor?"dinliyor ("+di.adres+":"+di.port+")":ay.acik?"açılamadı":"kapalı"})));
     if(di.hata)dKart.append(e("div",{class:"badge b-err",style:"display:block;white-space:normal;margin-top:6px",text:di.hata}));
-    if(di.calisiyor){dKart.append(e("div",{class:"mut3",style:"margin-top:6px;white-space:normal",text:"Telefonda Tailscale'i açıp bu bağlantılardan birini tarayıcıda açın (anahtarı içerir; yalnızca kendi cihazlarınızda kullanın):"}));
-      for(const b of di.baglantilar)dKart.append(e("div",{class:"row",style:"gap:6px;margin-top:4px"},e("span",{class:"mono",style:"min-width:0;word-break:break-all;flex:1",text:b}),e("button",{text:"Kopyala",onclick:async ev=>{try{await navigator.clipboard.writeText(b);ev.target.textContent="Kopyalandı"}catch(x){prompt("Bağlantıyı kopyalayın:",b)}}})));
-      dKart.append(e("div",{class:"mut3",style:"margin-top:6px",text:di.son_erisim?"Son uzak erişim: "+di.son_erisim.zaman+" ("+di.son_erisim.ip+")":"Henüz uzaktan erişilmedi."}));
-      dKart.append(e("div",{class:"row",style:"margin-top:6px"},e("button",{text:"Anahtarı yenile",title:"Eski anahtar ve açık uzak bağlantılar geçersiz olur",onclick:async()=>{if(!confirm("Uzak anahtar yenilensin mi?\n\nEski bağlantılar ve açık uzak oturumlar hemen geçersiz olur; telefondaki bağlantıyı yenisiyle değiştirmeniz gerekir."))return;try{d=await api("/api/uzak/anahtar-yenile",{method:"POST",body:{}});ciz()}catch(x){alert(x.message)}}})))}
+    /* cihazlar: her cihazin ayri anahtari; anahtarli baglanti yalniz eklerken bir kez gosterilir */
+    const cKart=e("div",{class:"card"});kap.append(cKart);
+    const tarih=sn=>new Date(sn*1000).toLocaleString("tr-TR",{day:"2-digit",month:"2-digit",year:"2-digit",hour:"2-digit",minute:"2-digit"});
+    cKart.append(e("b",{text:"Cihazlar"}));
+    for(const c of ay.cihazlar){const iptal=e("button",{class:"yuvarlak simge",text:"✕",title:"Anahtarı iptal et","aria-label":"Anahtarı iptal et"});let sure=null;
+      iptal.onclick=async()=>{if(!sure){iptal.textContent="İptal?";iptal.classList.add("tehlike");sure=setTimeout(()=>{iptal.textContent="✕";iptal.classList.remove("tehlike");sure=null},4000);return}clearTimeout(sure);
+        try{d=await api("/api/uzak/cihaz-iptal",{method:"POST",body:{kimlik:c.kimlik}});yeni=null;cHata="";ciz()}catch(x){cHata=x.message;ciz()}};
+      cKart.append(e("div",{class:"row cihaz-satir",style:"gap:8px;margin-top:6px;white-space:nowrap;overflow-x:auto",title:"Eklendi: "+tarih(c.olusturma)+(c.bitis?"  ·  Bitiş: "+tarih(c.bitis):"  ·  Süresiz")+(c.son_ip?"  ·  IP: "+c.son_ip:"")},
+        e("b",{text:c.ad}),e("span",{class:"mut3",style:"flex:1",text:c.son_zaman?tarih(c.son_zaman):"kullanılmadı"}),c.suresi_doldu?e("span",{class:"badge b-err",text:"süresi doldu"}):null,iptal))}
+    const ad=e("input",{placeholder:"Cihaz adı",maxlength:"40",style:"width:140px"});
+    const gun=e("select",{title:"Geçerlilik"},...[[90,"90 gün"],[30,"30 gün"],[365,"1 yıl"],[0,"süresiz"]].map(([v,t])=>e("option",{value:String(v),text:t})));
+    const ekle=e("button",{text:"Ekle",title:di.calisiyor?"Yeni anahtar üret":"Önce uzak erişimi açın"});ekle.disabled=!di.calisiyor;
+    ekle.onclick=async()=>{try{const r=await api("/api/uzak/cihaz-ekle",{method:"POST",body:{ad:ad.value,gun:Number(gun.value)}});yeni=r.yeni;d=r;cHata="";ciz()}catch(x){cHata=x.message;ciz()}};
+    ad.onkeydown=ev=>{if(ev.key==="Enter"&&!ekle.disabled)ekle.onclick()};
+    cKart.append(e("div",{class:"row",style:"gap:6px;margin-top:8px;white-space:nowrap"},ad,gun,ekle));
+    if(cHata)cKart.append(e("div",{class:"badge b-err",style:"display:block;white-space:normal;margin-top:6px",text:cHata}));
+    if(yeni){const kutu=e("div",{class:"card",style:"margin-top:8px"});
+      if(yeni.qr)kutu.append(e("img",{src:yeni.qr,alt:"QR",style:"display:block;width:180px;height:180px;margin-bottom:6px;background:#fff"}));
+      for(const b of yeni.baglantilar){const alan=e("input",{readonly:"",value:b,class:"mono",style:"width:260px"});alan.onclick=()=>alan.select();
+        kutu.append(e("div",{class:"row",style:"gap:6px;margin-top:4px;white-space:nowrap"},alan,e("button",{text:"Kopyala",onclick:async ev=>{alan.select();try{await navigator.clipboard.writeText(b);ev.target.textContent="Kopyalandı"}catch(x){}}})))}
+      kutu.append(e("div",{class:"row",style:"margin-top:6px"},e("button",{class:"pri",text:"Tamam",title:"Bağlantı bir daha gösterilmez",onclick:()=>{yeni=null;ciz()}})));
+      cKart.append(kutu)}
   };
+  let yeni=null,cHata="";
   ciz()}
 /* ---- Telefon / dar ekran: tek panel + alt gezinme (Görevler · Sohbet · Panel) ---- */
 const mobilDar=()=>window.matchMedia("(max-width:900px)").matches;

@@ -6,10 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from aktapokus_ai_studio import uzak
 from aktapokus_ai_studio.arayuz import EK_AZAMI, EK_SAYI, UygulamaHatasi
 from aktapokus_ai_studio.config import ayar_yukle
-from test_uzak import ac, ortam, sunucu  # noqa: F401  (pytest fixture'lari)
+from test_uzak import ac, anahtar as uzak_anahtari, ortam, sunucu  # noqa: F401  (pytest fixture'lari)
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64
 
@@ -106,7 +105,7 @@ def test_api_gorev_ekleri_alir(sunucu):
 def test_telefon_uzak_baglantidan_yukleme_calisir_yonetim_kapaliyken(sunucu):
     app, sv, yerel, proje = sunucu
     port, _ = ac(yerel)
-    anahtar = uzak.oku().anahtar
+    anahtar = uzak_anahtari()
     st, d = yukle(port, "foto.jpg", PNG, anahtar, adres="127.0.0.2")
     assert st == 200 and (proje / d["yol"]).read_bytes() == PNG
     assert yukle(port, "foto.jpg", PNG, "yanlis", adres="127.0.0.2")[0] == 401

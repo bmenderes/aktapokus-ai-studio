@@ -20,13 +20,18 @@ def test_koru_ac_gidis_donus_ve_bozuk_deger():
 @windows
 def test_uzak_anahtar_diskte_duz_metin_degil_ve_eski_dosya_gecirilir(tmp_path, monkeypatch):
     monkeypatch.setenv(uzak.AYAR_ORTAMI, str(tmp_path / "uzak.json"))
-    ayar = uzak.guncelle({"acik": True})
+    _, cihaz, anahtar = uzak.cihaz_ekle("telefon")
     ham = (tmp_path / "uzak.json").read_text(encoding="utf-8")
-    assert ayar.anahtar not in ham and '"anahtar": "dpapi:' in ham and uzak.oku().anahtar == ayar.anahtar
+    assert anahtar not in ham and cihaz.ozet not in ham and '"ozet": "dpapi:' in ham and uzak.cihaz_bul(uzak.oku(), anahtar)[0].kimlik == cihaz.kimlik
     eski = "a" * 40
     (tmp_path / "uzak.json").write_text(json.dumps({"acik": True, "port": 47650, "anahtar": eski}), encoding="utf-8")
-    assert uzak.oku().anahtar == eski  # eski duz anahtar calismaya devam eder (telefon yeniden eslestirilmez)
-    assert eski not in (tmp_path / "uzak.json").read_text(encoding="utf-8")  # ve korumali bicime gecirilir
+    assert uzak.cihaz_bul(uzak.oku(), eski)[0].ad == uzak.ESKI_CIHAZ_ADI  # eski duz anahtar calismaya devam eder (telefon yeniden eslestirilmez)
+    ham = (tmp_path / "uzak.json").read_text(encoding="utf-8")
+    assert eski not in ham and uzak.ozet(eski) not in ham and '"anahtar"' not in ham  # yalniz korumali ozeti kalir
+    duz = json.loads(ham)
+    duz["cihazlar"][0]["ozet"] = uzak.ozet(eski)  # duz metin ozet de korumali bicime gecirilir
+    (tmp_path / "uzak.json").write_text(json.dumps(duz), encoding="utf-8")
+    assert uzak.cihaz_bul(uzak.oku(), eski)[0] is not None and uzak.ozet(eski) not in (tmp_path / "uzak.json").read_text(encoding="utf-8")
 
 
 @windows
