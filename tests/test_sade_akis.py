@@ -62,3 +62,13 @@ def test_cli_rozetleri_renkli_saglayicilar_kaldirildi_hafiza_ve_canli_geri_bildi
     assert "cliDenemeKaydet" in html and "aktapokus.cliDeneme" in html
     assert "Hafıza (.md)" in html and "async function hafizaAc(" in html and "/api/konusma-hafiza" in html
     assert "function fbGrubu(" in html and 'o.alt==="arac-sonuc"' in html
+
+
+def test_ilk_acilis_uc_tek_satir_adim_ve_kendiliginden_gizlenir():
+    """2026-11-23: ilk acilis rehberi (arac, proje, ilk gorev). Acilir pencere degil; hepsi tamamlaninca ya da kapatilinca gizlenir."""
+    html = _html()
+    assert 'id="ilkAdim"' in html and "async function ilkAdimCiz(" in html
+    govde = html.split("async function ilkAdimCiz(")[1].split("\nasync function kenarCubugu(")[0]
+    assert 'adimlar.every(a=>a[1])' in govde and 'k.style.display="none"' in govde  # hepsi tamam: gizli
+    assert "ILK_GIZLE" in govde and "modal" not in govde  # kapatilabilir; acilir pencere yok
+    assert "sohbetOzetiYukle();ilkAdimCiz()" in html  # proje/sohbet degisince yenilenir

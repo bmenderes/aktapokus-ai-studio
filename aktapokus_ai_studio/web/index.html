@@ -54,7 +54,10 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 .onay-satir .onay-ozet{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.onay-satir button{flex:none}
 .izin-satir{flex-wrap:wrap}
 .onay-satir:has(.plan-ozet){flex-wrap:wrap;row-gap:6px}.onay-satir .plan-ozet{flex:1 1 100%;white-space:normal;display:flex;flex-direction:column;gap:2px}
-.plan-uyari{color:var(--warn);font-size:12px}
+.plan-uyari{color:var(--warn);font-size:12px}
+#ilkAdim{position:relative;margin:10px 12px 0;padding:8px 40px 8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);display:flex;flex-direction:column;gap:6px}
+.ilk-satir{display:flex;align-items:center;gap:8px;white-space:nowrap;min-height:30px}.ilk-et{flex:none;min-width:120px}.ilk-deger{overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ilk-kapat{position:absolute;top:6px;right:6px}
 .izin-satir .onay-ozet{flex:1 1 100%;white-space:normal;word-break:break-word;max-height:7.5em;overflow:auto;font-family:var(--mono);font-size:12px}  /* izin istenen komut TAM okunur: kullanici neyi onayladigini gormeli */
 /* degisen dosya satiri: harf sabit, yol KENDI icinde sarilir (yatay kaydirma ve kesik harf olmaz) */
 .fark-satir{display:flex;gap:8px;align-items:baseline;cursor:pointer;line-height:1.6}.fark-satir>.mut3{flex:none;width:1ch}.fark-yol{min-width:0;overflow-wrap:anywhere;word-break:break-all}
@@ -398,6 +401,7 @@ body:has(#ayarlar.on) #bolucuSol,html.ayar-tam body:has(#ayarlar.on) #bolucuSag{
   <div id="orta">
     <div id="motorUyari" style="display:none"></div>
     <div id="sohbetBaslik"></div>
+    <div id="ilkAdim" style="display:none"></div>
     <div id="akis"></div>
     <div id="girdi">
       <div id="kuyrukBar"></div>
@@ -939,7 +943,23 @@ function grupAyarYaz(a){try{localStorage.setItem(GRUP_ANAHTAR,JSON.stringify(a))
 let kenarZ=null;
 function gecmisYukle(){if(S.tekrar)return;clearTimeout(kenarZ);kenarZ=setTimeout(kenarCubugu,150)}
 async function acilisParametreleri(){const a=window.__ACILIS;if(!a||!a.p)return;try{await kenarCubugu();const g=S.gruplar&&S.gruplar.projeler.find(x=>x.id===a.p);if(g&&await projeAc(g)&&a.g)await gecmisAc(a.g)}catch(x){}}
-async function kenarCubugu(){try{S.gruplar=await api("/api/proje-gruplari")}catch(x){return}kenarCiz();sohbetBasligiCiz();sohbetOzetiYukle()}
+/* Ilk acilis: arac (CLI) var mi, proje secili mi, ilk gorev denendi mi. Uc tek satir; hepsi tamamlaninca ya da kapatilinca kendiliginden gizlenir. */
+const ILK_GIZLE="aktp-ilk-gizle";
+async function ilkAdimCiz(){const k=$("#ilkAdim");if(!k)return;let gizli=false;try{gizli=localStorage.getItem(ILK_GIZLE)==="1"}catch(x){}
+  if(gizli||S.tekrar){k.style.display="none";return}
+  if(!S.clilar){try{await clilarYukle()}catch(x){S.clilar=S.clilar||[]}}
+  const kurulu=(S.clilar||[]).filter(c=>c.kurulu&&c.yerlesik);const ad=[...new Set(kurulu.map(c=>c.gorunen_ad.replace(/ \(.*\)$/,"")))];
+  const g=S.gruplar&&S.projeId?S.gruplar.projeler.find(x=>x.id===S.projeId):null;const gorevVar=!!(g&&g.gorevler&&g.gorevler.length);
+  const adimlar=[["Yapay zekâ aracı",kurulu.length>0,ad.slice(0,3).join(", "),"Kur",()=>ayarGit("clilar")],
+    ["Proje klasörü",!!S.klasor,S.klasor?S.klasor.split(/[\\/]/).pop():"","Seç",()=>klasorSecimiAc()],
+    ["İlk görev",gorevVar,"","Dene",()=>{const t=$("#gorev");if(!t)return;t.value="Bu projede README.md dosyası oluştur ve projeyi kısaca anlat.";t.focus();try{gorevBoyutla();gonderDugmeGuncelle()}catch(x){}}]];
+  if(adimlar.every(a=>a[1])){k.style.display="none";return}
+  k.textContent="";const sonraki=adimlar.findIndex(a=>!a[1]);
+  adimlar.forEach(([etiket,tamam,deger,dugme,f],i)=>k.append(e("div",{class:"ilk-satir"},e("span",{class:"dot "+(tamam?"yesil":i===sonraki?"bekliyor":"")}),e("span",{class:"ilk-et",text:etiket}),
+    tamam?e("span",{class:"mut3 ilk-deger",text:deger}):(i===sonraki?e("button",{text:dugme,onclick:f}):e("span",{class:"mut3",text:"—"})))));
+  k.append(e("button",{class:"yuvarlak simge ilk-kapat",title:"Gizle","aria-label":"Gizle",text:"✕",onclick:()=>{try{localStorage.setItem(ILK_GIZLE,"1")}catch(x){}k.style.display="none"}}));
+  k.style.display=""}
+async function kenarCubugu(){try{S.gruplar=await api("/api/proje-gruplari")}catch(x){return}kenarCiz();sohbetBasligiCiz();sohbetOzetiYukle();ilkAdimCiz()}
 const gorevRengi=d=>d==="onaylandi"||d==="degisiklik_yok"?"ok":d==="geri_alindi"||d==="reddedildi"?"":"err";
 const durumYazisi=d=>d==="plan"?"plan onayı bekliyor":d==="karar-bekliyor"?"karar bekliyor":"çalışıyor";
 function grupNoktasi(g){return g.durum==="calisiyor"?"calisiyor":(g.durum==="plan"||g.durum==="karar-bekliyor"||S.okunmadi[g.id])?"bekliyor":""}
