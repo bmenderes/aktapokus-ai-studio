@@ -46,7 +46,7 @@ Bu belge, kullanıcının listelediği fikirlerin **hiçbirini düşürmemek** i
 | Kesintisiz akış, yeniden bağlanınca son durum | VAR | SSE + halka tampon + olay geri oynatma |
 | "Ne oldu?" özet kartı (Llama ile) | YAPILACAK (6) | Model çağırmadan: git farkı + görev kayıtları (commit önerisi gibi). İstenirse sonra modelle |
 | Uygulama kapalıyken bildirim (Telegram) | VAR | |
-| Kimlik doğrulama: Tailscale + token | VAR (3) | Sabit, yenilenebilir uzak anahtar; yetki daraltma; Tailscale yoksa açılmaz |
+| Kimlik doğrulama: Tailscale + token | VAR (3) | Cihaz başına anahtar (90 gün varsayılan, tek tek iptal, son kullanım/IP); yetki daraltma; Tailscale yoksa açılmaz |
 | Telegram'da model seçimi | YAPILACAK (5) | Yalnız kurulu CLI/modeller arasından düğmeyle |
 | Telegram `/projeler` çalışmadı | NEDEN BULUNDU | Eski bot ayarı açılışta bir kez okuyor; süreç kapatılıp yeniden başlatılacak (1) |
 | Otomasyon: şablon + "Şimdi çalıştır" + Telegram `/sablon` | VAR (A) | Yalnız plan üretir, onay ister. Tasarım: `otomasyon-tasarimi.md` |

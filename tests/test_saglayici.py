@@ -55,7 +55,11 @@ class SahteOpenCode:
 
 
 @pytest.fixture
-def app():
+def app(monkeypatch):
+    # Makinede kurulu CLI'lar sonucu degistirmesin (Antigravity kuruluysa Google modelleri gizlenir): hicbiri kurulu degil sayilir
+    from aktapokus_ai_studio import clitanim
+
+    monkeypatch.setattr(clitanim, "listele", lambda *a, **k: [])
     sahte = SahteOpenCode()
     return Uygulama(saglayici_istemci_uret=lambda: sahte), sahte
 
@@ -81,6 +85,15 @@ def test_baglan_anahtari_istemciye_verir_yanitta_geri_vermez(app):
     assert ANAHTAR not in json.dumps(r)
     assert [m["id"] for m in a.modeller()] == ["google/gemini-flash", "google/gemini-pro", "opencode/deepseek-v4.1-flash-free"]
     assert a.modeller()[1]["ad"] == "gemini-pro"  # adi olmayan modelde kimlik gosterilir
+
+
+def test_antigravity_kuruluysa_google_modelleri_opencode_listesinde_gosterilmez(app, monkeypatch):
+    a, sahte = app
+    a.saglayici_baglan("google", ANAHTAR)
+    from aktapokus_ai_studio import clitanim
+
+    monkeypatch.setattr(clitanim, "listele", lambda *x, **k: [{"ad": "antigravity", "kurulu": True}])
+    assert [m["id"] for m in a.modeller()] == ["opencode/deepseek-v4.1-flash-free"]  # ayni model iki yerde sunulmaz
 
 
 @pytest.mark.parametrize("anahtar", ["", "   ", "iki kelime", "satir\nsonu", "ctrl\x01x", "a" * 4097, None, 5, ["x"]])

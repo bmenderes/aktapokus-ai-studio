@@ -215,12 +215,14 @@ Rolün bağlı olduğu CLI kurulu değilse arayüz uyarır ve onayınızla kurul
 **Nasıl açarım:**
 1. Bu bilgisayara ve telefona **Tailscale** kurun, ikisinde **aynı hesapla** giriş yapın.
 2. **Ayarlar > Uzak erişim**: "Tailscale" satırında adresin göründüğünden emin olun (yoksa **Yeniden kontrol et**).
-3. Uzak erişim anahtarını açın, istenirse **Port** yazıp **Kaydet**. Durum "dinliyor" olunca gösterilen bağlantılardan birini telefonda tarayıcıda açın. **Kopyala** ile panoya alabilirsiniz. Bağlantı gizli anahtar içerir; yalnızca kendi cihazlarınızda kullanın.
+3. Uzak erişimi açın, istenirse **Port** yazıp **Kaydet**. Durum "dinliyor" olunca **Cihaz ekle**: cihaza bir ad verin (ör. "Telefon"), geçerlilik süresini seçin (varsayılan 90 gün). Çıkan bağlantıyı ya da QR'ı telefonda açın. Bağlantı o cihaza özel anahtar içerir ve **yalnızca bir kez** gösterilir; kaçırırsanız yeni cihaz ekleyin. Her cihaz için ayrı ekleyin.
 4. Telefonda alt çubuktan **Görevler / Sohbet / Panel** arasında geçersiniz. (Ana ekrana uygulama olarak ekleme henüz yok.)
 
 **Güvenlik anahtarları (hepsi varsayılan kapalı, ayrı ayrı bilerek açılır):** "Uzaktan terminal" (tam komut çalıştırma yetkisi) ve "Uzaktan yönetim" (CLI, MCP, sağlayıcı, Telegram, beceri tanımlama; klasör gezme; depo klonlama). Kapalıyken uzak cihaz yalnızca görev verip onaylayabilir, dosya/fark/Git bilgilerini görebilir.
 
-**Şüphelenirseniz:** **Anahtarı yenile**. Eski anahtar ve açık uzak bağlantılar anında geçersiz olur.
+**Cihaz listesi:** Her cihaz tek satırda: ad, son kullanım zamanı. Süresi dolan cihazın bağlantısı kesilir; dolmadan yeni cihaz ekleyip eskisini silin.
+
+**Şüphelenirseniz / telefon kaybolursa:** O cihazın satırındaki **✕**, sonra onay. Yalnızca o cihazın anahtarı ve açık bağlantıları 1 saniye içinde geçersiz olur; diğer cihazlar etkilenmez. Reddedilen her deneme `~/.aktapokus/uzak-erisim.log` dosyasına yazılır (anahtarın kendisi yazılmaz).
 
 **Not:** Uzak erişim ayarlarının kendisi uzaktan değiştirilemez; bu sayfa uzak bağlantıdan açılırsa yalnızca bir uyarı gösterir.
 

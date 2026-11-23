@@ -1,11 +1,12 @@
 # İki bilgisayar, tek telefon (kendi bilgisayarın + server)
 
-Her kurulum bağımsızdır: kendi adresi, kendi giriş anahtarı, kendi proje klasörleri. Telefondan ikisini **ayrı sekmelerde** açarsınız. İş aktarma GitHub üzerinden yapılır.
+Her kurulum bağımsızdır: kendi adresi, kendi cihaz anahtarları, kendi proje klasörleri. Telefondan ikisini **ayrı sekmelerde** açarsınız. İş aktarma GitHub üzerinden yapılır.
 
 ## Bir kez
 1. Her iki bilgisayarda ve telefonda Tailscale'e **aynı hesapla** girin.
-2. Her bilgisayarda Ayarlar > **Uzak erişim** > "Uzak erişim açık". Durum "dinliyor" olunca gösterilen bağlantıyı telefona alın.
-   Bağlantı o bilgisayarın giriş anahtarını içerir: yalnızca kendi cihazlarınızda saklayın, birbirine karıştırmayın.
+2. Her bilgisayarda Ayarlar > **Uzak erişim** > "Uzak erişim açık". Durum "dinliyor" olunca "Cihaz ekle" ile telefon için bir anahtar oluşturun ve bağlantıyı (ya da QR'ı) telefonda açın.
+   Bağlantı yalnızca bir kez gösterilir ve o telefona özel anahtarı içerir: başka cihazla paylaşmayın; her cihaz için ayrı "Cihaz ekle" yapın.
+   Anahtar varsayılan 90 gün geçerlidir; süresi dolmadan yeni anahtar ekleyin. Telefon kaybolursa iki bilgisayarda da o cihazı ✕ ile iptal edin.
 3. Telefonda iki bağlantıyı ayrı sekmelerde açın (istersen her biri için "Ana ekrana ekle": iki ayrı simge olur). İsim karışmasın diye tarayıcıda sekmeleri adlandırın ya da yer imine "Ev" / "Server" yazın.
 
 ## GitHub (iki bilgisayar, iki ayrı oturum)

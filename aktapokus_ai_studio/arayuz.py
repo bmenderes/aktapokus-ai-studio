@@ -2573,8 +2573,10 @@ class Uygulama:
         except Exception as hata:  # arayuz sunucusu hicbir hatayla dusmesin
             yayinla({"tur": "bitti", "durum": "hata", "mesaj": f"Beklenmeyen hata: {type(hata).__name__}: {hata}", "kosu": kosu.kimlik})
         finally:
-            kosu.durum = "bitti"
-            self._olaylari_kaydet(oturum, kosu)
+            try:
+                self._olaylari_kaydet(oturum, kosu)  # ONCE kaydet: "bitti" goren (gecmis, test) olay dosyasini hazir bulur
+            finally:
+                kosu.durum = "bitti"
             self._otomasyon_bildir(oturum, kosu)
             r, oturum.aktif_calistirici = oturum.aktif_calistirici, None
             if r is not None and hasattr(r, "ilerleme"):

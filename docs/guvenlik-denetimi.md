@@ -82,7 +82,7 @@ yapılandırma/kanca yolları kullanıcının meşru ayarlarını bozabileceğin
 ## İncelenen ve sorun bulunmayan alanlar
 
 - **Uzak kimlik doğrulama:** Host/Origin yalnız dinleyici adreslerinden, anahtar/belirteç `hmac.compare_digest`, uzak anahtar yerel dinleyicide geçmez, `/api/uzak*` uzaktan kapalı,
-  dinleyici yalnız Tailscale/loopback adresine bağlanır (`0.0.0.0` reddedilir), kapatma/anahtar yenileme açık akışları keser. Testlerle doğrulandı.
+  dinleyici yalnız Tailscale/loopback adresine bağlanır (`0.0.0.0` reddedilir), kapatma ve bir cihaz anahtarının iptali (ya da süresinin dolması) o anahtarla açılmış akışları 1 sn içinde keser; diğer cihazlar etkilenmez. Testlerle doğrulandı.
 - **DNS rebinding / CSRF:** Yerel Host yalnız `127.0.0.1`/`localhost` + port; durum değiştiren isteklerde Origin denetimi; tüm `/api/` uçları özel başlıkla belirteç ister (tarayıcı çapraz kaynaktan gönderemez).
 - **XSS:** `md()` önce HTML'i kaçışlar, bağlantılar yalnız `http(s)://`/`#`, tırnaklar kodlanır; `innerHTML` yalnız `md()` çıktısı ve sabit simge tablosunda; GitHub/yayın bağlantıları şema/host denetiminden geçer.
 - **Komut enjeksiyonu:** `shell=True` yok; git yolları `--literal-pathspecs` ve `--pathspec-from-file` ile; dal adları `[A-Za-z0-9]` ile başlar; ağ aracı adaptör adını yerel adaptör listesiyle eşler, `netsh` argüman listesiyle çağrılır; CLI tanımları `.cmd/.bat/.ps1` reddeder.
