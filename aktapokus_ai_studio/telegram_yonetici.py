@@ -201,6 +201,19 @@ class TelegramYoneticisi:
         self._bota_yansit()
         return self.durum()
 
+    def eslesme_kaldir(self) -> dict:
+        """Telefon kaybolursa: eslesmis TUM Telegram hesaplarini siler (bot artik onlardan komut almaz) ve bekleyen eslestirme kodunu iptal eder.
+        Yalniz bilgisayardaki arayuzden (uzaktan yasak). Yeniden kullanmak icin 'Yeni eslestirme kodu' ile tekrar eslestirilir."""
+        ayar = self._ayar()
+        ayar["izinli"] = []
+        self.ayar_yolu.parent.mkdir(parents=True, exist_ok=True)
+        self.ayar_yolu.write_text(json.dumps(ayar, indent=2), encoding="utf-8")
+        if self._bot:
+            self._bot.eslestirme = None
+        self._bota_yansit()
+        self._log("tum eslesmeler kaldirildi")
+        return self.durum()
+
     def _bota_yansit(self) -> None:
         if self._bot:
             self._bot.ayar = self._bot._yukle()  # calisan bot yeni kokleri hemen gorsun

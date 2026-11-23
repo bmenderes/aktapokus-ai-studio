@@ -3,6 +3,9 @@
  "ad": "English",
  "yerel": "en-US",
  "tam": {
+  "Eşleşmeleri kaldır": "Remove pairings",
+  "Emin misin? Kaldır": "Sure? Remove",
+  "Telefon kaybolursa: eşleşmiş tüm telefonlar bota komut veremez": "If a phone is lost: no paired phone can command the bot",
   "Onaylarsan: ": "If approved: ",
   "dosyaları değiştirecek": "will change files",
   "kontrol edecek": "will check",

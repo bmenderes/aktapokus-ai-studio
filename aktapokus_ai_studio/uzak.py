@@ -333,7 +333,7 @@ UZAK_BILINEN_UCLAR = frozenset({
 UZAK_DINAMIK_UCLAR = (
     r"^/api/gorev/([0-9a-f]+)/(onayla|reddet|karar|durdur|testi-atla|izin)$",  # plan onayi, koru/geri al, durdur
     r"^/api/beceriler/([A-Za-z0-9-]{1,64})$",  # beceri okuma (yazma yonetim ister)
-    r"^/api/telegram/(baslat|durdur|eslestir|otomatik|ilerleme|kok|kok-sil)$",  # yonetim ister
+    r"^/api/telegram/(baslat|durdur|eslestir|otomatik|ilerleme|kok|kok-sil|eslesme-kaldir)$",  # yonetim ister
     r"^/api/terminal/([0-9a-f]+)/akis$", r"^/api/terminal/([0-9a-f]+)/(girdi|boyut|kapat)$",  # terminal anahtarina bagli
 )
 

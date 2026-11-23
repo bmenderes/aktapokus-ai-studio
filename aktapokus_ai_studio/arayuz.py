@@ -722,6 +722,8 @@ class Uygulama:
                 return y.kok_ekle(str(g.get("yol", "")))
             if islem == "kok-sil":
                 return y.kok_sil(str(g.get("yol", "")))
+            if islem == "eslesme-kaldir":
+                return y.eslesme_kaldir()
         except YoneticiHatasi as hata:
             raise UygulamaHatasi(str(hata)) from None
         raise UygulamaHatasi("Bilinmeyen Telegram işlemi", 404)
@@ -3270,7 +3272,7 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     if islem == "boyut":
                         return self._gonder(200, app.terminal_boyut(kimlik, g.get("satir"), g.get("sutun")))
                     return self._gonder(200, app.terminal_kapat(kimlik))
-                m = re.match(r"^/api/telegram/(baslat|durdur|eslestir|otomatik|ilerleme|kok|kok-sil)$", yol)
+                m = re.match(r"^/api/telegram/(baslat|durdur|eslestir|otomatik|ilerleme|kok|kok-sil|eslesme-kaldir)$", yol)
                 if m:
                     return self._gonder(200, app.telegram_islem(m.group(1), g))
                 if yol == "/api/projeler/unut":

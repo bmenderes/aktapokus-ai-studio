@@ -194,3 +194,16 @@ def test_arayuz_ilerleme_kutusu_ve_ucu_baglidir():
     html = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" / "index.html").read_text(encoding="utf-8")
     kaynak = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "arayuz.py").read_text(encoding="utf-8")
     assert 'islem("ilerleme",{acik:ilr.checked})' in html and "otomatik|ilerleme|kok" in kaynak
+
+
+def test_eslesme_kaldir_tum_telefonlari_siler_calisan_bota_yansir_ve_diger_ayarlari_korur(kur, tmp_path):
+    """Telefon kaybolursa arayuzden: eslesmis hesaplar silinir, calisan bot onlari hemen unutur; kokler gibi ayarlar kalir."""
+    kok = tmp_path / "projeler"
+    kok.mkdir()
+    y, fake, app, ayar = kur(izinli=(UID,), kokler=(kok,))
+    y.baslat()
+    assert y._bot.izinli == [UID]
+    d = y.eslesme_kaldir()
+    assert d["eslesmis"] == 0 and y._bot.izinli == [] and y._bot.eslestirme is None
+    kayit = json.loads(ayar.read_text(encoding="utf-8"))
+    assert kayit["izinli"] == [] and kayit["kokler"]
