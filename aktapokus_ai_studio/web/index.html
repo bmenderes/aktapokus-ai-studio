@@ -54,7 +54,7 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 .onay-satir .onay-ozet{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.onay-satir button{flex:none}
 .izin-satir{flex-wrap:wrap}
 .onay-satir:has(.plan-ozet){flex-wrap:wrap;row-gap:6px}.onay-satir .plan-ozet{flex:1 1 100%;white-space:normal;display:flex;flex-direction:column;gap:2px}
-.plan-uyari{color:var(--warn);font-size:12px}
+.plan-uyari{color:var(--warn);font-size:12px}.gsi-dugme{display:inline-flex;align-items:center;height:40px;padding:0 12px;border:1px solid #747775;border-radius:20px;background:#FFFFFF;color:#1F1F1F;font-family:"Google Sans",Roboto,Arial,sans-serif;font-weight:500;font-size:14px;line-height:20px;letter-spacing:.25px;white-space:nowrap;cursor:pointer;box-shadow:none}.gsi-dugme:hover{background:#F8F8F8;border-color:#747775}.gsi-dugme:focus-visible{outline:2px solid #1F1F1F;outline-offset:2px}.gsi-logo{display:inline-flex;width:20px;height:20px;margin-right:10px;flex:none}.gsi-logo svg{width:20px;height:20px;display:block}/* Google 'ile devam et' dugmesi Google marka kurallarina gore: renkler, G logosu ve olculer degistirilmez (Lora kuralinin istisnasi) */
 #ilkAdim{position:relative;margin:10px 12px 0;padding:8px 40px 8px 12px;border:1px solid var(--line);border-radius:12px;background:var(--panel);display:flex;flex-direction:column;gap:6px}
 .ilk-satir{display:flex;align-items:center;gap:8px;white-space:nowrap;min-height:30px}.ilk-et{flex:none;min-width:120px}.ilk-deger{overflow:hidden;text-overflow:ellipsis;min-width:0}
 .ilk-kapat{position:absolute;top:6px;right:6px}
@@ -1721,7 +1721,7 @@ async function baglayicilarBolumu(h){let mod="sizin";const ust=e("div",{class:"r
       const bagla=async()=>{try{go.hata=null;const r=await api("/api/google/baglan",{method:"POST",body:{baglayici:"hepsi"}});kart.append(e("div",{style:"margin-top:6px"},e("a",{href:r.adres,target:"_blank",rel:"noopener noreferrer",text:"Google'da devam et"})));window.open(r.adres,"_blank","noopener");bekle()}catch(x){go.hata=x.message;googleKutusu()}};
       kart.append(e("div",{class:"row",style:"gap:6px;flex-wrap:wrap"},simge("google"),e("b",{text:"Google"}),e("span",{class:"badge"+(go.bagli?" b-ok":""),text:go.bagli?"bağlı"+(go.eposta?" · "+go.eposta:""):"bağlı değil"}),...GOOGLE.map(([k,ad])=>e("span",{class:"badge"+(go.baglayicilar.includes(k)?" b-ok":"")},simge(k),ad))));
       const dug=e("div",{class:"row",style:"margin-top:6px;gap:6px"});
-      if(!tam)dug.append(e("button",{class:"pri",text:"Google ile bağlan",onclick:bagla}));
+      if(!tam){const g=e("span",{class:"gsi-logo","aria-hidden":"true"});g.innerHTML=SIMGE.google;dug.append(e("button",{class:"gsi-dugme",onclick:bagla},g,e("span",{class:"gsi-yazi",text:"Google ile devam et"})))}
       if(go.bagli)dug.append(e("button",{text:"Bağlantıyı kes",onclick:async()=>{if(!confirm("Google bağlantısı (tüm Google bağlayıcıları) kesilsin mi?"))return;try{go=await api("/api/google/cikis",{method:"POST",body:{}})}catch(x){go.hata=x.message}ayarGit("baglayicilar")}}));
       kart.append(dug)}
     gk.append(kart)};
