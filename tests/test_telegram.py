@@ -145,6 +145,9 @@ def test_komut_menusu_herkese_yalniz_eslestir_eslesmise_tam(kur):
     kod = bot.eslestirme_kodu_uret(zorla=True)
     fake.mesaj(8, f"/eslestir {kod}")
     assert bekle(lambda: any(v.get("scope", {}).get("chat_id") == 8 for v in menu()))  # yeni eslesen sohbete de tam menu
+    fake.mesaj(7, "/eslestir")  # eslesmis telefon: "Bilinmeyen komut" degil, anlasilir yanit
+    assert bekle(lambda: any("zaten eşleşmiş" in m for m in fake.metinler()))
+    assert not any("Bilinmeyen komut" in m for m in fake.metinler())
 
 
 def test_eslestirme_5_yanlis_denemede_kilitlenir_ve_sure_dolar(kur):

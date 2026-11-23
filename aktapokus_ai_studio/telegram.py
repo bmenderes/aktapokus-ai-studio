@@ -331,6 +331,9 @@ class Bot:
             return self._gonder(chat, "Dosya icerigi Telegram'a gonderimi: " + ("ACIK" if self.ayar["icerik_gonder"] else "kapali") + "\n(Telegram bulutta, uctan uca sifreli degil.)")
         if ad == "/fark":
             return self._fark(chat, arg)
+        if ad == "/eslestir":  # eslesmis sohbet: kod gerekmez (eskiden "Bilinmeyen komut" diyordu)
+            self.komut_menusu_kur(yalniz=chat)
+            return self._gonder(chat, "Bu telefon zaten eşleşmiş; kod gerekmez. Komutlar için /yardim.")
         self._gonder(chat, "Bilinmeyen komut.\n\n" + YARDIM)
 
     # ---- proje kokleri: dugmeyle secim, /yeni ----
