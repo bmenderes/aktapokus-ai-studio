@@ -291,9 +291,14 @@ def test_uzaktan_klasor_acma_kayitli_proje_ya_da_kok_altinda(sunucu):
     assert uzak_istek(port, "POST", "/api/klasor", {"yol": str(proje), "git_baslat": True})[0] == 403
     assert uzak_istek(port, "POST", "/api/klasor", {"yol": ""})[0] == 403 and uzak_istek(port, "POST", "/api/klasor", {})[0] == 403
     assert uzak_istek(port, "POST", "/api/klasor", {"yol": str(proje)})[0] == 200
-    yeni = proje.resolve().parent / "yeni-klasor"
-    yeni.mkdir()
-    assert uzak_istek(port, "POST", "/api/klasor", {"yol": str(yeni)})[0] == 200  # kok altindaki kayitsiz klasor acilir
+    yan = proje.resolve().parent / "yan-klasor"
+    yan.mkdir()
+    assert uzak_istek(port, "POST", "/api/klasor", {"yol": str(yan)})[0] == 403  # kok secilmemisse yalniz acik proje: yan klasor ACILMAZ
+    ic = proje.resolve() / "alt-klasor"
+    ic.mkdir()
+    assert uzak_istek(port, "POST", "/api/klasor", {"yol": str(ic)})[0] == 200  # acik projenin icindeki kayitsiz klasor acilir
+    assert yerel("POST", "/api/uzak", {"acik": True, "port": port, "kok": str(proje.resolve().parent)})[0] == 200  # kullanici koku bilerek secer
+    assert uzak_istek(port, "POST", "/api/klasor", {"yol": str(yan)})[0] == 200
 
 
 def test_uzaktan_model_degisir_ama_gizli_dosya_korumasi_kapatilamaz(sunucu):
@@ -526,7 +531,8 @@ def test_uzak_kok_siniri(tmp_path):
     kok = tmp_path / "kok"
     (kok / "proje").mkdir(parents=True)
     (tmp_path / "disari").mkdir()
-    assert uzak.kok_klasoru(uzak.Ayar(), kok / "proje") == kok.resolve()
+    assert uzak.kok_klasoru(uzak.Ayar(), kok / "proje") == (kok / "proje").resolve()  # yalniz acik proje (ust klasor DEGIL)
+    assert uzak.kok_klasoru(uzak.Ayar(), None) is None and not uzak.kokun_icinde(Path.home(), None)  # proje yoksa ev dizini gezilmez
     assert uzak.kokun_icinde(kok / "proje", kok) and uzak.kokun_icinde(kok, kok)
     assert not uzak.kokun_icinde(tmp_path / "disari", kok)
     assert not uzak.kokun_icinde(kok / ".." / "disari", kok)

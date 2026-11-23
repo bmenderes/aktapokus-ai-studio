@@ -2853,7 +2853,7 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                 kayitli = kimlik in {p["id"] for p in projeler.listele()}
                 if not kayitli and not (hedef and Path(hedef).expanduser().is_absolute() and uzak.kokun_icinde(hedef, kok)):  # bos/goreli yol calisma klasorune cozulur: kok icinde sayilmasin
                     uzak.kayit_yaz(f"REDDEDILDI {self.client_address[0]} {hedef}")
-                    return f"Uzaktan yalnizca kayitli projeler ya da {kok} altindaki klasorler acilir"
+                    return f"Uzaktan yalnizca kayitli projeler ya da {kok} altindaki klasorler acilir" if kok else "Uzaktan yalnizca kayitli projeler acilir (yeni klasor icin bilgisayarda Ayarlar > Uzak erisim'den kok klasor secin)"
                 uzak.kayit_yaz(f"ACILDI {self.client_address[0]} {hedef}" + ("" if kayitli else " (yeni)"))
             if yontem == "PUT" and yol == "/api/ayar":
                 yeni = self._govde()
@@ -3114,6 +3114,8 @@ def yapi_arayuz(app: Uygulama, sunucu: "ArayuzSunucusu", dinleyici: Dinleyici | 
                     if dinleyici is None:
                         return self._gonder(200, app.klasorleri_listele(q.get("yol")))
                     kok = uzak.kok_klasoru(sunucu.uzak_ayar, app.klasor)  # uzaktan yalniz kok ve altindaki klasorler gezilir
+                    if kok is None:
+                        raise UygulamaHatasi("Uzaktan klasor gezmek icin bilgisayarda Ayarlar > Uzak erisim'den kok klasor secin", 403)
                     istenen = q.get("yol") or str(kok)
                     if not uzak.kokun_icinde(istenen, kok):
                         raise UygulamaHatasi(f"Uzaktan yalnizca {kok} altindaki klasorler gezilebilir", 403)

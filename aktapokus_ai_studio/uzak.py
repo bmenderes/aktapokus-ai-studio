@@ -109,14 +109,18 @@ def guncelle(degisiklik: dict) -> Ayar:
     return ayar
 
 
-def kok_klasoru(ayar: Ayar, acik_proje: Path | None) -> Path:
-    """Uzaktan secilebilir/gezilebilir klasorlerin en ustu: ayardaki `kok`, yoksa acik projenin ust klasoru, o da yoksa ev."""
+def kok_klasoru(ayar: Ayar, acik_proje: Path | None) -> Path | None:
+    """Uzaktan gezilebilir klasorlerin en ustu: ayardaki `kok`, yoksa YALNIZ acik projenin kendisi, o da yoksa None (hicbir klasor gezilmez).
+    2026-11-23: eskiden acik projenin UST klasoru, proje yoksa EV dizininin tamami gezilebiliyordu (yan klasorlerdeki projeler/dosyalar acikti).
+    Kayitli projeler bundan bagimsiz olarak uzaktan acilabilir; yeni klasor icin kullanici kok'u bilerek secer."""
     if ayar.kok.strip():
         return Path(ayar.kok).expanduser().resolve()
-    return acik_proje.resolve().parent if acik_proje else Path.home().resolve()
+    return acik_proje.resolve() if acik_proje else None
 
 
-def kokun_icinde(yol: str | Path, kok: Path) -> bool:
+def kokun_icinde(yol: str | Path, kok: Path | None) -> bool:
+    if kok is None:
+        return False
     try:
         y, k = os.path.normcase(str(Path(yol).expanduser().resolve())), os.path.normcase(str(kok.resolve()))
         return os.path.commonpath([y, k]) == k
