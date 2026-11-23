@@ -3,6 +3,12 @@
  "ad": "English",
  "yerel": "en-US",
  "tam": {
+  "Onaylarsan: ": "If approved: ",
+  "dosyaları değiştirecek": "will change files",
+  "kontrol edecek": "will check",
+  "çalışacak": "will run",
+  ", sonra ": ", then ",
+  "proje dışındaki ve gizli dosyaları okuyabilir": "can read files outside the project and secret files",
   "Kurulu değil": "Not installed",
   "Kurulu · bağlantı henüz denenmedi": "Installed · connection not tested yet",
   "Bağlantı var": "Connected",

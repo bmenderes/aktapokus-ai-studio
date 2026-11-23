@@ -53,6 +53,8 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 .onay-satir{display:flex;align-items:center;gap:10px;flex-wrap:nowrap;padding:7px 10px;border:1px solid var(--sarikoyu);background:var(--saribg);border-radius:12px}
 .onay-satir .onay-ozet{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.onay-satir button{flex:none}
 .izin-satir{flex-wrap:wrap}
+.onay-satir:has(.plan-ozet){flex-wrap:wrap;row-gap:6px}.onay-satir .plan-ozet{flex:1 1 100%;white-space:normal;display:flex;flex-direction:column;gap:2px}
+.plan-uyari{color:var(--warn);font-size:12px}
 .izin-satir .onay-ozet{flex:1 1 100%;white-space:normal;word-break:break-word;max-height:7.5em;overflow:auto;font-family:var(--mono);font-size:12px}  /* izin istenen komut TAM okunur: kullanici neyi onayladigini gormeli */
 /* degisen dosya satiri: harf sabit, yol KENDI icinde sarilir (yatay kaydirma ve kesik harf olmaz) */
 .fark-satir{display:flex;gap:8px;align-items:baseline;cursor:pointer;line-height:1.6}.fark-satir>.mut3{flex:none;width:1ch}.fark-yol{min-width:0;overflow-wrap:anywhere;word-break:break-all}
@@ -596,6 +598,18 @@ function fbGrubu(sira,once){S.fbGrup=S.fbGrup||{};let f=S.fbGrup[sira];if(!f){co
 function akisGrubu(sira,once){S.akisGrup=S.akisGrup||{};let f=S.akisGrup[sira];if(!f){const ozet=e("summary",{class:"mut3",text:"Çalışma akışı"}),liste=e("div",{class:"ak-liste"}),det=e("details",{class:"ak-grup"},ozet,liste);det.open=!S.tekrar;f={det,ozet,liste,metinEl:null,dusEl:null,kabukEl:null,n:0,k:0};S.akisGrup[sira]=f;once.parentNode.insertBefore(det,once)}return f}  /* adim basina TEK zaman sirali akis: metin, dusunce, arac ve komut olustuklari sirayla; ic kaydirma yok */
 function akisOzetYaz(f){const ek=[];if(f.n)ek.push(f.n+" araç");if(f.k)ek.push(f.k+" komut");f.ozet.textContent="Çalışma akışı"+(ek.length?" · "+ek.join(" · "):"")}
 function fbOzetYaz(f){const ek=[];if(f.d)ek.push("💭");if(f.k)ek.push(f.k+" komut");if(f.u)ek.push(f.u+" durum");f.ozet.textContent="Geri bildirim akışı"+(ek.length?" · "+ek.join(" · "):"")}
+/* Plan onayi tek cumleyle: kim, hangi modelle, ne yapacak, en cok ne harcayabilir; korumasiz arac varsa uyari. Kullanici neyi onayladigini OKUYUP ANLAMALI. */
+const CLI_ADI={"opencode":"OpenCode","opencode-sunucu":"OpenCode","claude":"Claude Code","codex":"Codex","gemini":"Gemini CLI","mistral":"Mistral Vibe","deepseek":"DeepSeek Harness","antigravity":"Antigravity"};
+const KORUMASIZ_CLI=["gemini","mistral","deepseek","antigravity"];
+function planOzeti(o,tst){const ad=a=>(CLI_ADI[a.calistirici]||a.calistirici)+(a.model?" ("+kisaModel(a.model)+")":"");
+  const ne=a=>a.dogrulama?"kontrol edecek":a.rol==="kodcu"?"dosyaları değiştirecek":"çalışacak";
+  const kutu=e("span",{class:"onay-ozet plan-ozet"});
+  const yaz=()=>{const atla=!!(tst&&tst.checked);const adim=o.adimlar.filter(a=>!(atla&&a.dogrulama));
+    const cumle="Onaylarsan: "+adim.map(a=>ad(a)+" "+ne(a)).join(", sonra ")+(o.butce?" · en çok "+(o.butce>=1e6?(o.butce/1e6).toLocaleString(DIL.yerel)+"M":o.butce.toLocaleString(DIL.yerel))+" token":"");
+    const riskli=[...new Set(adim.filter(a=>KORUMASIZ_CLI.includes(a.calistirici)||!CLI_ADI[a.calistirici]).map(a=>CLI_ADI[a.calistirici]||a.calistirici))];
+    kutu.textContent="";kutu.append(e("span",{text:cumle}));
+    if(riskli.length)kutu.append(e("span",{class:"plan-uyari",text:"⚠ "+riskli.join(", ")+": proje dışındaki ve gizli dosyaları okuyabilir"}))};
+  yaz();if(tst)tst.addEventListener("change",yaz);return kutu}
 function kisaModel(m){return (m||"varsayılan").replace(/^opencode\//,"").split("/").pop()}
 function akisCipiGuncelle(){rolleriCiz()}
 const KONUSMA_AZAMI=12;
@@ -1214,7 +1228,7 @@ function olayIsle(o){
     const testGorunum=atla=>k.querySelectorAll(".test-satiri").forEach(r=>{r.style.opacity=atla?".55":"";r.firstChild.style.textDecoration=atla?"line-through":"";const b=r.querySelector(".atla-rozet");if(atla&&!b)r.append(e("span",{class:"badge atla-rozet",text:"atlanacak"}));else if(!atla&&b)b.remove()});
     tst.onchange=()=>testGorunum(tst.checked);testGorunum(!!o.testsiz);
     k.style.display="none";if(o.otomatik)etiket.textContent="otomatik onaylandı";  /* plan karti akista gosterilmez; onay istegi yazma kutusunun ustunde */
-    const hep=e("input",{type:"checkbox"});const bt=e("span",{class:"row",style:"gap:6px"});const w=e("div",{class:"onay-satir"},e("span",{class:"onay-ozet",text:"Plan hazır · "+o.adimlar.map(a=>a.rol).join(" → ")}),(testVar&&!o.otomatik)?e("label",{class:"row mut",style:"gap:4px;white-space:nowrap"},tst,"Test atla"):null,(!o.otomatik&&!(S.baglanti&&S.baglanti.uzak))?e("label",{class:"row mut",style:"gap:4px;white-space:nowrap",title:"Bu projede plan onayı bir daha sorulmaz (Ayarlar > Genel'den geri açılır)"},hep,"Hep onayla"):null,bt);
+    const hep=e("input",{type:"checkbox"});const bt=e("span",{class:"row",style:"gap:6px"});const w=e("div",{class:"onay-satir"},planOzeti(o,tst),(testVar&&!o.otomatik)?e("label",{class:"row mut",style:"gap:4px;white-space:nowrap"},tst,"Test atla"):null,(!o.otomatik&&!(S.baglanti&&S.baglanti.uzak))?e("label",{class:"row mut",style:"gap:4px;white-space:nowrap",title:"Bu projede plan onayı bir daha sorulmaz (Ayarlar > Genel'den geri açılır)"},hep,"Hep onayla"):null,bt);
     if(!o.otomatik)bt.append(e("button",{class:"pri",text:"Onayla",onclick:async()=>{try{if(hep.checked){const ay=await api("/api/ayar");await api("/api/ayar",{method:"PUT",body:Object.assign({},ay,{otomatik_onay:true})});await durumYukle()}await api("/api/gorev/"+o.kosu+"/onayla",{method:"POST",body:{testsiz:testVar?tst.checked:false}});w.remove()}catch(x){alert(x.message)}}}),e("button",{text:"Reddet",onclick:async()=>{w.remove();try{await api("/api/gorev/"+o.kosu+"/reddet",{method:"POST",body:{}})}catch(x){alert(x.message)}}}));
     S.planDugmeleri[o.kosu]=w;if(!o.otomatik)onayBar(w);akisaEkle(kullaniciKutusu(o.gorev));akisaEkle(k);break}
   case "basladi":S.butce=o.butce==null?S.butce:o.butce;tokenGuncelle(0);gunluge("görev başladı");break;
