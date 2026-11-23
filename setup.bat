@@ -79,6 +79,23 @@ goto :opcua_done
 echo OPC UA support skipped ^(later: .venv\Scripts\python.exe -m pip install asyncua^).
 :opcua_done
 
+rem --- optional: developer/test tools (editable install + pytest) ---
+set "ANS=N"
+if defined AKTAPOKUS_SETUP_QUIET (
+  if defined AKTAPOKUS_SETUP_TEST set "ANS=%AKTAPOKUS_SETUP_TEST%"
+) else (
+  set /p ANS="Install developer/test tools? ^(editable install + pytest, downloaded from the internet^) [Y/N, Enter=N]: "
+)
+if /i not "%ANS%"=="Y" goto :test_skip
+echo Installing developer/test tools...
+".venv\Scripts\python.exe" -m pip install --disable-pip-version-check --quiet -e ".[test]"
+if errorlevel 1 echo [WARNING] Test tools could not be installed; the app itself is unaffected.
+if not errorlevel 1 echo [ok] Test tools installed. Run the tests with: .venv\Scripts\python.exe -m pytest
+goto :test_done
+:test_skip
+echo Developer/test tools skipped ^(later: .venv\Scripts\python.exe -m pip install -e ".[test]"^).
+:test_done
+
 echo.
 echo --- Installation check ---
 ".venv\Scripts\python.exe" -m aktapokus_ai_studio durum --arac

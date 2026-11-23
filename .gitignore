@@ -5,3 +5,4 @@ __pycache__/
 .venv/
 .aktapokus/
 docs/devir-notu.md
+pytest-of-*/

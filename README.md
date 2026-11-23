@@ -231,9 +231,14 @@ Sınırlar (dürüstçe): **gerçek Telegram ile denenmedi** (token bende olmama
 
 ## Test
 
+Test araçları uygulamanın kendisi için gerekmez; yalnız geliştirme içindir. `setup.bat` kurulumda "developer/test tools" sorusuna **Y** derseniz kurar, ya da elle:
+
 ```bat
-python -m pytest
+.venv\Scripts\python.exe -m pip install -e ".[test]"
+.venv\Scripts\python.exe -m pytest
 ```
+
+Tam koşu 30-40 dakika sürer (sahte CLI'larla gerçek akışlar); tek bir alan için `-k` ya da dosya verin: `.venv\Scripts\python.exe -m pytest tests\test_uzak.py`. Testler kullanıcının gerçek `~/.aktapokus` dosyalarına dokunmaz (`tests/conftest.py`). `pip install -e .` sonrası `aktapokus ...` komutu da `.venv` içinde kullanılabilir.
 
 ## Lisans
 
