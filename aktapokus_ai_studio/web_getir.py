@@ -15,7 +15,6 @@ import http.client
 import ipaddress
 import re
 import socket
-import ssl
 import time
 import urllib.parse
 from html.parser import HTMLParser
@@ -100,9 +99,16 @@ class _Http(http.client.HTTPConnection):
         self.sock = socket.create_connection((self._ip, self.port), self.timeout)
 
 
-class _Https(http.client.HTTPSConnection):
+class _Https(http.client.HTTPConnection):
+    default_port = 443
+
     def __init__(self, host: str, port: int, ip: str):
-        super().__init__(host, port, timeout=ZAMAN_ASIMI, context=ssl.create_default_context())
+        try:
+            import ssl
+        except ImportError as hata:
+            raise WebHatasi(f"HTTPS kullanilamiyor (ssl modulu yuklenemedi: {hata})") from None
+        super().__init__(host, port, timeout=ZAMAN_ASIMI)
+        self._context = ssl.create_default_context()
         self._ip = ip
 
     def connect(self) -> None:

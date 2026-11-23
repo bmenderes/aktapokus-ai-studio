@@ -49,8 +49,45 @@ def test_pencere_komutu_kabuksuz_ve_ayri_profil(tmp_path):
     assert k[0] == "C:/t/msedge.exe" and "--app=http://127.0.0.1:5000/#t=abc" in k
     assert f"--user-data-dir={tmp_path / 'profil'}" in k  # kullanicinin normal tarayici profilinden ayri
     assert "--disable-sync" in k  # yoksa Edge uygulama penceresinin yaninda ikinci bir "sync-confirmation" penceresi acar
-    assert any(x.startswith("--disable-features=") and "Translate" in x for x in k)
+    assert "--disable-component-update" in k
+    assert "--disable-extensions" in k
+    assert "--disable-background-networking" in k
+    assert "--disable-background-mode" in k
+    assert any(x.startswith("--disable-features=") and "Translate" in x and "msEdgeSidebarV2" in x for x in k)
     assert "--no-proxy-server" in k  # yoksa Edge proxy otomatik algilamasinda 24-27 sn takilir (olculdu); pencere yalniz 127.0.0.1'e baglanir
+
+
+def test_profil_temizle_sisen_edge_klasorlerini_siler_tercihleri_korur(tmp_path):
+    profil = tmp_path / "uygulama-profil"
+    default = profil / "Default"
+    for alt in (
+        profil / "component_crx_cache",
+        profil / "ProvenanceData",
+        default / "Code Cache" / "js",
+        default / "Service Worker" / "CacheStorage",
+    ):
+        alt.mkdir(parents=True)
+        (alt / "veri.bin").write_bytes(b"1234")
+    (profil / "BrowserMetrics-1234.pma").write_bytes(b"0")
+    (default / "load_statistics.db-wal").write_bytes(b"0")
+    # Kullanicinin pencere ayarlari / localStorage'i korunmali
+    (profil / "Local State").write_text("{}", encoding="utf-8")
+    (default / "Preferences").write_text("{}", encoding="utf-8")
+    (default / "Local Storage" / "leveldb").mkdir(parents=True)
+    (default / "Local Storage" / "leveldb" / "CURRENT").write_text("MANIFEST-1", encoding="utf-8")
+
+    silinen = uygulama.profil_temizle(profil)
+
+    assert silinen >= 6
+    assert not (profil / "component_crx_cache").exists()
+    assert not (profil / "ProvenanceData").exists()
+    assert not (default / "Code Cache").exists()
+    assert not (default / "Service Worker").exists()
+    assert not (profil / "BrowserMetrics-1234.pma").exists()
+    assert not (default / "load_statistics.db-wal").exists()
+    assert (profil / "Local State").is_file()
+    assert (default / "Preferences").is_file()
+    assert (default / "Local Storage" / "leveldb" / "CURRENT").is_file()
 
 
 def test_pencere_komutu_proxy_ortami_ile_sistem_proxysine_donulebilir(tmp_path, monkeypatch):
@@ -677,3 +714,38 @@ def test_uzak_erisim_kapaliysa_yeniden_denenmez():
     s.kapaniyor.set()
     t.join(2)
     assert s.cagri == 1 and not t.is_alive()
+
+
+def test_aktapokus_penceresi_mi_yalniz_uygulama_penceresini_kabul_eder():
+    assert uygulama._aktapokus_penceresi_mi("Chrome_WidgetWin_1", "Aktapokus", "msedge.exe") is True
+    assert uygulama._aktapokus_penceresi_mi("Chrome_WidgetWin_1", "Aktapokus", "chrome.exe") is True
+    # Normal tarayici sekmeleri (sifir genislikli karakter olsa da) reddedilir
+    assert uygulama._aktapokus_penceresi_mi("Chrome_WidgetWin_1", "Aktapokus Rehberi - Work - Microsoft\u200b Edge", "msedge.exe") is False
+    assert uygulama._aktapokus_penceresi_mi("Chrome_WidgetWin_1", "Aktapokus - Google Chrome", "chrome.exe") is False
+    # Antigravity / VS Code gibi Electron pencereleri surec adi nedeniyle reddedilir
+    assert uygulama._aktapokus_penceresi_mi("Chrome_WidgetWin_1", "Aktapokus - Antigravity", "Antigravity.exe") is False
+    assert uygulama._aktapokus_penceresi_mi("Chrome_WidgetWin_1", "Aktapokus", "Code.exe") is False
+    assert uygulama._aktapokus_penceresi_mi("CabinetWClass", "Aktapokus", "explorer.exe") is False
+
+
+def test_ikinci_kopya_kopuk_durumda_sahte_pencereye_aldanmaz_devral_ister(baska_canli_surec, monkeypatch):
+    monkeypatch.setattr(uygulama, "mevcut_pencereyi_one_getir", lambda: True)  # baska bir pencere yanlislikla eslesse bile
+    _kilitle(baska_canli_surec, "kopuk")
+    threading.Timer(0.6, baska_canli_surec.kill).start()
+    assert uygulama.ikinci_kopya_bekle(azami_sn=10) == "al"
+    assert not uygulama.devral_var_mi()
+    uygulama.kilit_birak()
+
+
+def test_uygulama_calistir_beklenmeyen_hatayi_loga_yazar_ve_gosterir(tmp_path, monkeypatch):
+    sahte = tmp_path / "t.exe"
+    sahte.write_text("")
+    monkeypatch.setenv("AKTAPOKUS_TARAYICI", str(sahte))
+    kutular = []
+    monkeypatch.setattr(uygulama, "hata_goster", lambda m: kutular.append(m) or uygulama.log_yaz("HATA: " + m))
+    monkeypatch.setattr(uygulama, "_calistir", lambda *a, **k: (_ for _ in ()).throw(ImportError("sahte _ssl")))
+    assert uygulama.uygulama_calistir(None, 0) == 1
+    assert kutular and "ImportError" in kutular[0] and "sahte _ssl" in kutular[0]
+    log = (uygulama.ayar_dizini() / "uygulama.log").read_text(encoding="utf-8")
+    assert "BEKLENMEYEN HATA" in log and "sahte _ssl" in log
+    assert not uygulama.kilit_yolu().exists()

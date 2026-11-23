@@ -242,3 +242,15 @@ def test_arayuz_web_dugumu_ve_izinler_sayfasi_var():
 def test_veri_blogu_her_kaynaga_esit_pay_verir_sondakiler_atlanmaz():
     blok = web_getir.veri_blogu([{"url": f"https://s{i}.com/", "ok": True, "metin": "x" * web_getir.AZAMI_SAYFA_METNI} for i in range(web_getir.AZAMI_ADRES)])
     assert "atlandi" not in blok and blok.count("## https://") == web_getir.AZAMI_ADRES and len(blok) < web_getir.AZAMI_TOPLAM + 3000
+
+
+def test_arayuz_ssl_olmadan_da_ice_aktarilabilir():
+    import subprocess
+    import sys
+
+    s = subprocess.run(
+        [sys.executable, "-c", "import sys; sys.modules['_ssl']=None; import aktapokus_ai_studio.arayuz; print('OK')"],
+        capture_output=True, text=True, timeout=15,
+    )
+    assert s.returncode == 0, s.stderr
+    assert "OK" in s.stdout

@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import time
+import traceback
 from pathlib import Path
 from typing import Callable
 
@@ -63,6 +64,62 @@ def tarayici_bul() -> str | None:
 
 PROXY_ORTAMI = "AKTAPOKUS_PROXY"  # 1: pencere sistemin proxy ayarini kullansin (varsayilan: kullanmaz; asagidaki nota bakin)
 
+_SILINECEK_PROFIL_KLASORLERI = (
+    "component_crx_cache", "ProvenanceData", "Edge Entity Extraction", "Snapshots",
+    "Edge Wallet", "Subresource Filter", "Edge Shopping", "ShaderCache", "GrShaderCache",
+    "GraphiteDawnCache", "Crowd Deny", "CertificateRevocation", "SafetyTips", "hyphen-data",
+    "OnDeviceHeadSuggestModel", "OptimizationGuidePredictionModels", "OriginTrials",
+    "PKIMetadata", "RecoveryImproved", "SmartScreen", "TrustTokenKeyCommitments",
+    "WidevineCdm", "ZxcvbnData", "MEIPreload", "FileTypePolicies",
+    "FirstPartySetsPreloaded", "extensions_crx_cache", "BrowserMetrics",
+)
+_SILINECEK_VARSAYILAN_KLASORLERI = (
+    "Cache", "Code Cache", "GPUCache", "DawnGraphiteCache", "DawnWebGPUCache",
+    "Service Worker", "Sessions", "Sessions_Encrypted", "Session Storage",
+    "EdgeCoupons", "Edge Sidebar", "Edge Shopping", "Edge Wallet",
+    "Extensions", "Extension State", "Extension Rules", "Extension Scripts",
+    "Shared Dictionary", "OptimizationGuideHints", "Site Characteristics Database",
+    "blob_storage",
+)
+
+
+def profil_temizle(profil: Path) -> int:
+    """Edge/Chrome profilinde zamanla sisen bilesen/onbellek/yan-ozellik klasorlerini acilis oncesinde temizler.
+    `Preferences`, `Local State` ve `Local Storage` korunur; silinen oge sayisini dondurur."""
+    if not profil.is_dir():
+        return 0
+    silinen = 0
+
+    def sil_klasor(yol: Path) -> None:
+        nonlocal silinen
+        if not yol.is_dir():
+            return
+        shutil.rmtree(yol, ignore_errors=True)
+        if not yol.exists():
+            silinen += 1
+
+    def sil_dosya(yol: Path) -> None:
+        nonlocal silinen
+        if not yol.is_file():
+            return
+        try:
+            yol.unlink()
+            silinen += 1
+        except OSError:
+            pass
+
+    for ad in _SILINECEK_PROFIL_KLASORLERI:
+        sil_klasor(profil / ad)
+    for d in profil.glob("BrowserMetrics*.pma"):
+        sil_dosya(d)
+    varsayilan = profil / "Default"
+    if varsayilan.is_dir():
+        for ad in _SILINECEK_VARSAYILAN_KLASORLERI:
+            sil_klasor(varsayilan / ad)
+        for d in varsayilan.glob("load_statistics.db*"):
+            sil_dosya(d)
+    return silinen
+
 
 def pencere_komutu(tarayici: str, url: str, profil: Path) -> list[str]:
     ek = [] if os.environ.get(PROXY_ORTAMI) == "1" else [
@@ -75,7 +132,13 @@ def pencere_komutu(tarayici: str, url: str, profil: Path) -> list[str]:
         tarayici, f"--app={url}", f"--user-data-dir={profil}", "--no-first-run", "--no-default-browser-check", *ek,
         # GERCEK HATA: yeni profilde Edge, uygulama penceresinin yaninda ikinci bir pencere aciyordu (edge://sync-confirmation-dialog:
         # "We are now syncing your browsing data..."); --disable-sync bunu kaldirir (gercek Edge'de olculdu: 2 pencere -> 1).
-        "--disable-sync", "--disable-features=Translate,TranslateUI,msImplicitSignin", "--window-size=1320,880",
+        "--disable-sync",
+        # Yalniz yerel 127.0.0.1 uygulama penceresi: eklenti, bilesen indirme, arka plan agi ve Edge yan ozellikleri gereksiz;
+        # aksi halde Edge profili zamanla ~500+ MB / 5000+ dosyaya sisip acilisi 40-60 sn'ye cikariyor.
+        "--disable-extensions", "--disable-component-update", "--disable-background-networking",
+        "--disable-default-apps", "--disable-background-mode", "--no-pings", "--disable-domain-reliability",
+        "--disable-features=Translate,TranslateUI,msImplicitSignin,msEdgeSidebarV2,msHubApps,msEdgeShopping,msEdgeWallet,msEdgeSearchIndexer,OptimizationGuideModelDownloading,OptimizationHintsFetching,MediaRouter",
+        "--window-size=1320,880",
     ]
 
 
@@ -142,16 +205,26 @@ def kilit_yolu() -> Path:
 
 def surec_canli_mi(pid: int) -> bool:
     if sys.platform == "win32":
-        import ctypes
+        try:
+            import ctypes
 
-        k = ctypes.windll.kernel32
-        h = k.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
-        if not h:
-            return False
-        kod = ctypes.c_ulong()
-        tamam = k.GetExitCodeProcess(h, ctypes.byref(kod))
-        k.CloseHandle(h)
-        return bool(tamam) and kod.value == 259  # STILL_ACTIVE
+            k = ctypes.windll.kernel32
+            h = k.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+            if not h:
+                return False
+            kod = ctypes.c_ulong()
+            tamam = k.GetExitCodeProcess(h, ctypes.byref(kod))
+            k.CloseHandle(h)
+            return bool(tamam) and kod.value == 259  # STILL_ACTIVE
+        except Exception:
+            try:
+                r = subprocess.run(
+                    ["tasklist", "/FI", f"PID eq {pid}", "/NH", "/FO", "CSV"],
+                    capture_output=True, text=True, timeout=5, creationflags=CREATE_NO_WINDOW,
+                )
+                return f'"{pid}"' in (r.stdout or "")
+            except Exception:
+                return False
     try:
         os.kill(pid, 0)
         return True
@@ -228,6 +301,67 @@ def kapaniyor_mu() -> bool:
     return pencere_durumu() == "kopuk"
 
 
+_TARAYICI_SURECLERI = {"msedge.exe", "chrome.exe", "chromium.exe"}
+_TARAYICI_BASLIK_EKI = (" - microsoft edge", " - google chrome", " - chromium")
+
+
+def _pencere_tarayici_adlari() -> set[str]:
+    adlar = set(_TARAYICI_SURECLERI)
+    ortam = os.environ.get("AKTAPOKUS_TARAYICI")
+    if ortam:
+        adlar.add(Path(ortam).name.lower())
+    return adlar
+
+
+def _aktapokus_penceresi_mi(
+    sinif: str,
+    baslik: str,
+    surec_adi: str | None = None,
+    tarayici_adlari: set[str] | None = None,
+) -> bool:
+    """Gorunur Chrome_WidgetWin penceresi gercekten Aktapokus uygulama penceresi mi? Normal Edge/Chrome sekmelerini ve Electron (Antigravity/VS Code) pencerelerini dislar."""
+    if not sinif.startswith("Chrome_WidgetWin"):
+        return False
+    temiz = baslik.replace("\u200b", "").replace("\ufeff", "")
+    if not temiz.startswith("Aktapokus"):
+        return False
+    kucuk = temiz.lower()
+    if any(ek in kucuk for ek in _TARAYICI_BASLIK_EKI):
+        return False
+    if surec_adi is not None:
+        izinli = tarayici_adlari if tarayici_adlari is not None else _pencere_tarayici_adlari()
+        if surec_adi.lower() not in izinli:
+            return False
+    return True
+
+
+def _pencere_surec_adi(hwnd: int) -> str | None:
+    if sys.platform != "win32":
+        return None
+    try:
+        import ctypes
+        from ctypes import wintypes
+
+        pid = wintypes.DWORD()
+        ctypes.windll.user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if not pid.value:
+            return None
+        k = ctypes.windll.kernel32
+        h = k.OpenProcess(0x1000, False, pid.value)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return None
+        try:
+            boyut = wintypes.DWORD(512)
+            yol = ctypes.create_unicode_buffer(boyut.value)
+            if not k.QueryFullProcessImageNameW(h, 0, yol, ctypes.byref(boyut)):
+                return None
+            return Path(yol.value).name.lower() or None
+        finally:
+            k.CloseHandle(h)
+    except Exception:
+        return None
+
+
 def _aktapokus_pencereleri() -> list[int]:
     """Gorunur Aktapokus uygulama pencereleri (Edge/Chrome 'Aktapokus' basligi). Yalniz Windows; hata olursa bos liste."""
     if sys.platform != "win32":
@@ -238,6 +372,7 @@ def _aktapokus_pencereleri() -> list[int]:
 
         u = ctypes.windll.user32
         bulunan: list[int] = []
+        izinli_adlar = _pencere_tarayici_adlari()
         islev_tipi = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
 
         def bak(hwnd, _):
@@ -248,7 +383,7 @@ def _aktapokus_pencereleri() -> list[int]:
                     u.GetWindowTextW(hwnd, baslik, uzunluk + 1)
                     sinif = ctypes.create_unicode_buffer(64)
                     u.GetClassNameW(hwnd, sinif, 64)
-                    if sinif.value.startswith("Chrome_WidgetWin") and baslik.value.startswith("Aktapokus"):
+                    if _aktapokus_penceresi_mi(sinif.value, baslik.value, _pencere_surec_adi(hwnd), izinli_adlar):
                         bulunan.append(hwnd)
             return True
 
@@ -295,13 +430,18 @@ def ikinci_kopya_bekle(azami_sn: float | None = None, saat: Callable[[], float] 
     istendi = False
     try:
         while saat() < bitis:
+            durum = pencere_durumu()
+            if durum == "kopuk":
+                devral_iste()  # eski kopya pencere kopukken kopma toleransini beklemeden kapanir; sahte pencereye aldanilmaz
+                uyku(0.5)
+                if kilit_al():
+                    devral_temizle()
+                    return "al"
+                continue
             if mevcut_pencereyi_one_getir():
                 devral_temizle()
                 return "one"
-            durum = pencere_durumu()
-            if durum == "kopuk":
-                devral_iste()  # eski kopya pencere kopukken kopma toleransini beklemeden kapanir
-            elif durum == "bagli" and not istendi:
+            if durum == "bagli" and not istendi:
                 _isaret(pencere_iste_yolu())
                 istendi = True
             uyku(0.5)
@@ -425,6 +565,10 @@ def arka_plan_calistir(klasor: str | None = None, port: int = 0, pencere_ac: Cal
         return 0
     try:
         return _arka_plan(klasor, port, pencere_ac, bekle_sn)
+    except Exception as hata:
+        log_yaz("BEKLENMEYEN HATA (arka plan):\n" + traceback.format_exc().rstrip())
+        hata_goster(f"Aktapokus baslatilamadi ({type(hata).__name__}: {hata})")
+        return 1
     finally:
         kilit_birak()
 
@@ -467,6 +611,9 @@ def _arka_plan(klasor, port, pencere_ac, bekle_sn) -> int:
             log_yaz("arka plan: Edge/Chrome bulunamadi, pencere acilamadi")
             return
         profil.mkdir(parents=True, exist_ok=True)
+        silinen = profil_temizle(profil)
+        if silinen:
+            log_yaz(f"arka plan: profil temizlendi ({silinen} oge)")
         (pencere_ac or (lambda k: subprocess.Popen(k)))(pencere_komutu(tarayici, sunucu.url(), profil))
         log_yaz("arka plan: pencere acildi (istek uzerine)")
 
@@ -523,6 +670,10 @@ def uygulama_calistir(
         return 0
     try:
         return _calistir(klasor, port, pencere_ac, bekle_sn, tarayici, baglanti_say, acilis_sn, kopma_sn)
+    except Exception as hata:
+        log_yaz("BEKLENMEYEN HATA:\n" + traceback.format_exc().rstrip())
+        hata_goster(f"Aktapokus baslatilamadi ({type(hata).__name__}: {hata})")
+        return 1
     finally:
         kilit_birak()
 
@@ -581,6 +732,10 @@ def _calistir(klasor, port, pencere_ac, bekle_sn, tarayici, baglanti_say, acilis
             log_yaz(f"Klasor secilemedi ({hata}); arayuzden secilebilir.")
     profil = ayar_dizini() / "uygulama-profil"
     profil.mkdir(parents=True, exist_ok=True)
+    if not pencere_acik_mi():
+        silinen = profil_temizle(profil)
+        if silinen:
+            log_yaz(f"profil temizlendi ({silinen} sisen oge)")
     komut = pencere_komutu(tarayici, sunucu.url(), profil)
     log_yaz("baslatildi: " + komut[0])
     log_yaz(f"sunucu hazir: {time.monotonic() - t0:.1f} sn (pencere simdi aciliyor)")  # tanilama: acilis yavassa nerede beklendigi gorulsun
