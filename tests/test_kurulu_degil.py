@@ -56,3 +56,19 @@ def test_deepseek_masaustu_yoksa_none(tmp_path, monkeypatch):
     from aktapokus_ai_studio import runners
     monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
     assert runners.dsh_masaustu() is None
+
+
+def test_antigravity_kuruluysa_google_modelleri_opencode_listesinde_yok(monkeypatch):
+    sahte = [{"providerID": "google", "modelID": "gemini-4-argon"}, {"providerID": "opencode", "modelID": "deepseek-v4.1-flash-free"}]
+    app = arayuz.Uygulama()
+    monkeypatch.setattr(app, "_saglayici_istemcisi", lambda: SimpleNamespace(modeller=lambda: sahte))
+    monkeypatch.setattr(clitanim, "listele", lambda: [{"ad": "antigravity", "kurulu": True}])
+    assert [m["id"] for m in app.modeller()] == ["opencode/deepseek-v4.1-flash-free"]
+    monkeypatch.setattr(clitanim, "listele", lambda: [{"ad": "antigravity", "kurulu": False}])
+    assert {m["id"] for m in app.modeller()} == {"google/gemini-4-argon", "opencode/deepseek-v4.1-flash-free"}
+
+
+def test_google_kota_hatasi_opencode_kotasi_diye_yazilmaz():
+    from aktapokus_ai_studio import sunucu
+    h = sunucu.hata_acikla({"outcome": "failed", "error": "You exceeded your current quota ... https://aistudio.google.com/docs/rate-limits ... generativelanguage.googleapis.com"}, [])
+    assert h.startswith("Google API anahtari (GEMINI_API_KEY) kotasi doldu") and "OpenCode" not in h

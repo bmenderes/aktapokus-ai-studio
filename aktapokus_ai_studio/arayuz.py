@@ -644,6 +644,10 @@ class Uygulama:
         cikti.sort(key=lambda c: (not c["bagli"], oneri.get(c["id"], 99), str(c["ad"]).lower()))
         return cikti
 
+    # Kendi CLI'si kurulu saglayicinin modelleri OpenCode listesinde GOSTERILMEZ: ayni model iki yerden secilince hangi hesap/kotanin
+    # kullanildigi karisiyordu (2026-11-23: Gemini modeli OpenCode uzerinden GEMINI_API_KEY ucretsiz kotasina takildi, abonelik kullanilmadi).
+    KENDI_CLI_SAGLAYICILARI = {"google": "antigravity"}
+
     def modeller(self) -> list[dict]:
         from .sunucu import SunucuHatasi
 
@@ -651,8 +655,10 @@ class Uygulama:
             ham = self._saglayici_istemcisi().modeller()
         except (SunucuHatasi, CalistiriciHatasi) as hata:
             raise self._sunucu_hatasi(hata) from None
+        kurulu = {c["ad"] for c in clitanim.listele() if c["kurulu"]}
+        gizli = {s for s, cli in self.KENDI_CLI_SAGLAYICILARI.items() if cli in kurulu}
         return sorted(
-            ({"id": f"{m['providerID']}/{m['modelID']}", "saglayici": m["providerID"], "ad": m.get("name") or m["modelID"]} for m in ham if m.get("providerID") and m.get("modelID")),
+            ({"id": f"{m['providerID']}/{m['modelID']}", "saglayici": m["providerID"], "ad": m.get("name") or m["modelID"]} for m in ham if m.get("providerID") and m.get("modelID") and m["providerID"] not in gizli),
             key=lambda m: (m["saglayici"], m["id"]),
         )
 

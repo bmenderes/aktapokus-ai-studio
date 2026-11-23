@@ -429,6 +429,8 @@ def hata_acikla(bilgi: dict, mesajlar: list[dict]) -> str:
     """Basarisiz OpenCode oturumunun nedeni: kota dolduysa bunu acikca yazar (eskiden yalniz outcome='failed' gorunurdu)."""
     neden = mesajlardan_hata(mesajlar) or _hata_metni(bilgi.get("error"))
     if neden and KOTA_DESENI.search(neden):
+        if "generativelanguage.googleapis.com" in neden or "aistudio.google.com" in neden:  # OpenCode degil, kullanicinin Google API anahtari (GEMINI_API_KEY) ucretsiz katmani
+            return f"Google API anahtari (GEMINI_API_KEY) kotasi doldu; bu Gemini aboneligi degildir: {neden}"
         return f"OpenCode ucretsiz kotasi doldu: {neden}"
     return f"OpenCode oturumu basarisiz bitti (outcome={bilgi.get('outcome')!r})" + (f": {neden}" if neden else "")
 
