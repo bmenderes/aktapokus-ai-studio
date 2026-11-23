@@ -118,7 +118,8 @@ def deepseek() -> dict:
         return {"kurulu": True, "giris": True, "yontem": "DeepSeek Harness (~/.dsh/.env)"}
     if _dolu_dosya(kok / "settings.yaml") or _dolu_dosya(kok / "settings.yml"):
         return {"kurulu": True, "giris": True, "yontem": "DeepSeek Harness (~/.dsh/settings.yaml)"}
-    return {"kurulu": True, "giris": False, "hata": "Giriş için DEEPSEEK_API_KEY ortam değişkenini tanımlayın ya da ~/.dsh/.env dosyasına ekleyin (platform.deepseek.com)."}
+    # Masaustu uygulamasinin girisi (~/.dsh/.credentials.yaml) headless profile YETMEZ: gercek denemede "MISSING_CREDENTIAL ... deepseek-official" verdi.
+    return {"kurulu": True, "giris": False, "hata": "Aktapokus DeepSeek API anahtarı ister: DeepSeek Harness uygulamasında Models sayfasından anahtarı kaydedin ya da DEEPSEEK_API_KEY ortam değişkenini tanımlayın (platform.deepseek.com)."}
 
 
 def antigravity() -> dict:

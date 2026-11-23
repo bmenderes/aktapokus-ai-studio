@@ -103,7 +103,7 @@ def _canli_stdinli_akis(calistirici, komut, istem: str | None, klasor: Path, zam
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         cwd=str(klasor),
-        env=_alt_surec_ortami(Path(klasor)),
+        env={**_alt_surec_ortami(Path(klasor)), **dict(getattr(calistirici, "ek_ortam", None) or {})},
     )
     calistirici._islem = islem
     calistirici._durduruldu = False
@@ -1348,7 +1348,26 @@ def dsh_bul() -> list[str] | None:
     exe = shutil.which("dsh")
     if exe and Path(exe).suffix.lower() == ".exe":
         return [exe]
+    paket = dsh_masaustu()
+    if paket:
+        return paket
     return None
+
+
+DSH_MASAUSTU_ORTAMI = {"ELECTRON_RUN_AS_NODE": "1"}
+
+
+def dsh_masaustu() -> list[str] | None:
+    """DeepSeek Harness MASAUSTU uygulamasinin icindeki CLI: dsh.cmd'nin yaptigini dogrudan yapar (cmd.exe ARACI OLMADAN):
+    `DeepSeek Harness.exe` ELECTRON_RUN_AS_NODE=1 ile node gibi calisir ve app.asar icindeki cli.js'i yukler. Gercek kurulumda dogrulandi."""
+    la = os.environ.get("LOCALAPPDATA")
+    if not la:
+        return None
+    exe = Path(la) / "Programs" / "DeepSeek Harness" / "DeepSeek Harness.exe"
+    asar = exe.parent / "resources" / "app.asar"
+    if not (exe.is_file() and asar.is_file()):
+        return None
+    return [str(exe), "--expose-internals", str(asar / "dsh" / "node_modules" / "@deepseek-ai" / "dsh-desktop-host" / "lib" / "cli.js")]
 
 
 _DSH_ARAC_VE_DUSUNCE_TURLERI = frozenset({
@@ -1506,6 +1525,7 @@ class DshCalistirici(Calistirici):
         onek = self.komut_oneki or dsh_bul()
         if not onek:
             raise CalistiriciHatasi("DeepSeek Harness bulunamadi (npm install -g @deepseek-ai/dsh) ya da AKTAPOKUS_DSH ile yol verin.")
+        self.ek_ortam = DSH_MASAUSTU_ORTAMI if Path(onek[0]).name.lower() == "deepseek harness.exe" else {}
         komut = [*onek, "--profile", "headless"]
         if model:
             if model.startswith("-"):

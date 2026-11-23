@@ -35,3 +35,24 @@ def test_hepsi_kuruluysa_gecer(listede):
 
 def test_her_yerlesik_cli_icin_kurulum_yolu_var():
     assert {c["ad"] for c in clitanim.listele() if c["yerlesik"]} <= set(clitanim.KURULUM)
+
+
+def test_deepseek_masaustu_paketi_bulunur_ve_node_kipinde_calisir(tmp_path, monkeypatch):
+    from aktapokus_ai_studio import runners
+    kok = tmp_path / "Programs" / "DeepSeek Harness"
+    (kok / "resources").mkdir(parents=True)
+    (kok / "DeepSeek Harness.exe").write_bytes(b"MZ")
+    (kok / "resources" / "app.asar").write_bytes(b"x")
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    monkeypatch.delenv("AKTAPOKUS_DSH", raising=False)
+    monkeypatch.setattr(runners.shutil, "which", lambda ad: None)  # npm/dsh yok: yalniz masaustu paketi
+    onek = runners.dsh_bul()
+    assert onek and onek[0].endswith("DeepSeek Harness.exe") and onek[1] == "--expose-internals" and onek[2].endswith("cli.js")
+    c = runners.DshCalistirici()
+    assert c.komut()[:3] == onek and c.ek_ortam == {"ELECTRON_RUN_AS_NODE": "1"}  # cmd.exe sarmalayicisi kullanilmaz
+
+
+def test_deepseek_masaustu_yoksa_none(tmp_path, monkeypatch):
+    from aktapokus_ai_studio import runners
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    assert runners.dsh_masaustu() is None
