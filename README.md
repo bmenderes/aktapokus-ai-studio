@@ -4,6 +4,15 @@ OpenCode, Claude Code ve Codex gibi **kod ajanı CLI'ları için yerel kontrol k
 
 > Depo eskiden `aktapokus-ajan` adındaydı (GitHub eski adresi yeni adrese yönlendirir). Python paketi de `aktapokus_ajan` iken `aktapokus_ai_studio` oldu (`python -m aktapokus_ai_studio ...`); `aktapokus ...` komutu aynı kaldı.
 
+## Hızlı başlangıç
+
+1. Python 3.10+, git ve en az bir ajan CLI'ı kurulu olsun (aşağıdaki **Gereksinimler**).
+2. Depoyu klonlayın ya da indirin, klasördeki `setup.bat`'a çift tıklayın: `.venv` kurulur, isteğe bağlı paketler sorulur.
+3. `kisayol-olustur.bat` ile masaüstüne **Aktapokus** kısayolu koyun ve açın.
+4. **İlk açılış rehberi** üç adımı sırayla gösterir: yapay zekâ aracını seçin, proje klasörünü seçin, ilk görevi verin. Rehber tamamlanınca gizlenir.
+
+Sürüm notları: [CHANGELOG.md](CHANGELOG.md).
+
 ## Gereksinimler
 
 | | Gerekli mi? | Not |
@@ -11,7 +20,7 @@ OpenCode, Claude Code ve Codex gibi **kod ajanı CLI'ları için yerel kontrol k
 | **Windows 10 (1809+) / 11** | Evet (şimdilik) | Terminal sekmesi ve masaüstü pencere modu Windows'a bağlı |
 | **Python 3.10+** | Evet | Ek paket gerekmez (yalnız standart kütüphane) |
 | **git** | Evet (program) | Klasörün git *deposu* olması gerekmez: geri alma gölge yedekten çalışır |
-| **En az bir ajan CLI'ı** | Evet | **OpenCode** (https://opencode.ai; ücretsiz modeller var), **Claude Code** (`npm install -g @anthropic-ai/claude-code`, Claude hesabı) veya **Codex** (`npm install -g @openai/codex`, ChatGPT hesabı), ya da kendi tanımladığınız bir CLI. Claude Code/Codex'i npm ile kuracaksanız Node.js de gerekir |
+| **En az bir ajan CLI'ı** | Evet | **OpenCode** (https://opencode.ai; ücretsiz modeller var), **Claude Code** (`npm install -g @anthropic-ai/claude-code`, Claude hesabı) veya **Codex** (`npm install -g @openai/codex`, ChatGPT hesabı), ya da kendi tanımladığınız bir CLI. Yerleşik olarak Gemini CLI, Mistral Vibe, Antigravity CLI (`agy`) ve DeepSeek Harness da desteklenir. Claude Code/Codex'i npm ile kuracaksanız Node.js de gerekir |
 | GitHub CLI (`gh`) | İsteğe bağlı | GitHub sekmesi (PR, issue, klonlama); `gh auth login` |
 | Microsoft Edge | İsteğe bağlı | Masaüstü uygulama penceresi (yoksa tarayıcıda açılır) |
 | Telegram bot token'ı, `segno` | İsteğe bağlı | Telefondan kontrol, QR ile eşleşme |
@@ -121,7 +130,7 @@ Yazı kutusunun altındaki rol akışı çipine ve sol listedeki rollere tıklam
 - Konsolsuz (`pythonw`) çalıştığı için alt süreçlerin (OpenCode, git, codex...) siyah pencere açmaması için bu modda Windows'ta `CREATE_NO_WINDOW` bayrağı eklenir.
 - Başka bilgisayarda: `setup.bat` (eski adı `kur.bat` yönlendirir), sonra `kisayol-olustur.bat`.
 
-**Doğrulanan (gerçek Edge, Windows 11):** pencere açıldı (başlık "Aktapokus", `--app`, ayrı profil), `CloseMainWindow` ile kapatılınca pythonw, Edge, kilit ve OpenCode süreci kalmadı, son klasör kaydedildi; gerçek masaüstü kısayoluyla ve **tarayıcı devri (bayat pencere açıkken ikinci başlatma)** durumunda da aynısı. **Doğrulanmayan:** pencerenin görsel düzeni (ekran görüntüsü alınamadı), ikinci tıklamada çıkan "zaten açık" kutusu (yalnız testle), Chrome yolu, tarayıcı güncellemesinin `--app` davranışını değiştirmesi, Windows başlangıcında otomatik açılma (yapılmadı).
+**Doğrulanan (gerçek Edge, Windows 11):** pencere açıldı (başlık "Aktapokus", `--app`, ayrı profil), `CloseMainWindow` ile kapatılınca pythonw, Edge, kilit ve OpenCode süreci kalmadı, son klasör kaydedildi; gerçek masaüstü kısayoluyla ve **tarayıcı devri (bayat pencere açıkken ikinci başlatma)** durumunda da aynısı. **Doğrulanmayan:** pencerenin görsel düzeni (ekran görüntüsü alınamadı), ikinci tıklamada çıkan "zaten açık" kutusu (yalnız testle), Chrome yolu, tarayıcı güncellemesinin `--app` davranışını değiştirmesi. Windows açılışında başlatma artık var (Ayarlar; penceresiz arka plan modu `ui --arka-plan`, kapatmak için `ui --durdur`).
 
 ## Uzak erişim (telefondan / başka bilgisayardan, Tailscale)
 
@@ -203,7 +212,7 @@ Telefondan görev ver, planı/farkı onayla, ilerlemeyi izle. Aynı motoru (`Uyg
 
 **Kurulum (token'ı SİZ girersiniz, bana/komut satırına yazmayın):**
 1. Telegram'da `@BotFather` → `/newbot` → verdiği token'ı kopyalayın.
-2. Token'ı ortam değişkenine (`AKTAPOKUS_TELEGRAM_TOKEN`) ya da `%USERPROFILE%\.aktapokus\telegram.token` dosyasına (tek satır) yazın.
+2. Token'ı ortam değişkenine (`AKTAPOKUS_TELEGRAM_TOKEN`) ya da `%USERPROFILE%\.aktapokus\telegram.token` dosyasına (tek satır) yazın. Dosyadaki düz token ilk okunuşta Windows DPAPI ile korumalı biçime çevrilir (yalnız bu Windows kullanıcısı açar; dosya başka bilgisayara kopyalanınca çalışmaz, orada token'ı yeniden yazın).
 3. `python -m aktapokus_ai_studio telegram` → token'ı doğrular (bot adını yazar) ve eşleştirme verir: **telefonda açacağınız bir `t.me` bağlantısı** (Telegram botun sohbetini kod hazır yazılmış açar, "Başlat"a basmanız yeter). İsteğe bağlı `segno` paketi kuruluysa (`pip install segno`) aynı bağlantı **QR kod** olarak tarayıcıda açılır, telefonla okutursunuz; eşleşince sayfa silinir. Elle yöntem de var: botunuza `/eslestir KOD` yazın (10 dk, tek kullanımlık). Eşleşen kullanıcı `~/.aktapokus/telegram.json` içine kaydedilir. **BotFather adımı atlanamaz:** Telegram her botun token'ını yalnızca oradan verir; QR yalnızca eşleştirmeyi kolaylaştırır.
 4. Komutlar: `/projeler` (proje klasörlerini **düğme** olarak gösterir, dokunup seçersiniz; git'siz klasörde "Git başlat" düğmesi sorar), `/yeni <ad>` (ilk proje köküne yeni klasör açar, git + koruyucu kurar), `/kokler`, `/klasor <tam yol>`, `/gorev <metin>` (düz metin de görev sayılır), `/durum`, `/durdur`, `/fark <dosya>`, `/gizlilik acik|kapali`. Plan ve fark **Onayla/Reddet** ve **Korunsun/Geri al** düğmeleriyle gelir.
 5. **Proje kökleri** (telefondan seçilebilecek klasörlerin kapsamı): bilgisayarda `telegram-baslat.bat --kok C:\yol\kok1 --kok C:\yol\kok2` ile eklenir (kaydedilir). Telefon bu kapsamı **genişletemez**; `/klasor` ve düğmeler yalnız köklerin altındakini kabul eder (kökün kendisi, nokta ile başlayanlar ve `gizli` listesi — varsayılan `aktapokus-ajan`, botun kendi kodu — hariç). `/yeni` yalnız git deposu olmayan ilk kökte çalışır; iç içe git deposu oluşturulmaz. Ad: harf/rakam/-/_ (en çok 41), `con`/`nul` gibi Windows aygıt adları ve yol işaretleri reddedilir.
@@ -225,8 +234,11 @@ Sınırlar (dürüstçe): **gerçek Telegram ile denenmedi** (token bende olmama
 - **Claude Code rolleri OpenCode koruyucusu kapsamında değil** (kendi `deny` kuralları geçici ayarla verilir, yukarıya bakın); plan uyarı verir.
 - Kullanıcının kendi `.opencode/opencode.json` dosyası varsa `permission` bölümü birleştirilir, özgün dosya `.aktapokus/opencode.json.yedek` olarak saklanır.
 - Geri alma git'e dayanır ve `.gitignore`'daki dosyaları kapsamaz. Anlık görüntü her seferinde klasörü tarar: **büyük ikili dosyalı** projelerde (videolar) yavaş ve `.git` büyür; medyayı `.gitignore`'a koyun.
-- Ajan CLI'ları `--auto` ile izinleri otomatik onaylar.
-- Test rolü bir modeldir; "başarılı" demesi gerçek doğrulama değildir (gerçek komut çıkışına dayalı doğrulama sonraki iş).
+- Ajan CLI'ları onaylı kipte izinleri otomatik onaylar (OpenCode `--auto`). Görev sırasında izin sorusu (proje ayarı `izin_sor`: `hayir`/`riskli`/`hepsi`) yalnız soru sorabilen çalıştırıcıda (OpenCode sunucu) etkilidir; diğer CLI'larda etkisizdir.
+- **Gemini CLI, Mistral Vibe, Antigravity CLI ve DeepSeek Harness korumasızdır:** OpenCode koruyucusu gibi klasör dışı/gizli dosya engeli yoktur; plan onayında uyarılır.
+- Kodcu kendi işini doğrular; ayrı test adımı yeni projelerde kapalıdır. Test rolü açılırsa o da bir modeldir; "başarılı" demesi gerçek doğrulama değildir.
+- Uzak erişim anahtarı ve Telegram token'ı DPAPI ile bu Windows kullanıcısına bağlıdır; ayar klasörü başka bilgisayara/kullanıcıya taşınırsa açılamaz ve yeniden üretilmesi/yazılması gerekir.
+- Yalnız Windows'ta çalışır ve test edilir (ConPTY, DPAPI, Windows yolları, kayıt defteri).
 - OpenCode 2.0.30 ile denendi; çalışma klasörünü `PWD` ortam değişkeninden okuyor (bu yüzden alt sürece `PWD` açıkça verilir).
 
 ## Test
@@ -238,11 +250,13 @@ Test araçları uygulamanın kendisi için gerekmez; yalnız geliştirme içindi
 .venv\Scripts\python.exe -m pytest
 ```
 
-Tam koşu 30-40 dakika sürer (sahte CLI'larla gerçek akışlar); tek bir alan için `-k` ya da dosya verin: `.venv\Scripts\python.exe -m pytest tests\test_uzak.py`. Testler kullanıcının gerçek `~/.aktapokus` dosyalarına dokunmaz (`tests/conftest.py`). `pip install -e .` sonrası `aktapokus ...` komutu da `.venv` içinde kullanılabilir.
+Tam koşu 30-40 dakika sürer (sahte CLI'larla gerçek akışlar); tek bir alan için `-k` ya da dosya verin: `.venv\Scripts\python.exe -m pytest tests\test_uzak.py`. Testler kullanıcının gerçek `~/.aktapokus` dosyalarına dokunmaz (`tests/conftest.py`). Gerçek CLI gerektiren testler `AKTAPOKUS_GERCEK=1` olmadan atlanır. Takılan testi kesmek için: `-m pytest --timeout=300` (`pytest-timeout`, test extra'sında).
+
+GitHub Actions (`.github/workflows/test.yml`) her push/PR'da Windows'ta Python 3.12 ve 3.14 ile koşar; test dosyaları dört parçaya bölünüp paralel işlerde çalışır. `pip install -e .` sonrası `aktapokus ...` komutu da `.venv` içinde kullanılabilir.
 
 ## Lisans
 
-[MIT](LICENSE). Pakete dahil üçüncü taraf dosyalar (xterm.js, Inter yazı tipi) ve sürdüğü araçlar hakkında bilgi: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Bu proje OpenCode, Anthropic, OpenAI ya da GitHub ile bağlantılı değildir.
+[MIT](LICENSE). Pakete dahil üçüncü taraf dosyalar (xterm.js, Lora ve Inter yazı tipleri) ve sürdüğü araçlar hakkında bilgi: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Bu proje OpenCode, Anthropic, OpenAI ya da GitHub ile bağlantılı değildir.
 
 **Önemli güvenlik notu:** Aktapokus AI Studio, ajan CLI'larını **bu bilgisayarda** çalıştırır; terminal sekmesi, MCP sunucuları ve özel CLI tanımları bilgisayarınızda program çalıştırmak demektir. Arayüz yalnızca `127.0.0.1`'e bağlanır ve her istek rastgele bir belirteç ister; yine de yalnızca güvendiğiniz sunucu/CLI/depoları ekleyin ve arayüz adresini kimseyle paylaşmayın. Yazılım "olduğu gibi" sunulur (bkz. LICENSE).
 

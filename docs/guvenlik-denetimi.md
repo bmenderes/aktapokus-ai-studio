@@ -90,14 +90,19 @@ yapılandırma/kanca yolları kullanıcının meşru ayarlarını bozabileceğin
 - **Google:** PKCE (S256) + `state` (sabit süreli karşılaştırma, tek kullanımlık, 5 dk), yalnız `127.0.0.1` geri dönüşü, yenileme anahtarı/istemci sırrı DPAPI ile, durum çıktısında anahtar yok, yalnız `*.readonly` izinler, Google uçları uzaktan değiştirilemez.
 - **Çoklu sohbet:** sohbet kimliği `sohbetler.json` listesine karşı doğrulanır; proje bağlamı kayıtlı projelere (`/api/p/<10 hex>`) bağlıdır.
 - **Telegram:** tek kullanımlık eşleştirme kodu, 5 yanlışta kilit, belirteç hata metinlerinde maskelenir, geri çağrılar yalnız özel sohbette ve izinli kullanıcıdan.
+  Sonradan (2026-11-23): token ve uzak erişim anahtarı diskte DPAPI ile korunur (`gizli.py`; eski düz metin okunur ve korumalı biçime geçirilir).
 - **OPC UA:** yazma/metod çağrısı kodu yok (okuma, gezme, abonelik). **BOOTP:** yalnız açıkça atanmış MAC'lere yanıt verir.
 - **Ekler:** yalnız izinli uzantılar, rastgele alt klasör, `resolve()` ile kök denetimi, geri okuma yalnız `.aktapokus/ekler/` altı ve katı desen.
 
-## Kullanıcı kararı bekleyenler (tasarım kararı gerektirir, değiştirilmedi)
+## Karar maddeleri (K-01..K-06)
 
-**K-01 — Uzaktan GitHub push/PR/Git yıkıcı işlemleri.** `uzak.politika` kara listedir. `POST /api/github/push`, `/api/github/pr`, `/api/github/dal`, `/api/git/degisiklik-at`,
+Güncel durum yukarıdaki özet tablodadır. K-01 ve K-03 2026-11-01'de düzeltildi, K-05 kısmen; K-02 ve K-04 hâlâ kullanıcı kararı bekliyor.
+Aşağıdaki metinler denetim anındaki (2026-11-01 öncesi) bulguyu anlatır; düzeltilenlerin sonunda **Sonuç** satırı vardır.
+
+**K-01 — Uzaktan GitHub push/PR/Git yıkıcı işlemleri.** Denetim anında `uzak.politika` kara listeydi. `POST /api/github/push`, `/api/github/pr`, `/api/github/dal`, `/api/git/degisiklik-at`,
 `/api/git/pull`, `/api/git/birlestir`, `/api/git/dal-sil` yönetim kapalıyken de uzaktan çalışır (testlerde `/api/github/commit` bilerek izinli). Gönderme öncesi
 kontrol akışı vardır ama onayı aynı uzak istemci verebilir. Öneri: push/PR/değişiklik-at/dal-sil'i `YONETIM_KAPALIYKEN_YASAK` listesine almak.
+**Sonuç (2026-11-01):** öneri uygulandı; gönderme ve yıkıcı Git uçları uzaktan yalnız yönetim izniyle çalışır.
 
 **K-02 — Uzaktan görev verme ve onaylama.** Tasarım gereği uzak istemci görev verip planı onaylayabilir; bu, ajan üzerinden bu bilgisayarda dosya yazma ve komut çalıştırma demektir
 (ajan izinleri `acceptEdits`/sandbox ile sınırlı). Anahtarı ele geçiren herkes Tailscale ağı içinde bu yetkiyi kazanır. Öneri: "uzaktan onay" için ayrı bir anahtar (varsayılan kapalı)
@@ -105,6 +110,7 @@ ya da uzaktan verilen görevlerin planını yalnız yerel arayüzden onaylanabil
 
 **K-03 — Kara liste yerine izin listesi.** Yeni bir `/api/...` ucu eklendiğinde uzaktan varsayılan olarak erişilebilir olur. Öneri: uzak politikayı izin listesine (yalnız bilinen güvenli uçlar) çevirmek;
 bu, mevcut uçların hepsinin elden geçirilmesini gerektirdiğinden yapılmadı. Mevcut kara listeyi tamamlayan bir "uç listesi eşitliği" testi eklenebilir.
+**Sonuç (2026-11-01):** `uzak.UZAK_BILINEN_UCLAR` dışındaki uç uzaktan reddedilir; uç listesi eşitliği testi eklendi.
 
 **K-04 — Ağ aracında ikinci onay.** `/api/ag/adaptor-ip`, `adaptor-dhcp`, `bootp/*` yalnız yerel belirteçle korunur (uzaktan yönetim kapalıyken reddedilir); onay iletişim kutusu arayüzdedir,
 sunucu tarafında tek kullanımlık onay yoktur. Belirteci ele geçiren yerel bir süreç IP değiştirebilir. Öneri: durum değiştiren ağ işlemleri için sunucu tarafı tek kullanımlık onay belirteci.
@@ -112,6 +118,7 @@ sunucu tarafında tek kullanımlık onay yoktur. Belirteci ele geçiren yerel bi
 **K-05 — Ajan ortamı ve depo yapılandırması.** Ajan alt süreçleri kullanıcının tüm ortam değişkenlerini devralır (CLI'lar API anahtarlarını bu yolla okur). Git için ek sertleştirme
 (`core.hooksPath`, `core.sshCommand`, `credential.helper` yok sayma) kullanıcının meşru ayarlarını bozabilir. Öneri: yalnız izinli ortam değişkenlerini aktaran bir "temiz ortam" seçeneği ve
 güvenilmeyen depolar için git yapılandırmasını yok sayan bir kip.
+**Sonuç (kısmen, 2026-11-01):** Aktapokus'un kendi `AKTAPOKUS_*` sırları ajan ortamından çıkarıldı; CLI anahtarları gerektiği için geçmeye devam eder, temiz ortam kipi yok.
 
 **K-06 — OpenCode kabuk kuralları** yalnızca desen eşleştirmesidir (`guard.py` belgesi); tam yalıtım için konteyner/sanal makine gerekir.
 
@@ -119,4 +126,4 @@ güvenilmeyen depolar için git yapılandırmasını yok sayan bir kip.
 
 - `google_giris.py` geri dönüş sunucusu `http.server.HTTPServer` kullanır; yalnız `127.0.0.1`'e bağlandığı için ters DNS gecikmesi görülmez, değiştirilmedi (başka oturumun dosyası).
 - Windows ayrılmış aygıt adları (`CON`, `NUL`) ek adı olarak yazılabilir; yalnız hata/boş dosya üretir, güvenlik etkisi yok.
-- Tam test takımında `tests/test_web_getir.py` içindeki iki test (Google veri düğümü mesajı, arayüz parçası) bu denetimden bağımsız, Google bağlantısı çalışmasından kalmadır.
+- Denetim sırasında `tests/test_web_getir.py` içindeki iki test (Google veri düğümü mesajı, arayüz parçası) Google bağlantısı çalışmasından ötürü başarısızdı; 2026-11-23'te dosyanın tamamı geçiyor.

@@ -1,0 +1,63 @@
+name: test
+
+# Tam takim tek makinede 30-40 dk surer (sahte CLI'larla gercek akislar). Test dosyalari
+# PARCA_SAYISI parcaya bolunur ve her parca ayri isde kosar (pytest-xdist yok: testler ayni
+# surecte ortam degiskeni ve modul durumu degistirir; dosya duzeyinde bolme bunu bozmaz).
+# Gercek CLI/ag gerektiren testler kendi isaretleriyle atlanir (AKTAPOKUS_GERCEK tanimli degil).
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    name: py${{ matrix.python }} parca ${{ matrix.parca }}/4
+    runs-on: windows-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.12", "3.14"]
+        parca: [1, 2, 3, 4]
+    env:
+      PARCA_SAYISI: "4"
+      PYTHONUTF8: "1"
+      PYTHONIOENCODING: "utf-8"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          allow-prereleases: true
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Kurulum
+        shell: pwsh
+        run: |
+          git config --global user.name "ci"
+          git config --global user.email "ci@example.invalid"
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[test,opcua]"
+
+      - name: Parcanin test dosyalari
+        id: sec
+        shell: pwsh
+        env:
+          PARCA: ${{ matrix.parca }}
+        run: |
+          $dosyalar = python -c "import os, pathlib; n=int(os.environ['PARCA_SAYISI']); i=int(os.environ['PARCA'])-1; d=sorted(p.as_posix() for p in pathlib.Path('tests').glob('test_*.py')); print(' '.join(d[i::n]))"
+          Write-Output "Bu parca: $dosyalar"
+          "dosyalar=$dosyalar" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+      - name: pytest
+        shell: pwsh
+        run: |
+          python -m pytest ${{ steps.sec.outputs.dosyalar }} -q -ra --timeout=300 --timeout-method=thread --durations=15
