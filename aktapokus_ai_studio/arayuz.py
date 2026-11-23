@@ -2331,8 +2331,31 @@ class Uygulama:
                 self._kuyruk_yayinla(oturum)
                 self._yayinla(oturum, {"tur": "gunluk", "mesaj": f"Kuyruktaki gorev baslatilamadi: {hata}"})
 
+    @staticmethod
+    def _kurulu_degilse_durdur(ayar, testsiz: bool) -> None:
+        """Plan ONAYDAN ONCE: akistaki bir rolun CLI'si kurulu degilse gorev hic baslamaz ve kurulum yolu soylenir.
+        Eskiden hata ancak onaydan sonra o adim calisinca cikiyordu. Testsiz kosuda dogrulama rolleri denetlenmez."""
+        kurulu = {c["ad"]: c for c in clitanim.listele()}
+        eksik = []
+        for r in ayar.rol_sirasi():
+            if testsiz and r.dogrulama:
+                continue
+            c = kurulu.get(r.calistirici)
+            if c is not None and not c["kurulu"]:
+                eksik.append(f"{r.ad} rolu: {c['gorunen_ad']} kurulu degil" + (f" (kurulum: {c['kurulum']})" if c.get("kurulum") else ""))
+        if eksik:
+            raise UygulamaHatasi("; ".join(eksik) + ". Ayarlar > Roller'den kurulu bir CLI secin ya da kurup yeniden deneyin.", 409)
+
     def _gorev_kur(self, oturum: ProjeOturumu, klasor: Path, gorev: str, testsiz: bool | None, otomatik_onay_izni: bool, model_gecersiz: tuple | None = None, onaysiz: bool = False, sohbet: str | None = None) -> dict:
         """Plani kurar ve yayinlar; otomatik onay varsa kosuyu baslatir. `onaysiz` yalniz kayitli otomasyondan gelir (kullanicinin izni)."""
+        if self.calistirici_uret is calistirici_olustur:  # gercek CLI'lar; CLI taramasi yavas oldugu icin kilit DISINDA
+            try:
+                on_ayar = ayar_yukle(klasor)
+                if model_gecersiz:
+                    on_ayar = ayar_model_gecersiz(on_ayar, *model_gecersiz)
+            except AyarHatasi as hata:
+                raise UygulamaHatasi(str(hata)) from None
+            self._kurulu_degilse_durdur(on_ayar, bool(on_ayar.testi_atla if testsiz is None else testsiz))
         with self.kilit:
             try:
                 ayar = ayar_yukle(klasor)

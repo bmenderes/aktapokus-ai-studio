@@ -105,6 +105,7 @@ def tam_kosu(app, api, proje, karar=True, gorev="yeni.txt ekle"):
     assert bekle(lambda: app.kosu.durum == "karar-bekliyor")
     assert api("POST", f"/api/gorev/{plan['kosu']}/karar", {"korunsun": karar})[0] == 200
     assert bekle(lambda: app.kosu.durum == "bitti")
+    assert bekle(lambda: any(o["tur"] == "bitti" for o in app.bus.gecmis))  # durum olaydan once degisir: olay da yayinlansin
     return plan
 
 

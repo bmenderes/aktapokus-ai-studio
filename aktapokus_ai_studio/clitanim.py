@@ -193,6 +193,14 @@ def bilinen_adlar() -> list[str]:
     return [*YERLESIK, *yukle().keys()]
 
 
+KURULUM = {  # kurulu olmayan yerlesik CLI icin kullaniciya gosterilen kurulum yolu (runners.py hata metinleriyle ayni)
+    "opencode": "https://opencode.ai", "opencode-sunucu": "https://opencode.ai",
+    "claude": "npm install -g @anthropic-ai/claude-code", "codex": "npm install -g @openai/codex",
+    "gemini": "npm install -g @google/gemini-cli", "mistral": "uv tool install mistral-vibe",
+    "deepseek": "npm install -g @deepseek-ai/dsh", "antigravity": "PowerShell: irm https://antigravity.google/cli/install.ps1 | iex",
+}
+
+
 def listele() -> list[dict]:
     """Arayuz icin: yerlesik ve eklenen tum CLI'lar, kurulu olup olmadiklariyla."""
     yerlesik = [
@@ -206,7 +214,7 @@ def listele() -> list[dict]:
         ("antigravity", "Antigravity CLI", agy_bul(), [], "Koruyucusuz: klasor disi erisim ve gizli dosya okuma engeli YOK; Google/Antigravity aboneligiyle agy uzerinden calisir"),
     ]
     cikti = [
-        {"ad": ad, "gorunen_ad": g, "yerlesik": True, "kurulu": bool(yol), "modeller": m, "aciklama": a}
+        {"ad": ad, "gorunen_ad": g, "yerlesik": True, "kurulu": bool(yol), "modeller": m, "aciklama": a, "kurulum": KURULUM.get(ad, "")}
         for ad, g, yol, m, a in yerlesik
     ]
     for t in yukle().values():

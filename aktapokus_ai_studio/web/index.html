@@ -85,6 +85,7 @@ input,select,textarea{background:var(--panel);border:1px solid var(--line2);bord
 .rol .n{font-weight:500}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--line2);margin-top:5px;flex:none}
 .dot.calisiyor{background:transparent;border:2px solid var(--sarikoyu);border-top-color:var(--acc);box-sizing:border-box;animation:don .8s linear infinite}.dot.ok{background:var(--tx3)}.dot.err{background:var(--err)}.dot.bekliyor{background:#d9a21b}
+.dot.yesil{background:var(--ok)}
 @keyframes nabiz{50%{opacity:.35}}@keyframes don{to{transform:rotate(360deg)}}
 .grup-gh{flex:none;color:var(--tx3);font-size:12px;line-height:1}
 .grup-ust{display:flex;align-items:center;gap:6px;padding:3px 4px;margin-top:6px;border-radius:6px;cursor:pointer}.grup-ust:hover{background:var(--panel)}
@@ -1130,26 +1131,27 @@ function cliBolumu(){const kap=e("div");S.cliDeneme=Object.assign(cliDenemeYukle
   const tumu=e("button",{class:"pri",text:"Tüm bağlantıları kontrol et",title:"Kurulu CLI'ların gerçekten yanıt verip vermediğini sırayla test eder (az miktarda token harcar)"});
   kap.append(e("div",{class:"row",style:"justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:8px"},tumu,ozet));
   const liste=e("div");kap.append(liste);const denetimler=[];
-  const goster=(baglantiRozet,sonuc,r)=>{if(!r)return;
+  const isikYak=(isik,r)=>{isik.className="dot "+(r?(r.ok?"yesil":"err"):"bekliyor");isik.title=r?(r.ok?"Bağlantı var":"Bağlantı yok"):"Kurulu · bağlantı henüz denenmedi"};
+  const goster=(baglantiRozet,sonuc,r,isik)=>{if(!r)return;if(isik)isikYak(isik,r);
     baglantiRozet.style.display="";baglantiRozet.className="badge "+(r.ok?"b-ok":"b-err");baglantiRozet.textContent=r.ok?"✓ bağlantı var · uygun":"✕ bağlantı uygun değil";
     sonuc.className="badge "+(r.ok?"b-ok":"b-err");sonuc.style.whiteSpace="normal";
     sonuc.textContent=r.ok?("bağlantı var ve uygundur · "+r.sure_sn+" sn · "+(r.token||0)+" token · “"+(r.metin||"").slice(0,60)+"”"):("uygun değil: "+(r.hata||r.metin||"bilinmiyor"))};
   for(const c of S.clilar){const sonuc=e("span",{class:"mut3",text:"Henüz test edilmedi (\"Dene\" ile kontrol edin)"});const giris=cliGirisOgesi(c);
-    const baglantiRozet=e("span",{class:"badge",style:"display:none"});
+    const baglantiRozet=e("span",{class:"badge",style:"display:none"});const isik=e("span",{class:"dot"+(c.kurulu?" bekliyor":""),title:c.kurulu?"Kurulu · bağlantı henüz denenmedi":"Kurulu değil"});
     const dene=e("button",{text:"Dene",title:"Boş geçici klasörde küçük bir istek gönderir (az miktarda token harcar)"});
     const calistir=async()=>{dene.disabled=true;baglantiRozet.style.display="none";sonuc.className="mut3";sonuc.textContent="kontrol ediliyor…";
-      try{const r=await api("/api/clilar/dene",{method:"POST",body:{ad:c.ad}});S.cliDeneme[c.ad]=r;cliDenemeKaydet(S.cliDeneme);goster(baglantiRozet,sonuc,r);return !!r.ok}
-      catch(x){const r={ok:false,hata:x.message};S.cliDeneme[c.ad]=r;cliDenemeKaydet(S.cliDeneme);goster(baglantiRozet,sonuc,r);return false}
+      try{const r=await api("/api/clilar/dene",{method:"POST",body:{ad:c.ad}});S.cliDeneme[c.ad]=r;cliDenemeKaydet(S.cliDeneme);goster(baglantiRozet,sonuc,r,isik);return !!r.ok}
+      catch(x){const r={ok:false,hata:x.message};S.cliDeneme[c.ad]=r;cliDenemeKaydet(S.cliDeneme);goster(baglantiRozet,sonuc,r,isik);return false}
       finally{dene.disabled=false}};
     dene.onclick=calistir;if(c.kurulu)denetimler.push(calistir);
-    if(S.cliDeneme[c.ad])goster(baglantiRozet,sonuc,S.cliDeneme[c.ad]);
+    if(c.kurulu&&S.cliDeneme[c.ad])goster(baglantiRozet,sonuc,S.cliDeneme[c.ad],isik);if(!c.kurulu){dene.style.display="none";sonuc.textContent="—"}
     const dugmeler=e("span",{class:"row"},dene);
     if(!c.yerlesik){dugmeler.append(e("button",{text:"Düzenle",onclick:()=>cliFormu(kap,c.tanim)}),e("button",{text:"Sil",onclick:async()=>{if(!confirm(c.ad+" tanımı silinsin mi?"))return;try{await api("/api/clilar/sil",{method:"POST",body:{ad:c.ad}});ajanlarYukle()}catch(x){alert(x.message)}}}))}
     const satirlar=e("div",{class:"cli-satirlar"},
-      e("div",{class:"cli-satir"},e("span",{class:"cli-et",text:"Giriş durumu"}),c.kurulu?giris.satir:e("span",{class:"mut3",text:"Kurulu değil · bu CLI bilgisayarınızda bulunamadı."})),
+      e("div",{class:"cli-satir"},e("span",{class:"cli-et",text:"Giriş durumu"}),c.kurulu?giris.satir:e("span",{class:"mut3",style:"white-space:normal"},"Kurulu değil",c.kurulum?e("code",{style:"margin-left:6px;user-select:all",text:c.kurulum}):null)),
       e("div",{class:"cli-satir"},e("span",{class:"cli-et",text:"Bağlantı testi"}),sonuc),
       e("div",{class:"cli-satir"},e("span",{class:"cli-et",text:"Açıklama"}),e("span",{class:"mut3",style:"white-space:normal",text:c.aciklama+(c.modeller.length?" · modeller: "+c.modeller.join(", "):"")})));
-    liste.append(e("div",{class:"card cli-kart"},e("div",{class:"cli-ust"},e("span",{class:"row",style:"flex-wrap:wrap"},cliSimge(c.ad),e("b",{text:c.gorunen_ad}),e("span",{class:"badge "+(c.kurulu?"b-ok":"b-err"),text:c.kurulu?"kurulu":"kurulu değil"}),e("span",{class:"badge",text:c.yerlesik?"yerleşik":"özel"}),c.kurulu?giris.rozet:null,baglantiRozet),dugmeler),satirlar))}
+    liste.append(e("div",{class:"card cli-kart"},e("div",{class:"cli-ust"},e("span",{class:"row",style:"flex-wrap:wrap"},isik,cliSimge(c.ad),e("b",{text:c.gorunen_ad}),e("span",{class:"badge "+(c.kurulu?"b-ok":"b-err"),text:c.kurulu?"kurulu":"kurulu değil"}),e("span",{class:"badge",text:c.yerlesik?"yerleşik":"özel"}),c.kurulu?giris.rozet:null,baglantiRozet),dugmeler),satirlar))}
   tumu.onclick=async()=>{if(!denetimler.length){ozet.textContent="Kurulu CLI yok.";return}tumu.disabled=true;let ok=0;ozet.textContent="kontrol ediliyor… (0/"+denetimler.length+")";
     for(let i=0;i<denetimler.length;i++){if(await denetimler[i]())ok++;ozet.textContent="kontrol ediliyor… ("+(i+1)+"/"+denetimler.length+")"}
     ozet.textContent=ok+" / "+denetimler.length+" bağlantı uygun";tumu.disabled=false};

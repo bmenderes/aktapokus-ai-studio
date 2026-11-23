@@ -3,6 +3,10 @@
  "ad": "English",
  "yerel": "en-US",
  "tam": {
+  "Kurulu değil": "Not installed",
+  "Kurulu · bağlantı henüz denenmedi": "Installed · connection not tested yet",
+  "Bağlantı var": "Connected",
+  "Bağlantı yok": "Not connected",
   "Tüm projelerde": "All projects",
   "İzninizi bekliyor": "Waiting for your permission",
   "İzin bekliyor": "Permission needed",
