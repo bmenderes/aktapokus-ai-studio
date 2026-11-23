@@ -76,8 +76,9 @@ def gemini() -> dict:
         return {"kurulu": False, "giris": False}
     if _dolu_dosya(Path.home() / ".gemini" / "oauth_creds.json"):
         return {"kurulu": True, "giris": True, "yontem": "Google hesabı"}
-    if os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY"):
-        return {"kurulu": True, "giris": True, "yontem": "API anahtarı (ortam değişkeni)"}
+    for ad in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):  # hesap girisi DEGIL: Windows'ta tanimli bir anahtar; hangisi oldugu acikca yazilir (deger okunmaz)
+        if os.environ.get(ad):
+            return {"kurulu": True, "giris": True, "yontem": f"{ad} ortam değişkeni (Google hesabıyla giriş değil)"}
     return {"kurulu": True, "giris": False, "hata": "Giriş: GEMINI_API_KEY tanımlayın (Google AI Studio; ücretsiz kota sınırlı) ya da terminalde `gemini` yazıp Google ile giriş yapın (ücretsiz Google girişi Haziran 2026'da kapandı)."}
 
 
