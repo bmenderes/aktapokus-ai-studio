@@ -26,6 +26,7 @@ AYAR_ORTAMI = "AKTAPOKUS_UZAK"
 TAILSCALE_ORTAMI = "AKTAPOKUS_TAILSCALE"
 VARSAYILAN_PORT = 47650
 TAILSCALE_AGI = ipaddress.ip_network("100.64.0.0/10")
+from . import gizli
 
 
 class UzakHatasi(Exception):
@@ -65,8 +66,8 @@ def oku() -> Ayar:
         h = json.loads(dosya_yolu().read_text(encoding="utf-8"))
         if not isinstance(h, dict):
             raise ValueError
-        anahtar = h.get("anahtar")
-        return Ayar(
+        anahtar = gizli.ac(h.get("anahtar"))  # DPAPI ile korunur; eski duz metin de okunur
+        ayar = Ayar(
             acik=h.get("acik") is True, port=h["port"] if port_gecerli(h.get("port")) else VARSAYILAN_PORT,
             terminal=h.get("terminal") is True, yonetim=h.get("yonetim") is True, https=h.get("https") is True, uyanik=h.get("uyanik") is True,
             kok=h["kok"] if isinstance(h.get("kok"), str) else "",
@@ -74,13 +75,19 @@ def oku() -> Ayar:
         )
     except (OSError, ValueError, json.JSONDecodeError):
         return Ayar()
+    if not gizli.korumali_mi(h.get("anahtar")) and gizli.koru(ayar.anahtar) != ayar.anahtar:  # duz metin anahtar: korumali bicime gecir
+        try:
+            yaz(ayar)
+        except OSError:
+            pass
+    return ayar
 
 
 def yaz(ayar: Ayar) -> None:
     yol = dosya_yolu()
     yol.parent.mkdir(parents=True, exist_ok=True)
     gecici = yol.with_suffix(".tmp")
-    gecici.write_text(json.dumps(asdict(ayar), indent=2), encoding="utf-8")
+    gecici.write_text(json.dumps({**asdict(ayar), "anahtar": gizli.koru(ayar.anahtar)}, indent=2), encoding="utf-8")
     os.replace(gecici, yol)
     try:
         os.chmod(yol, 0o600)  # anahtar iceriyor

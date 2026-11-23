@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Callable
 
 from . import otomasyon
+from . import gizli
 from . import projeler as proje_kayit
 from . import snapshot
 from .arayuz import Uygulama, UygulamaHatasi
@@ -77,7 +78,18 @@ def token_oku() -> str | None:
     yol = Path.home() / ".aktapokus" / "telegram.token"
     if yol.is_file():
         satirlar = yol.read_text(encoding="utf-8").strip().splitlines()
-        return satirlar[0].strip() if satirlar else None
+        ham = satirlar[0].strip() if satirlar else ""
+        if not ham:
+            return None
+        token = gizli.ac(ham)
+        if token and not gizli.korumali_mi(ham):  # kullanicinin yazdigi duz token: DPAPI ile korumali bicime gecir (yalniz bu Windows kullanicisi acar)
+            korumali = gizli.koru(token)
+            if korumali != token:
+                try:
+                    yol.write_text(korumali + "\n", encoding="utf-8")
+                except OSError:
+                    pass
+        return token
     return None
 
 
