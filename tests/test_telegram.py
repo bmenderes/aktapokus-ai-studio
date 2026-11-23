@@ -119,6 +119,22 @@ def test_eslestirme_kodu_tek_kullanimlik_ve_kaydedilir(kur, tmp_path):
     assert "Durum" not in " ".join(fake.metinler()[:1])  # eslesmeden onceki /durum yanitlanmadi
 
 
+def test_eslesmis_kullanici_varken_yeni_kodla_ikinci_cihaz_eklenir(kur, tmp_path):
+    bot, fake, app, _ = kur(izinli=(7,))
+    assert bot.eslestirme_kodu_uret() is None  # zorlamadan kod yok
+    fake.mesaj(8, "/eslestir 12345678")  # kod yokken: sessiz, eklenmez
+    time.sleep(1.2)
+    assert bot.izinli == [7]
+    kod = bot.eslestirme_kodu_uret(zorla=True)  # bilgisayardan "Yeni eslestirme kodu"
+    fake.mesaj(8, f"/eslestir {kod}")
+    assert bekle(lambda: bot.izinli == [7, 8])
+    assert json.loads((tmp_path / "telegram.json").read_text(encoding="utf-8"))["izinli"] == [7, 8]
+    assert bot.eslestirme is None  # tek kullanimlik
+    fake.mesaj(9, f"/eslestir {kod}")
+    time.sleep(1.2)
+    assert bot.izinli == [7, 8]
+
+
 def test_eslestirme_5_yanlis_denemede_kilitlenir_ve_sure_dolar(kur):
     bot, fake, app, _ = kur(izinli=())
     kod = bot.eslestirme_kodu_uret()

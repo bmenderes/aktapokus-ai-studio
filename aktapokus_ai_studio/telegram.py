@@ -238,10 +238,13 @@ class Bot:
 
     def _eslestir(self, uid: int, kod: str) -> None:
         e = self.eslestirme
-        if self.izinli or e is None or time.monotonic() > e["bitis"]:
+        # Kod yalniz bilgisayardan uretilir; eslesmis kullanici varken de ("Yeni eslestirme kodu", zorla=True) bir cihaz daha ekler.
+        # Eskiden eslesmis biri varken her kod sessizce reddediliyordu (/eslestir "calismiyor").
+        if e is None or time.monotonic() > e["bitis"]:
             return
         if hmac.compare_digest(kod, e["kod"]):
-            self.ayar["izinli"] = [uid]
+            if uid not in self.ayar["izinli"]:
+                self.ayar["izinli"].append(uid)
             self._kaydet()
             self.eslestirme = None
             self._gonder(uid, "Eslesti. Bu sohbet artik botu yonetebilir.\n\n" + YARDIM)
