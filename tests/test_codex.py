@@ -118,6 +118,33 @@ def test_zaman_asimi(tmp_path):
     assert not r.ok and "Zaman asimi (1 sn)" in r.hata
 
 
+def test_codex_canli_olaylar_arayuz_bicimiyle_gelir_ve_durdurulur(tmp_path):
+    import threading
+    import time
+
+    c, gelen = calistirici(), []
+    c.ilerleme = gelen.append
+    r = c.calistir("CANLI gorev", tmp_path)
+    assert r.ok and r.metin == "Bitti.\nSONUC: BASARILI"
+    assert {"tur": "durum", "durum": "bekliyor"} in gelen
+    assert {"tur": "dusunce", "parca": "kodu inceliyorum\n"} in gelen
+    assert {"tur": "arac", "ad": "bash", "girdi": {"command": "pytest -q"}} in gelen
+    assert {"tur": "kabuk", "satir": "pytest -q", "sure_sn": 0} in gelen
+    assert {"tur": "arac-sonuc", "hata": False} in gelen
+    assert {"tur": "arac", "ad": "edit", "girdi": {"path": "app.py"}} in gelen
+    assert {"tur": "metin", "parca": "ara mesaj\n"} in gelen
+
+    c2, sonuc = calistirici(), {}
+    t = threading.Thread(target=lambda: sonuc.update(s=c2.calistir("YAVAS", tmp_path)))
+    t.start()
+    son = time.monotonic() + 20
+    while c2._islem is None and time.monotonic() < son:
+        time.sleep(0.05)
+    assert c2.durdur()
+    t.join(30)
+    assert sonuc["s"].hata == "Durduruldu"
+
+
 def test_gecersiz_istem_ve_cli_yok(tmp_path, monkeypatch):
     with pytest.raises(CalistiriciHatasi):
         calistirici().calistir("   ", tmp_path)

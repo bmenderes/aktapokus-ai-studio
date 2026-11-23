@@ -11,7 +11,7 @@ import copy
 import os
 
 from .config import VARSAYILAN_AYAR, VARSAYILAN_MODEL
-from .runners import claude_bul, codex_bul, gemini_bul, opencode_bul, vibe_bul
+from .runners import agy_bul, claude_bul, codex_bul, dsh_bul, gemini_bul, opencode_bul, vibe_bul
 
 TERCIH_ORTAMI = "AKTAPOKUS_MOTOR_TERCIH"  # testler/ileri kullanim: varsayilan motoru zorla (kurulu olup olmadigina bakmaz)
 
@@ -21,6 +21,8 @@ MOTORLAR = (
     {"ad": "codex", "gorunen": "Codex", "kurulum": "npm install -g @openai/codex  (sonra terminalde 'codex login')", "modeller": {}},
     {"ad": "gemini", "gorunen": "Gemini CLI", "kurulum": "npm install -g @google/gemini-cli  (sonra GEMINI_API_KEY tanimlayin ya da terminalde bir kez 'gemini' yazip giris yapin; ucretsiz Google girisi Haziran 2026'da kapandi)", "modeller": {}},
     {"ad": "mistral", "gorunen": "Mistral Vibe", "kurulum": "uv tool install mistral-vibe  (uv yoksa önce 'pip install uv'; sonra terminalde 'vibe --setup' ve API anahtarı)", "modeller": {}},
+    {"ad": "deepseek", "gorunen": "DeepSeek Harness", "kurulum": "npm install -g @deepseek-ai/dsh  (sonra DEEPSEEK_API_KEY tanimlayin ya da ~/.dsh/.env dosyasina ekleyin)", "modeller": {}},
+    {"ad": "antigravity", "gorunen": "Antigravity CLI", "kurulum": "irm https://antigravity.google/cli/install.ps1 | iex  (PowerShell; sonra bir kez 'agy' yazip Google/Antigravity hesabinizla giris yapin)", "modeller": {}},
 )
 _BULUCULAR = {
     "opencode-sunucu": lambda: opencode_bul(),
@@ -29,6 +31,8 @@ _BULUCULAR = {
     "codex": lambda: codex_bul(),
     "gemini": lambda: gemini_bul(),
     "mistral": lambda: vibe_bul(),
+    "deepseek": lambda: dsh_bul(),
+    "antigravity": lambda: agy_bul(),
 }
 
 

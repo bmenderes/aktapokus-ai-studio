@@ -25,6 +25,11 @@ print(json.dumps({"type": "thread.started", "thread_id": "t1"}), flush=True)
 print(json.dumps({"type": "turn.started"}), flush=True)
 if "YAVAS" in istem:
     time.sleep(30)
+if "CANLI" in istem:
+    print(json.dumps({"type": "item.completed", "item": {"id": "r1", "type": "reasoning", "text": "kodu inceliyorum"}}), flush=True)
+    print(json.dumps({"type": "item.started", "item": {"id": "c1", "type": "command_execution", "command": "pytest -q"}}), flush=True)
+    print(json.dumps({"type": "item.completed", "item": {"id": "c1", "type": "command_execution", "command": "pytest -q", "exit_code": 0}}), flush=True)
+    print(json.dumps({"type": "item.completed", "item": {"id": "f1", "type": "file_change", "changes": [{"path": "app.py", "kind": "edit"}], "status": "completed"}}), flush=True)
 if "FAIL" in istem:
     mesaj = "The 'x' model requires a newer version of Codex."
     print(json.dumps({"type": "error", "message": mesaj}), flush=True)

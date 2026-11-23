@@ -23,18 +23,22 @@ from .runners import (
     Calistirici,
     CalistiriciHatasi,
     CalistirmaSonucu,
+    ClaudeCodeCalistirici,
+    _canli_stdinli_akis,
     _metin,
     _stdinli_calistir,
     _alt_surec_ortami,
+    agy_bul,
     claude_bul,
     codex_bul,
+    dsh_bul,
     gemini_bul,
     opencode_bul,
     vibe_bul,
 )
 
 KAYIT_ORTAMI = "AKTAPOKUS_CLILAR"
-YERLESIK = ("opencode", "opencode-sunucu", "claude", "codex", "gemini", "mistral")
+YERLESIK = ("opencode", "opencode-sunucu", "claude", "codex", "gemini", "mistral", "deepseek", "antigravity")
 AD_DESENI = re.compile(r"^[a-z0-9][a-z0-9_-]{0,30}$")
 YASAK_UZANTILAR = {".cmd", ".bat", ".ps1", ".vbs"}
 CIKTI_BICIMLERI = ("metin", "json", "jsonl")
@@ -198,6 +202,8 @@ def listele() -> list[dict]:
         ("claude", "Claude Code", claude_bul(), ["haiku", "sonnet", "opus"], "Klasor disi yazma ve gizli dosya okuma engelli; komut calistiramaz"),
         ("gemini", "Gemini CLI", gemini_bul(), ["auto", "pro", "flash"], "Koruyucusuz: klasor disi erisim ve gizli dosya okuma engeli YOK; onayli adimlarda araclar sormadan calisir"),
         ("mistral", "Mistral Vibe", vibe_bul(), [], "Koruyucusuz: klasor disi erisim ve gizli dosya okuma engeli YOK; model Vibe'in kendi ayarindan secilir"),
+        ("deepseek", "DeepSeek Harness", dsh_bul(), [], "Koruyucusuz: klasor disi erisim ve gizli dosya okuma engeli YOK; dsh --profile headless ile calisir"),
+        ("antigravity", "Antigravity CLI", agy_bul(), [], "Koruyucusuz: klasor disi erisim ve gizli dosya okuma engeli YOK; Google/Antigravity aboneligiyle agy uzerinden calisir"),
     ]
     cikti = [
         {"ad": ad, "gorunen_ad": g, "yerlesik": True, "kurulu": bool(yol), "modeller": m, "aciklama": a}
@@ -270,9 +276,42 @@ def cikti_coz(tanim: CliTanim, cikti: str) -> CalistirmaSonucu:
 class TanimliCalistirici(Calistirici):
     """Bir `CliTanim`'i calistirir. Kabuk yok; istem stdin'den (UTF-8 bayt) ya da tek bir arguman olarak gider."""
 
+    ilerleme = None
+
     def __init__(self, tanim: CliTanim):
         self.tanim = tanim
         self.ad = tanim.ad
+        self._islem = None
+        self._durduruldu = False
+
+    def durdur(self) -> bool:
+        islem = self._islem
+        if islem is None or islem.poll() is not None:
+            return False
+        self._durduruldu = True
+        ClaudeCodeCalistirici._surec_oldur(islem)
+        return True
+
+    def _satir_bildir(self, satir: str) -> None:
+        bildir = self.ilerleme
+        if bildir is None:
+            return
+        s = satir.strip()
+        if not s:
+            return
+        try:
+            if self.tanim.cikti == "metin":
+                bildir({"tur": "metin", "parca": s + "\n"})
+            elif self.tanim.cikti == "jsonl" and s.startswith("{"):
+                nesne = json.loads(s)
+                if isinstance(nesne, dict):
+                    deger = yol_al(nesne, self.tanim.metin_yolu)
+                    if deger is not None:
+                        metin = deger if isinstance(deger, str) else json.dumps(deger, ensure_ascii=False)
+                        if metin.strip():
+                            bildir({"tur": "metin", "parca": metin.strip() + "\n"})
+        except Exception:
+            pass
 
     def komut(self, istem: str, model: str | None, onayli: bool) -> list[str]:
         t = self.tanim
@@ -301,24 +340,29 @@ class TanimliCalistirici(Calistirici):
             raise CalistiriciHatasi("Istem cok uzun (1 milyon karakter siniri)")
         komut = self.komut(istem, model, onayli)
         baslangic = time.monotonic()
+        self._durduruldu = False
         try:
-            if self.tanim.istem == "stdin":
-                islem = _stdinli_calistir(komut, istem, Path(klasor), zaman_asimi_sn)
-            else:
-                islem = subprocess.run(
-                    komut, cwd=str(klasor), env=_alt_surec_ortami(Path(klasor)), capture_output=True,
-                    stdin=subprocess.DEVNULL, timeout=zaman_asimi_sn,
-                )
-                islem.stdout, islem.stderr = _metin(islem.stdout), _metin(islem.stderr)
-        except subprocess.TimeoutExpired:
-            return CalistirmaSonucu(False, hata=f"Zaman asimi ({zaman_asimi_sn} sn)", sure_sn=time.monotonic() - baslangic)
+            kod, stdout, stderr, asim = _canli_stdinli_akis(
+                self,
+                komut,
+                istem if self.tanim.istem == "stdin" else None,
+                Path(klasor),
+                zaman_asimi_sn,
+                satir_isle=self._satir_bildir,
+            )
         except OSError as hata:
             return CalistirmaSonucu(False, hata=f"{self.tanim.gorunen_ad} baslatilamadi: {hata}", sure_sn=time.monotonic() - baslangic)
-        sonuc = cikti_coz(self.tanim, islem.stdout)
-        sonuc.sure_sn = time.monotonic() - baslangic
-        if islem.returncode != 0 and sonuc.ok:
+        sure = time.monotonic() - baslangic
+        if asim:
+            neden = f"Zaman asimi ({zaman_asimi_sn} sn)" if asim == "hareketsiz" else f"Zaman asimi (toplam sure siniri {min(zaman_asimi_sn * 4, 14400)} sn)"
+            return CalistirmaSonucu(False, hata=neden, sure_sn=sure)
+        if self._durduruldu:
+            return CalistirmaSonucu(False, hata="Durduruldu", sure_sn=sure)
+        sonuc = cikti_coz(self.tanim, stdout)
+        sonuc.sure_sn = sure
+        if kod != 0 and sonuc.ok:
             sonuc.ok = False
-            sonuc.hata = f"{self.tanim.gorunen_ad} cikis kodu {islem.returncode}: {(islem.stderr or islem.stdout).strip()[-300:]}"
+            sonuc.hata = f"{self.tanim.gorunen_ad} cikis kodu {kod}: {(stderr or stdout).strip()[-300:]}"
         return sonuc
 
 

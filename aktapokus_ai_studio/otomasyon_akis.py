@@ -40,7 +40,7 @@ def _metin(ayar: dict, anahtar: str, azami: int, zorunlu: bool) -> str:
     return m.strip()
 
 
-MOTORLAR = ("opencode-sunucu", "claude", "codex", "gemini", "mistral")  # config.OTOMASYON_MOTORLARI ile ayni (dairesel ice aktarma olmasin diye kopya; test eslesmeyi denetler)
+MOTORLAR = ("opencode-sunucu", "claude", "codex", "gemini", "mistral", "deepseek", "antigravity")  # config.OTOMASYON_MOTORLARI ile ayni (dairesel ice aktarma olmasin diye kopya; test eslesmeyi denetler)
 
 
 def _model(m: object) -> dict:

@@ -94,6 +94,88 @@ def _stdinli_calistir(komut, istem: str, klasor: Path, zaman_asimi_sn: int):
     return islem
 
 
+def _canli_stdinli_akis(calistirici, komut, istem: str | None, klasor: Path, zaman_asimi_sn: int, satir_isle=None, stderr_isle=None):
+    """Alt sureci baslatir, stdout ve stderr'i SATIR SATIR okuyup canli geri cagrilari besler.
+    Donus: (cikis_kodu, stdout_metni, stderr_metni, asim: None | 'hareketsiz' | 'toplam')."""
+    islem = subprocess.Popen(
+        komut,
+        stdin=subprocess.PIPE if istem is not None else subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=str(klasor),
+        env=_alt_surec_ortami(Path(klasor)),
+    )
+    calistirici._islem = islem
+    calistirici._durduruldu = False
+    hatalar: list[str] = []
+    cikti_satirlari: list[str] = []
+    son_hareket = [time.monotonic()]
+    asim: list[str | None] = [None]
+    bitti = threading.Event()
+
+    def _hata_oku() -> None:
+        if islem.stderr is None:
+            return
+        for ham in islem.stderr:
+            son_hareket[0] = time.monotonic()
+            satir = ham.decode("utf-8", errors="replace")
+            hatalar.append(satir)
+            if stderr_isle is not None:
+                try:
+                    stderr_isle(satir.rstrip("\r\n"))
+                except Exception:
+                    pass
+
+    hata_is = threading.Thread(target=_hata_oku, daemon=True)
+    hata_is.start()
+
+    def _bekci() -> None:
+        mutlak = time.monotonic() + min(zaman_asimi_sn * 4, 14400)
+        aralik = min(2.0, max(0.05, zaman_asimi_sn / 4))
+        while not bitti.wait(aralik):
+            simdi = time.monotonic()
+            if simdi - son_hareket[0] > zaman_asimi_sn or simdi > mutlak:
+                asim[0] = "toplam" if simdi > mutlak else "hareketsiz"
+                ClaudeCodeCalistirici._surec_oldur(islem)
+                return
+
+    threading.Thread(target=_bekci, daemon=True).start()
+
+    if istem is not None:
+        bayt = istem.encode("utf-8")
+
+        def _stdin_yaz() -> None:
+            try:
+                if islem.stdin is not None:
+                    islem.stdin.write(bayt)
+                    islem.stdin.close()
+            except OSError:
+                pass
+
+        if len(bayt) <= 32768:
+            _stdin_yaz()
+        else:
+            threading.Thread(target=_stdin_yaz, daemon=True).start()
+
+    try:
+        if islem.stdout is not None:
+            for ham in islem.stdout:
+                son_hareket[0] = time.monotonic()
+                satir = ham.decode("utf-8", errors="replace")
+                cikti_satirlari.append(satir)
+                if satir_isle is not None:
+                    try:
+                        satir_isle(satir.rstrip("\r\n"))
+                    except Exception:
+                        pass
+        islem.wait()
+    finally:
+        bitti.set()
+        calistirici._islem = None
+    hata_is.join(2)
+    return islem.returncode, "".join(cikti_satirlari), "".join(hatalar), asim[0]
+
+
 _AKTAPOKUS_SIRRI = re.compile(r"AKTAPOKUS_.*(TOKEN|SIR|SECRET|ANAHTAR|PAROLA|PASSWORD|KEY)")
 
 
@@ -164,9 +246,42 @@ def opencode_olaylarini_coz(cikti: str) -> CalistirmaSonucu:
 
 class OpenCodeCalistirici(Calistirici):
     ad = "opencode"
+    ilerleme = None
 
     def __init__(self, cli_yolu: str | None = None):
         self.cli_yolu = cli_yolu
+
+    def _olay_bildir(self, cikti: str) -> None:
+        bildir = self.ilerleme
+        if bildir is None or not cikti:
+            return
+        for satir in cikti.splitlines():
+            satir = satir.strip()
+            if not satir.startswith("{"):
+                continue
+            try:
+                olay = json.loads(satir)
+            except ValueError:
+                continue
+            if not isinstance(olay, dict):
+                continue
+            try:
+                tur = olay.get("type")
+                parca = olay.get("part") if isinstance(olay.get("part"), dict) else {}
+                if tur == "tool_use":
+                    durum = parca.get("state") if isinstance(parca.get("state"), dict) else {}
+                    ad = parca.get("tool") or parca.get("name") or "tool"
+                    girdi = ClaudeCodeCalistirici._girdi_ozeti(durum.get("input"))
+                    bildir({"tur": "arac", "ad": str(ad), "girdi": girdi})
+                    if girdi.get("command"):
+                        bildir({"tur": "kabuk", "satir": str(girdi["command"])[:200], "sure_sn": 0})
+                    bildir({"tur": "arac-sonuc", "hata": durum.get("status") == "error"})
+                elif (tur == "reasoning" or parca.get("type") == "reasoning") and parca.get("text"):
+                    bildir({"tur": "dusunce", "parca": str(parca["text"]) + "\n"})
+                elif tur == "text" and isinstance(parca.get("text"), str) and parca["text"]:
+                    bildir({"tur": "metin", "parca": parca["text"] + "\n"})
+            except Exception:
+                pass
 
     def komut(self, istem: str, model: str | None, agent: str | None, onayli: bool) -> list[str]:
         cli = self.cli_yolu or opencode_bul()
@@ -203,11 +318,12 @@ class OpenCodeCalistirici(Calistirici):
             )
         except subprocess.TimeoutExpired:
             return CalistirmaSonucu(False, hata=f"Zaman asimi ({zaman_asimi_sn} sn)", sure_sn=time.monotonic() - baslangic)
-        sonuc = opencode_olaylarini_coz(islem.stdout)
+        self._olay_bildir(_metin(islem.stdout))
+        sonuc = opencode_olaylarini_coz(_metin(islem.stdout))
         sonuc.sure_sn = time.monotonic() - baslangic
         if islem.returncode != 0 and sonuc.ok:
             sonuc.ok = False
-            sonuc.hata = f"OpenCode cikis kodu {islem.returncode}: {(islem.stderr or islem.stdout).strip()[-300:]}"
+            sonuc.hata = f"OpenCode cikis kodu {islem.returncode}: {(_metin(islem.stderr) or _metin(islem.stdout)).strip()[-300:]}"
         return sonuc
 
 
@@ -458,7 +574,9 @@ class ClaudeCodeCalistirici(Calistirici):
     def _surec_oldur(islem) -> None:
         try:
             if sys.platform == "win32":
-                subprocess.run(["taskkill", "/PID", str(islem.pid), "/T", "/F"], capture_output=True, timeout=15)  # alt surecler de
+                r = subprocess.run(["taskkill", "/PID", str(islem.pid), "/T", "/F"], capture_output=True, timeout=15)  # alt surecler de
+                if r.returncode != 0:
+                    islem.kill()
             else:
                 islem.kill()
         except Exception:
@@ -659,9 +777,72 @@ class CodexCalistirici(Calistirici):
     Guvenlik: --sandbox workspace-write (yalniz calisma klasorune yazar; salt okunur istenirse read-only) ve approval_policy=never."""
 
     ad = "codex"
+    ilerleme = None
 
     def __init__(self, komut_oneki: list[str] | None = None):
         self.komut_oneki = komut_oneki
+        self._islem = None
+        self._durduruldu = False
+
+    def durdur(self) -> bool:
+        islem = self._islem
+        if islem is None or islem.poll() is not None:
+            return False
+        self._durduruldu = True
+        ClaudeCodeCalistirici._surec_oldur(islem)
+        return True
+
+    def _olay_bildir(self, olay: dict, gorulen_araclar: set) -> None:
+        bildir = self.ilerleme
+        if bildir is None:
+            return
+        try:
+            tur = olay.get("type")
+            if tur == "turn.started":
+                bildir({"tur": "durum", "durum": "bekliyor"})
+                return
+            oge = olay.get("item") if isinstance(olay.get("item"), dict) else {}
+            oge_id = oge.get("id")
+            oge_tur = oge.get("type")
+            if tur == "item.started":
+                if oge_tur in ("command_execution", "local_shell_call"):
+                    komut_str = str(oge.get("command") or "")[:200]
+                    if oge_id:
+                        gorulen_araclar.add(oge_id)
+                    bildir({"tur": "arac", "ad": "bash", "girdi": {"command": komut_str}})
+                    if komut_str:
+                        bildir({"tur": "kabuk", "satir": komut_str, "sure_sn": 0})
+                elif oge_tur in ("mcp_tool_call", "function_call", "custom_tool_call"):
+                    ad = str(oge.get("name") or oge.get("tool") or oge_tur)
+                    ham_girdi = oge.get("arguments") if "arguments" in oge else oge.get("input")
+                    girdi = ClaudeCodeCalistirici._girdi_ozeti(ham_girdi)
+                    if oge_id:
+                        gorulen_araclar.add(oge_id)
+                    bildir({"tur": "arac", "ad": ad, "girdi": girdi})
+            elif tur == "item.completed":
+                if oge_tur == "agent_message" and isinstance(oge.get("text"), str) and oge["text"]:
+                    bildir({"tur": "metin", "parca": oge["text"] + "\n"})
+                elif oge_tur == "reasoning" and isinstance(oge.get("text"), str) and oge["text"]:
+                    bildir({"tur": "dusunce", "parca": oge["text"] + "\n"})
+                elif oge_tur == "file_change":
+                    hata = oge.get("status") == "failed"
+                    for c in oge.get("changes") or []:
+                        if isinstance(c, dict):
+                            bildir({"tur": "arac", "ad": str(c.get("kind") or "edit"), "girdi": {"path": str(c.get("path") or "")[:200]}})
+                            bildir({"tur": "arac-sonuc", "hata": hata})
+                elif oge_tur in ("command_execution", "local_shell_call"):
+                    if not oge_id or oge_id not in gorulen_araclar:
+                        komut_str = str(oge.get("command") or "")[:200]
+                        bildir({"tur": "arac", "ad": "bash", "girdi": {"command": komut_str}})
+                    bildir({"tur": "arac-sonuc", "hata": bool(oge.get("status") == "failed" or oge.get("exit_code") not in (None, 0))})
+                elif oge_tur in ("mcp_tool_call", "function_call", "custom_tool_call"):
+                    if not oge_id or oge_id not in gorulen_araclar:
+                        ad = str(oge.get("name") or oge.get("tool") or oge_tur)
+                        ham_girdi = oge.get("arguments") if "arguments" in oge else oge.get("input")
+                        bildir({"tur": "arac", "ad": ad, "girdi": ClaudeCodeCalistirici._girdi_ozeti(ham_girdi)})
+                    bildir({"tur": "arac-sonuc", "hata": bool(oge.get("error") or oge.get("status") == "failed")})
+        except Exception:
+            pass
 
     def komut(self, klasor: Path, model: str | None, onayli: bool, son_mesaj_dosyasi: str) -> list[str]:
         onek = self.komut_oneki or codex_bul()
@@ -691,22 +872,48 @@ class CodexCalistirici(Calistirici):
         import tempfile
 
         baslangic = time.monotonic()
+        self._durduruldu = False
+        gorulen_araclar: set = set()
+
+        def satir_isle(satir: str) -> None:
+            s = satir.strip()
+            if not s.startswith("{"):
+                return
+            try:
+                olay = json.loads(s)
+            except ValueError:
+                return
+            if isinstance(olay, dict):
+                self._olay_bildir(olay, gorulen_araclar)
+
         with tempfile.TemporaryDirectory(prefix="aktapokus-codex-") as gecici:
             son = str(Path(gecici) / "son-mesaj.txt")
             komut = self.komut(Path(klasor), model, onayli, son)
             try:
-                islem = _stdinli_calistir(komut, istem, Path(klasor), zaman_asimi_sn)
-            except subprocess.TimeoutExpired:
-                return CalistirmaSonucu(False, hata=f"Zaman asimi ({zaman_asimi_sn} sn)", sure_sn=time.monotonic() - baslangic)
+                kod, stdout, stderr, asim = _canli_stdinli_akis(self, komut, istem, Path(klasor), zaman_asimi_sn, satir_isle=satir_isle)
+            except OSError as hata:
+                return CalistirmaSonucu(False, hata=f"Codex baslatilamadi: {hata}", sure_sn=time.monotonic() - baslangic)
             try:
                 son_metin = Path(son).read_text(encoding="utf-8")
             except OSError:
                 son_metin = ""
-        sonuc = codex_olaylarini_coz(islem.stdout, son_metin)
-        sonuc.sure_sn = time.monotonic() - baslangic
-        if islem.returncode != 0 and sonuc.ok:
+        sure = time.monotonic() - baslangic
+        sonuc = codex_olaylarini_coz(stdout, son_metin)
+        sonuc.sure_sn = sure
+        if asim:
+            neden = f"Zaman asimi ({zaman_asimi_sn} sn)" if asim == "hareketsiz" else f"Zaman asimi (toplam sure siniri {min(zaman_asimi_sn * 4, 14400)} sn)"
+            return CalistirmaSonucu(
+                False, metin=sonuc.metin, token_girdi=sonuc.token_girdi, token_cikti=sonuc.token_cikti,
+                token_onbellek=sonuc.token_onbellek, hata=neden, sure_sn=sure,
+            )
+        if self._durduruldu:
+            return CalistirmaSonucu(
+                False, metin=sonuc.metin, token_girdi=sonuc.token_girdi, token_cikti=sonuc.token_cikti,
+                token_onbellek=sonuc.token_onbellek, hata="Durduruldu", sure_sn=sure,
+            )
+        if kod != 0 and sonuc.ok:
             sonuc.ok = False
-            sonuc.hata = f"Codex cikis kodu {islem.returncode}: {(islem.stderr or islem.stdout).strip()[-300:]}"
+            sonuc.hata = f"Codex cikis kodu {kod}: {(stderr or stdout).strip()[-300:]}"
         return sonuc
 
 
@@ -756,9 +963,72 @@ def _sayi_bul(veri: object, anahtarlar: tuple[str, ...], derinlik: int = 0) -> i
     return 0
 
 
+_GEMINI_AKIS_TIPLERI = frozenset({"init", "message", "thought", "thinking", "reasoning", "tool_use", "tool_call", "tool_result", "error", "result"})
+
+
 def gemini_ciktisini_coz(cikti: str) -> CalistirmaSonucu:
-    """`gemini -p ... --output-format json`: {response, stats, error?}. BELGEYE GORE yazildi (gercek CLI ile denenmedi, kurulu degildi).
-    Token: stats.models.<ad>.tokens {prompt, candidates, cached}; bulunamazsa 0 (butce o rolde islemez)."""
+    """`gemini -p ... --output-format stream-json|json`: NDJSON akis olaylarini ya da tekli {response, stats, error?} nesnesini cozer."""
+    satir_olaylari: list[dict] = []
+    for satir in cikti.splitlines():
+        s = satir.strip()
+        if not s.startswith("{"):
+            continue
+        try:
+            olay = json.loads(s)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(olay, dict):
+            satir_olaylari.append(olay)
+
+    if any(o.get("type") in _GEMINI_AKIS_TIPLERI for o in satir_olaylari):
+        metin = ""
+        girdi = cikti_t = onbellek = 0
+        hata: str | None = None
+        for olay in satir_olaylari:
+            tip = olay.get("type")
+            if tip == "message" and olay.get("role") in ("assistant", "model", None):
+                icerik = olay.get("content") if isinstance(olay.get("content"), str) else (olay.get("text") if isinstance(olay.get("text"), str) else "")
+                if icerik:
+                    if olay.get("delta"):
+                        metin += icerik
+                    else:
+                        metin = f"{metin}\n{icerik}" if metin else icerik
+            elif tip == "error" and olay.get("severity") != "warning":
+                ham = olay.get("error") or olay.get("message")
+                mesaj = ham.get("message") if isinstance(ham, dict) else str(ham or "")
+                if hata is None and mesaj:
+                    hata = str(mesaj)[:300]
+            elif tip == "result":
+                if not metin and isinstance(olay.get("response"), str):
+                    metin = olay["response"]
+                stats = olay.get("stats") if isinstance(olay.get("stats"), dict) else {}
+                modeller = stats.get("models") if isinstance(stats.get("models"), dict) else {}
+                mg = mc = mo = 0
+                for m in modeller.values():
+                    if not isinstance(m, dict):
+                        continue
+                    t = m.get("tokens") if isinstance(m.get("tokens"), dict) else m
+                    onb = _sayi_bul(t, ("cached", "cached_tokens"))
+                    mg += max(0, _sayi_bul(t, ("prompt", "input", "input_tokens", "prompt_tokens")) - onb)
+                    mc += _sayi_bul(t, ("candidates", "output", "output_tokens", "candidates_tokens"))
+                    mo += onb
+                if mg or mc or mo:
+                    girdi += mg
+                    cikti_t += mc
+                    onbellek += mo
+                elif stats:
+                    onb = _sayi_bul(stats, ("cached", "cached_tokens"))
+                    girdi += max(0, _sayi_bul(stats, ("input_tokens", "prompt_tokens", "prompt", "input")) - onb)
+                    cikti_t += _sayi_bul(stats, ("output_tokens", "candidates_tokens", "candidates", "output"))
+                    onbellek += onb
+                r_hata = olay.get("error")
+                if hata is None and (olay.get("status") == "error" or r_hata):
+                    mesaj = r_hata.get("message") if isinstance(r_hata, dict) else (str(r_hata) if r_hata else str(olay.get("message") or "Gemini hatasi"))
+                    hata = str(mesaj or "Gemini hatasi")[:300]
+        if hata is not None:
+            return CalistirmaSonucu(False, metin=metin.strip(), hata=hata, token_girdi=girdi, token_cikti=cikti_t, token_onbellek=onbellek)
+        return CalistirmaSonucu(True, metin=metin.strip(), token_girdi=girdi, token_cikti=cikti_t, token_onbellek=onbellek)
+
     i, j = cikti.find("{"), cikti.rfind("}")
     try:
         d = json.loads(cikti[i:j + 1]) if i >= 0 and j > i else None
@@ -784,21 +1054,63 @@ def gemini_ciktisini_coz(cikti: str) -> CalistirmaSonucu:
 
 class GeminiCalistirici(Calistirici):
     """Google Gemini CLI (`gemini -p`). Istem STDIN'den verilir; -p yalniz kisa bir yonerge tasir (Gemini stdin'e ekler).
+    Cikti `--output-format stream-json`: dusunce, arac ve metin parcalari CANLI gelir (ilerleme geri cagrisi).
     Onayli calisma `--approval-mode yolo` (araclar sormadan calisir; Gemini'nin kendi sandbox'i kapali: KORUYUCUSUZ), salt okunur `--approval-mode plan`.
     Gercek CLI ile denendi (0.65.0, 2026-11-15)."""
 
     ad = "gemini"
     YONERGE = "Yukaridaki istegi (standart girdi) yerine getir."
+    ilerleme = None
 
     def __init__(self, komut_oneki: list[str] | None = None):
         self.komut_oneki = komut_oneki
+        self._islem = None
+        self._durduruldu = False
+
+    def durdur(self) -> bool:
+        islem = self._islem
+        if islem is None or islem.poll() is not None:
+            return False
+        self._durduruldu = True
+        ClaudeCodeCalistirici._surec_oldur(islem)
+        return True
+
+    def _olay_bildir(self, olay: dict) -> None:
+        bildir = self.ilerleme
+        if bildir is None:
+            return
+        try:
+            tip = olay.get("type")
+            if tip == "init":
+                bildir({"tur": "durum", "durum": "bekliyor"})
+            elif tip in ("thought", "thinking", "reasoning"):
+                d = olay.get("content") if olay.get("content") is not None else (olay.get("text") if olay.get("text") is not None else olay.get("thought"))
+                if d:
+                    parca = str(d) if olay.get("delta") else str(d) + "\n"
+                    bildir({"tur": "dusunce", "parca": parca})
+            elif tip == "message" and olay.get("role") in ("assistant", "model", None):
+                m = olay.get("content") if olay.get("content") is not None else olay.get("text")
+                if m:
+                    parca = str(m) if olay.get("delta") else str(m) + "\n"
+                    bildir({"tur": "metin", "parca": parca})
+            elif tip in ("tool_use", "tool_call"):
+                ad = str(olay.get("tool_name") or olay.get("name") or "")
+                param = olay.get("parameters") if "parameters" in olay else (olay.get("args") if "args" in olay else olay.get("input"))
+                girdi = ClaudeCodeCalistirici._girdi_ozeti(param)
+                bildir({"tur": "arac", "ad": ad or None, "girdi": girdi})
+                if girdi.get("command"):
+                    bildir({"tur": "kabuk", "satir": str(girdi["command"])[:200], "sure_sn": 0})
+            elif tip == "tool_result":
+                bildir({"tur": "arac-sonuc", "hata": bool(olay.get("status") == "error" or olay.get("is_error") or olay.get("error"))})
+        except Exception:
+            pass
 
     def komut(self, model: str | None, onayli: bool) -> list[str]:
         onek = self.komut_oneki or gemini_bul()
         if not onek:
             raise CalistiriciHatasi("Gemini CLI bulunamadi (npm install -g @google/gemini-cli) ya da AKTAPOKUS_GEMINI ile yol verin.")
         # --skip-trust: basliksiz kipte guvenilmeyen klasorde Gemini hic calismaz (cikis 55); klasoru kullanici Aktapokus'ta kendisi secti.
-        komut = [*onek, "-p", self.YONERGE, "--output-format", "json", "--approval-mode", "yolo" if onayli else "plan", "--skip-trust"]
+        komut = [*onek, "-p", self.YONERGE, "--output-format", "stream-json", "--approval-mode", "yolo" if onayli else "plan", "--skip-trust"]
         if model:
             if model.startswith("-"):
                 raise CalistiriciHatasi("Model adi '-' ile baslayamaz")
@@ -812,17 +1124,40 @@ class GeminiCalistirici(Calistirici):
             raise CalistiriciHatasi("Istem cok uzun (1 milyon karakter siniri)")
         komut = self.komut(model, onayli)
         baslangic = time.monotonic()
+        self._durduruldu = False
+
+        def satir_isle(satir: str) -> None:
+            s = satir.strip()
+            if not s.startswith("{"):
+                return
+            try:
+                olay = json.loads(s)
+            except ValueError:
+                return
+            if isinstance(olay, dict):
+                self._olay_bildir(olay)
+
         try:
-            islem = _stdinli_calistir(komut, istem, Path(klasor), zaman_asimi_sn)
-        except subprocess.TimeoutExpired:
-            return CalistirmaSonucu(False, hata=f"Zaman asimi ({zaman_asimi_sn} sn)", sure_sn=time.monotonic() - baslangic)
+            kod, stdout, stderr, asim = _canli_stdinli_akis(self, komut, istem, Path(klasor), zaman_asimi_sn, satir_isle=satir_isle)
         except OSError as hata:
             return CalistirmaSonucu(False, hata=f"Gemini baslatilamadi: {hata}", sure_sn=time.monotonic() - baslangic)
-        sonuc = gemini_ciktisini_coz(islem.stdout)
-        sonuc.sure_sn = time.monotonic() - baslangic
-        if islem.returncode != 0 and (sonuc.ok or not islem.stdout.strip()):  # cikti yoksa asil bilgi cikis kodu ve stderr'dir
+        sure = time.monotonic() - baslangic
+        sonuc = gemini_ciktisini_coz(stdout)
+        sonuc.sure_sn = sure
+        if asim:
+            neden = f"Zaman asimi ({zaman_asimi_sn} sn)" if asim == "hareketsiz" else f"Zaman asimi (toplam sure siniri {min(zaman_asimi_sn * 4, 14400)} sn)"
+            return CalistirmaSonucu(
+                False, metin=sonuc.metin, token_girdi=sonuc.token_girdi, token_cikti=sonuc.token_cikti,
+                token_onbellek=sonuc.token_onbellek, hata=neden, sure_sn=sure,
+            )
+        if self._durduruldu:
+            return CalistirmaSonucu(
+                False, metin=sonuc.metin, token_girdi=sonuc.token_girdi, token_cikti=sonuc.token_cikti,
+                token_onbellek=sonuc.token_onbellek, hata="Durduruldu", sure_sn=sure,
+            )
+        if kod != 0 and (sonuc.ok or not stdout.strip()):  # cikti yoksa asil bilgi cikis kodu ve stderr'dir
             sonuc.ok = False
-            sonuc.hata = f"Gemini cikis kodu {islem.returncode}: {(islem.stderr or islem.stdout).strip()[-300:]}"
+            sonuc.hata = f"Gemini cikis kodu {kod}: {(stderr or stdout).strip()[-300:]}"
         return sonuc
 
 
@@ -991,7 +1326,445 @@ class VibeCalistirici(Calistirici):
         return CalistirmaSonucu(True, metin=metin, token_girdi=girdi, token_cikti=cikti_t, sure_sn=sure)
 
 
-CALISTIRICILAR = {"opencode": OpenCodeCalistirici, "claude": ClaudeCodeCalistirici, "codex": CodexCalistirici, "gemini": GeminiCalistirici, "mistral": VibeCalistirici}
+def dsh_bul() -> list[str] | None:
+    """DeepSeek Harness (`dsh`) baslatma oneki: [node, lib/bin.js] ya da dogrudan dsh.exe. AKTAPOKUS_DSH ile degistirilebilir.
+    Windows'ta npm'in dsh.cmd/dsh.ps1 sarmalayicilari KULLANILMAZ (istem/arguman cmd.exe tarafindan yorumlanirdi)."""
+    ortam = os.environ.get("AKTAPOKUS_DSH")
+    if ortam and Path(ortam).is_file():
+        return [ortam] if Path(ortam).suffix.lower() == ".exe" else [shutil.which("node") or "node", ortam]
+    node = shutil.which("node")
+    kokler = []
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        kokler.append(Path(appdata) / "npm" / "node_modules" / "@deepseek-ai" / "dsh")
+    npm = shutil.which("npm")
+    if npm:
+        kokler.append(Path(npm).resolve().parent / "node_modules" / "@deepseek-ai" / "dsh")
+    if node:
+        for kok in kokler:
+            for goreli in ("lib/bin.js", "dist/bin.js", "bin/dsh.js"):
+                if (kok / goreli).is_file():
+                    return [node, str(kok / goreli)]
+    exe = shutil.which("dsh")
+    if exe and Path(exe).suffix.lower() == ".exe":
+        return [exe]
+    return None
+
+
+_DSH_ARAC_VE_DUSUNCE_TURLERI = frozenset({
+    "thinking", "reasoning", "thought",
+    "tool_call", "tool_use", "tool/call", "function_call",
+    "tool_result", "tool/result",
+})
+
+
+def dsh_ciktisini_coz(cikti: str) -> CalistirmaSonucu:
+    """DeepSeek Harness (`dsh --profile headless`) ciktisini cozer: varsayilan duz metin stdout ya da JSON/JSONL olay ciktisi."""
+    nesneler: list[dict] = []
+    anahtarlar = ("event", "type", "response", "text", "result", "error", "usage")
+    for satir in cikti.splitlines():
+        satir = satir.strip()
+        if not satir.startswith("{"):
+            continue
+        try:
+            olay = json.loads(satir)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(olay, dict) and any(k in olay for k in anahtarlar):
+            nesneler.append(olay)
+    if not nesneler:
+        return CalistirmaSonucu(ok=True, metin=cikti.strip())
+
+    metinler: list[str] = []
+    girdi = cikti_t = onbellek = 0
+    hata: str | None = None
+    for olay in nesneler:
+        tur = str(olay.get("event") or olay.get("type") or "")
+        veri = olay.get("data") if isinstance(olay.get("data"), dict) else {}
+        if tur not in _DSH_ARAC_VE_DUSUNCE_TURLERI:
+            metin = veri.get("text") if isinstance(veri.get("text"), str) else None
+            if metin is None:
+                for k in ("text", "response", "result"):
+                    if isinstance(olay.get(k), str):
+                        metin = olay[k]
+                        break
+            if metin and metin.strip():
+                metinler.append(metin.strip())
+        u = olay.get("usage") if isinstance(olay.get("usage"), dict) else (veri.get("usage") if isinstance(veri.get("usage"), dict) else None)
+        if u:
+            onb = _sayi_bul(u, ("cache_read_tokens", "cached_input_tokens", "cached_tokens", "cached"))
+            if "uncached_input_tokens" in u:
+                girdi += _sayi_bul(u, ("uncached_input_tokens",)) + _sayi_bul(u, ("cache_write_tokens",))
+            else:
+                girdi += max(0, _sayi_bul(u, ("prompt_tokens", "input_tokens", "input")) - onb)
+            cikti_t += _sayi_bul(u, ("completion_tokens", "output_tokens", "output"))
+            onbellek += onb
+        if hata is None and (olay.get("event") == "error" or olay.get("type") == "error" or (tur not in ("tool_result", "tool/result") and olay.get("error"))):
+            ham = olay.get("error") or veri.get("message") or olay.get("message") or veri
+            mesaj = ham.get("message") if isinstance(ham, dict) else str(ham)
+            if mesaj:
+                hata = str(mesaj)[:300]
+    return CalistirmaSonucu(
+        ok=hata is None,
+        metin="\n".join(metinler).strip(),
+        token_girdi=girdi,
+        token_cikti=cikti_t,
+        token_onbellek=onbellek,
+        hata=hata,
+    )
+
+
+class DshCalistirici(Calistirici):
+    """DeepSeek Harness (`dsh --profile headless`). Istem STDIN'den gider; KORUYUCUSUZ."""
+
+    ad = "deepseek"
+    ilerleme = None
+
+    def __init__(self, komut_oneki: list[str] | None = None):
+        self.komut_oneki = komut_oneki
+        self._islem = None
+        self._durduruldu = False
+
+    def durdur(self) -> bool:
+        islem = self._islem
+        if islem is None or islem.poll() is not None:
+            return False
+        self._durduruldu = True
+        ClaudeCodeCalistirici._surec_oldur(islem)
+        return True
+
+    def _stderr_bildir(self, satir: str) -> None:
+        bildir = self.ilerleme
+        if bildir is None or not satir:
+            return
+        try:
+            idx = satir.lower().find("reasoning:")
+            if idx >= 0:
+                parca = satir[idx + len("reasoning:"):].strip()
+                if parca:
+                    bildir({"tur": "dusunce", "parca": parca + "\n"})
+        except Exception:
+            pass
+
+    def _satir_bildir(self, satir: str) -> None:
+        bildir = self.ilerleme
+        if bildir is None:
+            return
+        s = satir.strip()
+        if not s:
+            return
+        try:
+            if s.startswith("{"):
+                try:
+                    olay = json.loads(s)
+                except ValueError:
+                    olay = None
+                if isinstance(olay, dict):
+                    tur = str(olay.get("event") or olay.get("type") or "")
+                    veri = olay.get("data") if isinstance(olay.get("data"), dict) else olay
+                    if tur in ("thinking", "reasoning", "thought"):
+                        parca = veri.get("text") or veri.get("thinking") or veri.get("thought") or olay.get("text") or olay.get("thinking")
+                        if parca:
+                            bildir({"tur": "dusunce", "parca": str(parca) + "\n"})
+                        return
+                    if tur in ("tool_call", "tool_use", "tool/call", "function_call"):
+                        ad = veri.get("tool") or veri.get("tool_name") or veri.get("name") or olay.get("tool") or olay.get("name") or "tool"
+                        ham = None
+                        for alan in ("input", "arguments", "parameters", "args"):
+                            if alan in veri:
+                                ham = veri.get(alan)
+                                break
+                            if alan in olay:
+                                ham = olay.get(alan)
+                                break
+                        girdi = ClaudeCodeCalistirici._girdi_ozeti(ham)
+                        bildir({"tur": "arac", "ad": str(ad), "girdi": girdi})
+                        if girdi.get("command"):
+                            bildir({"tur": "kabuk", "satir": str(girdi["command"])[:200], "sure_sn": 0})
+                        return
+                    if tur in ("tool_result", "tool/result"):
+                        hata = bool(veri.get("is_error") or veri.get("error") or veri.get("status") == "error" or olay.get("is_error") or olay.get("error"))
+                        bildir({"tur": "arac-sonuc", "hata": hata})
+                        return
+                    if tur == "error":
+                        return
+                    metin = veri.get("text") if isinstance(veri.get("text"), str) else None
+                    if metin is None:
+                        for k in ("text", "response", "result"):
+                            if isinstance(olay.get(k), str):
+                                metin = olay[k]
+                                break
+                    if metin and metin.strip():
+                        bildir({"tur": "metin", "parca": metin + "\n"})
+                    return
+            if not s.startswith("dsh:"):
+                bildir({"tur": "metin", "parca": s + "\n"})
+        except Exception:
+            pass
+
+    def komut(self, model: str | None = None, onayli: bool = True) -> list[str]:
+        onek = self.komut_oneki or dsh_bul()
+        if not onek:
+            raise CalistiriciHatasi("DeepSeek Harness bulunamadi (npm install -g @deepseek-ai/dsh) ya da AKTAPOKUS_DSH ile yol verin.")
+        komut = [*onek, "--profile", "headless"]
+        if model:
+            if model.startswith("-"):
+                raise CalistiriciHatasi("Model adi '-' ile baslayamaz")
+            komut += ["--model", model]
+        return komut
+
+    def calistir(self, istem, klasor, model=None, agent=None, zaman_asimi_sn=900, onayli=True):
+        if not istem.strip():
+            raise CalistiriciHatasi("Bos istem gonderilemez")
+        if len(istem) > 1_000_000:
+            raise CalistiriciHatasi("Istem cok uzun (1 milyon karakter siniri)")
+        komut = self.komut(model, onayli)
+        baslangic = time.monotonic()
+        self._durduruldu = False
+        try:
+            kod, stdout, stderr, asim = _canli_stdinli_akis(
+                self, komut, istem, Path(klasor), zaman_asimi_sn,
+                satir_isle=self._satir_bildir, stderr_isle=self._stderr_bildir,
+            )
+        except OSError as hata:
+            return CalistirmaSonucu(False, hata=f"DeepSeek Harness baslatilamadi: {hata}", sure_sn=time.monotonic() - baslangic)
+        sure = time.monotonic() - baslangic
+        sonuc = dsh_ciktisini_coz(stdout)
+        sonuc.sure_sn = sure
+        if asim:
+            neden = f"Zaman asimi ({zaman_asimi_sn} sn)" if asim == "hareketsiz" else f"Zaman asimi (toplam sure siniri {min(zaman_asimi_sn * 4, 14400)} sn)"
+            return CalistirmaSonucu(
+                False, metin=sonuc.metin, token_girdi=sonuc.token_girdi, token_cikti=sonuc.token_cikti,
+                token_onbellek=sonuc.token_onbellek, hata=neden, sure_sn=sure,
+            )
+        if self._durduruldu:
+            return CalistirmaSonucu(
+                False, metin=sonuc.metin, token_girdi=sonuc.token_girdi, token_cikti=sonuc.token_cikti,
+                token_onbellek=sonuc.token_onbellek, hata="Durduruldu", sure_sn=sure,
+            )
+        if kod != 0 and (sonuc.ok or not stdout.strip()):
+            sonuc.ok = False
+            sonuc.hata = f"DeepSeek Harness cikis kodu {kod}: {(stderr or stdout).strip()[-300:]}"
+        return sonuc
+
+
+_YASAK_UZANTILAR = {".cmd", ".bat", ".ps1", ".vbs"}
+_AGY_AKIS_TIPLERI = frozenset({
+    "init", "step_update", "result", "error", "message",
+    "thought", "thinking", "reasoning", "tool_use", "tool_call", "tool_result",
+})
+
+
+def agy_bul() -> str | None:
+    """Google Antigravity CLI (`agy`): AKTAPOKUS_AGY, PATH, sonra %LOCALAPPDATA%\\agy\\bin\\agy.exe ve ~/.local/bin.
+    Windows sarmalayicilari (.cmd/.bat/.ps1/.vbs) kabul edilmez (istem/arguman cmd.exe tarafindan yorumlanirdi)."""
+    ortam = os.environ.get("AKTAPOKUS_AGY")
+    if ortam and Path(ortam).suffix.lower() not in _YASAK_UZANTILAR and Path(ortam).is_file():
+        return ortam
+    yol = shutil.which("agy")
+    if yol and Path(yol).suffix.lower() not in _YASAK_UZANTILAR:
+        return yol
+    adaylar: list[Path] = []
+    localappdata = os.environ.get("LOCALAPPDATA")
+    if localappdata:
+        adaylar.append(Path(localappdata) / "agy" / "bin" / "agy.exe")
+    adaylar.extend([Path.home() / ".local" / "bin" / "agy.exe", Path.home() / ".local" / "bin" / "agy"])
+    for aday in adaylar:
+        if aday.is_file():
+            return str(aday)
+    return None
+
+
+def _agy_hata_mesaji(olay: dict, varsayilan: str = "Antigravity hatasi") -> str:
+    ham = olay.get("error") or olay.get("message") or olay.get("content")
+    if isinstance(ham, dict):
+        mesaj = ham.get("message") or ham.get("error") or str(ham)
+    else:
+        mesaj = str(ham or varsayilan)
+    return str(mesaj or varsayilan)[:300]
+
+
+def _agy_kullanim(u: object) -> tuple[int, int, int]:
+    if not isinstance(u, dict):
+        return 0, 0, 0
+    onb = _sayi_bul(u, ("cache_read_tokens", "cached_input_tokens", "cached_tokens", "cached"))
+    girdi = max(0, _sayi_bul(u, ("input_tokens", "prompt_tokens", "prompt", "input")) - onb)
+    cikti_t = _sayi_bul(u, ("output_tokens", "candidates_tokens", "candidates", "output"))
+    return girdi, cikti_t, onb
+
+
+def agy_ciktisini_coz(cikti: str) -> CalistirmaSonucu:
+    """`agy -p ... --output-format stream-json|json|text`: NDJSON akis olaylarini, tekli JSON sonuc nesnesini ya da duz metni cozer."""
+    satir_olaylari: list[dict] = []
+    anahtarlar = ("event", "type", "response", "status", "usage", "error")
+    for satir in cikti.splitlines():
+        s = satir.strip()
+        if not s.startswith("{"):
+            continue
+        try:
+            olay = json.loads(s)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(olay, dict) and any(k in olay for k in anahtarlar):
+            satir_olaylari.append(olay)
+
+    if any((o.get("event") in _AGY_AKIS_TIPLERI or o.get("type") in _AGY_AKIS_TIPLERI) for o in satir_olaylari):
+        metin = ""
+        girdi = cikti_t = onbellek = 0
+        hata: str | None = None
+        for olay in satir_olaylari:
+            ev, tip, st = olay.get("event"), olay.get("type"), str(olay.get("step_type") or "")
+            if ev == "step_update":
+                if st in ("text", "message", "response", "assistant"):
+                    parca = olay.get("content") if isinstance(olay.get("content"), str) else (olay.get("text") if isinstance(olay.get("text"), str) else "")
+                    if parca:
+                        metin = (metin + parca) if olay.get("delta") else (f"{metin}\n{parca}" if metin else parca)
+                elif st == "error" and hata is None:
+                    hata = _agy_hata_mesaji(olay)
+            elif tip == "message" and olay.get("role") in ("assistant", "model", None):
+                parca = olay.get("content") if isinstance(olay.get("content"), str) else (olay.get("text") if isinstance(olay.get("text"), str) else "")
+                if parca:
+                    metin = (metin + parca) if olay.get("delta") else (f"{metin}\n{parca}" if metin else parca)
+            elif ev == "error" or (tip == "error" and olay.get("severity") != "warning"):
+                if hata is None and (olay.get("error") or olay.get("message")):
+                    hata = _agy_hata_mesaji(olay)
+            elif ev == "result" or tip == "result":
+                if not metin and isinstance(olay.get("response"), str) and olay["response"].strip():
+                    metin = olay["response"]
+                u = olay.get("usage") if isinstance(olay.get("usage"), dict) else olay.get("stats")
+                ug, uc, uo = _agy_kullanim(u)
+                girdi += ug
+                cikti_t += uc
+                onbellek += uo
+                durum = str(olay.get("status") or "").lower()
+                if hata is None and (durum in ("error", "failed") or olay.get("error")):
+                    hata = _agy_hata_mesaji(olay)
+        return CalistirmaSonucu(ok=hata is None, metin=metin.strip(), hata=hata, token_girdi=girdi, token_cikti=cikti_t, token_onbellek=onbellek)
+
+    i, j = cikti.find("{"), cikti.rfind("}")
+    try:
+        d = json.loads(cikti[i:j + 1]) if i >= 0 and j > i else None
+    except json.JSONDecodeError:
+        d = None
+    if isinstance(d, dict) and any(k in d for k in ("response", "error", "status")):
+        ug, uc, uo = _agy_kullanim(d.get("usage") if isinstance(d.get("usage"), dict) else d.get("stats"))
+        metin = d.get("response") if isinstance(d.get("response"), str) else ""
+        durum = str(d.get("status") or "").lower()
+        hata = _agy_hata_mesaji(d) if (durum in ("error", "failed") or d.get("error")) else None
+        return CalistirmaSonucu(ok=hata is None, metin=metin.strip(), hata=hata, token_girdi=ug, token_cikti=uc, token_onbellek=uo)
+
+    return CalistirmaSonucu(ok=True, metin=cikti.strip())
+
+
+class AntigravityCalistirici(Calistirici):
+    """Google Antigravity CLI (`agy -p`). Istem STDIN'den gider; cikti `--output-format stream-json` ile canli akar.
+    Onayli calisma `--dangerously-skip-permissions`, salt okunur `--mode=plan`; KORUYUCUSUZ."""
+
+    ad = "antigravity"
+    YONERGE = "Yukaridaki istegi (standart girdi) yerine getir."
+    DUSUNME = ("low", "medium", "high")
+    ilerleme = None
+    dusunme: str | None = None
+
+    def __init__(self, komut_oneki: list[str] | None = None):
+        self.komut_oneki = komut_oneki
+        self._islem = None
+        self._durduruldu = False
+
+    def durdur(self) -> bool:
+        islem = self._islem
+        if islem is None or islem.poll() is not None:
+            return False
+        self._durduruldu = True
+        ClaudeCodeCalistirici._surec_oldur(islem)
+        return True
+
+    def _olay_bildir(self, olay: dict) -> None:
+        bildir = self.ilerleme
+        if bildir is None:
+            return
+        try:
+            ev, tip, st = olay.get("event"), olay.get("type"), str(olay.get("step_type") or "")
+            if ev == "init" or tip == "init":
+                bildir({"tur": "durum", "durum": "bekliyor"})
+            elif st in ("thought", "thinking", "reasoning") or tip in ("thought", "thinking", "reasoning"):
+                d = olay.get("content") if olay.get("content") is not None else (olay.get("text") if olay.get("text") is not None else olay.get("thought"))
+                if d:
+                    bildir({"tur": "dusunce", "parca": str(d) if olay.get("delta") else str(d) + "\n"})
+            elif st in ("tool_call", "tool_use") or tip in ("tool_call", "tool_use"):
+                ad = str(olay.get("tool") or olay.get("tool_name") or olay.get("name") or "")
+                param = olay.get("arguments") if "arguments" in olay else (olay.get("parameters") if "parameters" in olay else (olay.get("args") if "args" in olay else olay.get("input")))
+                girdi = ClaudeCodeCalistirici._girdi_ozeti(param)
+                bildir({"tur": "arac", "ad": ad or None, "girdi": girdi})
+                if girdi.get("command"):
+                    bildir({"tur": "kabuk", "satir": str(girdi["command"])[:200], "sure_sn": 0})
+            elif st == "tool_result" or tip == "tool_result":
+                bildir({"tur": "arac-sonuc", "hata": bool(str(olay.get("status") or "").lower() in ("error", "failed") or olay.get("is_error") or olay.get("error"))})
+            elif st in ("text", "message", "response", "assistant") or (tip == "message" and olay.get("role") in ("assistant", "model", None)):
+                m = olay.get("content") if olay.get("content") is not None else olay.get("text")
+                if m:
+                    bildir({"tur": "metin", "parca": str(m) if olay.get("delta") else str(m) + "\n"})
+        except Exception:
+            pass
+
+    def komut(self, model: str | None = None, onayli: bool = True) -> list[str]:
+        onek = self.komut_oneki or ([agy_bul()] if agy_bul() else None)
+        if not onek:
+            raise CalistiriciHatasi("Antigravity CLI (agy) bulunamadi (PowerShell: irm https://antigravity.google/cli/install.ps1 | iex) ya da AKTAPOKUS_AGY ile yol verin.")
+        komut = [*onek, "-p", self.YONERGE, "--output-format", "stream-json", "--dangerously-skip-permissions" if onayli else "--mode=plan"]
+        if self.dusunme in self.DUSUNME:
+            komut += ["--effort", self.dusunme]
+        if model:
+            if model.startswith("-"):
+                raise CalistiriciHatasi("Model adi '-' ile baslayamaz")
+            komut += ["--model", model]
+        return komut
+
+    def calistir(self, istem, klasor, model=None, agent=None, zaman_asimi_sn=900, onayli=True):
+        if not istem.strip():
+            raise CalistiriciHatasi("Bos istem gonderilemez")
+        if len(istem) > 1_000_000:
+            raise CalistiriciHatasi("Istem cok uzun (1 milyon karakter siniri)")
+        komut = self.komut(model, onayli)
+        baslangic = time.monotonic()
+        self._durduruldu = False
+
+        def satir_isle(satir: str) -> None:
+            s = satir.strip()
+            if not s.startswith("{"):
+                return
+            try:
+                olay = json.loads(s)
+            except ValueError:
+                return
+            if isinstance(olay, dict):
+                self._olay_bildir(olay)
+
+        try:
+            kod, stdout, stderr, asim = _canli_stdinli_akis(self, komut, istem, Path(klasor), zaman_asimi_sn, satir_isle=satir_isle)
+        except OSError as hata:
+            return CalistirmaSonucu(False, hata=f"Antigravity CLI baslatilamadi: {hata}", sure_sn=time.monotonic() - baslangic)
+        sure = time.monotonic() - baslangic
+        sonuc = agy_ciktisini_coz(stdout)
+        sonuc.sure_sn = sure
+        if asim:
+            neden = f"Zaman asimi ({zaman_asimi_sn} sn)" if asim == "hareketsiz" else f"Zaman asimi (toplam sure siniri {min(zaman_asimi_sn * 4, 14400)} sn)"
+            return CalistirmaSonucu(
+                False, metin=sonuc.metin, token_girdi=sonuc.token_girdi, token_cikti=sonuc.token_cikti,
+                token_onbellek=sonuc.token_onbellek, hata=neden, sure_sn=sure,
+            )
+        if self._durduruldu:
+            return CalistirmaSonucu(
+                False, metin=sonuc.metin, token_girdi=sonuc.token_girdi, token_cikti=sonuc.token_cikti,
+                token_onbellek=sonuc.token_onbellek, hata="Durduruldu", sure_sn=sure,
+            )
+        if kod != 0 and (sonuc.ok or not stdout.strip()):
+            sonuc.ok = False
+            sonuc.hata = f"Antigravity CLI cikis kodu {kod}: {(stderr or stdout).strip()[-300:]}"
+        return sonuc
+
+
+CALISTIRICILAR = {"opencode": OpenCodeCalistirici, "claude": ClaudeCodeCalistirici, "codex": CodexCalistirici, "gemini": GeminiCalistirici, "mistral": VibeCalistirici, "deepseek": DshCalistirici, "antigravity": AntigravityCalistirici}
 _KALICI: dict[str, object] = {}  # kalici kaynak (tek OpenCode sunucusu, cagrilar arasi acik); calistiriciler ise cagri basina AYRI ornektir
 _KALICI_KILIT = threading.Lock()
 

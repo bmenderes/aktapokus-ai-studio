@@ -107,11 +107,36 @@ def mistral() -> dict:
     return {"kurulu": True, "giris": False, "hata": "Giriş için terminalde `vibe --setup` çalıştırıp Mistral API anahtarı girin (console.mistral.ai; Experiment planı ücretsiz ama sınırlı, ötesi ücretlidir). Anahtar işletim sistemi anahtar deposundaysa bu durum yanlış görünebilir."}
 
 
+def deepseek() -> dict:
+    """DeepSeek Harness (`dsh`): ortam anahtari ya da ~/.dsh/.env / ~/.dsh/settings.yaml varligi (icerik OKUNMAZ)."""
+    if not runners.dsh_bul():
+        return {"kurulu": False, "giris": False}
+    if os.environ.get("DEEPSEEK_API_KEY"):
+        return {"kurulu": True, "giris": True, "yontem": "API anahtarı (ortam değişkeni)"}
+    kok = Path(os.environ.get("DSH_HOME") or Path.home() / ".dsh")
+    if _dolu_dosya(kok / ".env"):
+        return {"kurulu": True, "giris": True, "yontem": "DeepSeek Harness (~/.dsh/.env)"}
+    if _dolu_dosya(kok / "settings.yaml") or _dolu_dosya(kok / "settings.yml"):
+        return {"kurulu": True, "giris": True, "yontem": "DeepSeek Harness (~/.dsh/settings.yaml)"}
+    return {"kurulu": True, "giris": False, "hata": "Giriş için DEEPSEEK_API_KEY ortam değişkenini tanımlayın ya da ~/.dsh/.env dosyasına ekleyin (platform.deepseek.com)."}
+
+
+def antigravity() -> dict:
+    """Antigravity CLI (`agy`): yalniz kurulum/ayar dosyasi ve ADC ortam bayragi varligina bakar (icerik OKUNMAZ)."""
+    if not runners.agy_bul():
+        return {"kurulu": False, "giris": False}
+    if str(os.environ.get("AGY_ADC_AUTH", "")).strip().lower() in ("1", "true", "yes"):
+        return {"kurulu": True, "giris": True, "yontem": "Google Cloud ADC"}
+    if _dolu_dosya(Path.home() / ".gemini" / "antigravity-cli" / "settings.json") or (Path.home() / ".gemini" / "antigravity").is_dir():
+        return {"kurulu": True, "giris": True, "yontem": "Antigravity (Google hesabı)"}
+    return {"kurulu": True, "giris": False, "hata": "Giriş için terminalde `agy` çalıştırıp Google/Antigravity hesabınızla oturum açın."}
+
+
 def hepsi(github_durum, telegram_durum, uzak_acik: bool) -> dict:
     """Yavas olan (alt surec calistiran) sorgular paralel yurur."""
     with ThreadPoolExecutor(max_workers=3) as havuz:
         c, x, g = havuz.submit(claude), havuz.submit(codex), havuz.submit(github_durum)
-        sonuc = {"yerel": yerel(), "claude": c.result(), "codex": x.result(), "github": g.result(), "gemini": gemini(), "mistral": mistral()}
+        sonuc = {"yerel": yerel(), "claude": c.result(), "codex": x.result(), "github": g.result(), "gemini": gemini(), "mistral": mistral(), "deepseek": deepseek(), "antigravity": antigravity()}
     try:
         t = telegram_durum() or {}
         sonuc["telegram"] = {"calisiyor": bool(t.get("calisiyor")), "bot": t.get("bot"), "eslesmis": int(t.get("eslesmis") or 0)}

@@ -19,6 +19,8 @@ def kurulu(monkeypatch, opencode=False, claude=False, codex=False, tercih_zorla=
     monkeypatch.setattr(motorlar, "codex_bul", lambda: "C:/x/codex.exe" if codex else None)
     monkeypatch.setattr(motorlar, "gemini_bul", lambda: None)  # bu bilgisayarda kurulu olsalar da testler yalniz istenen motorlari gorur
     monkeypatch.setattr(motorlar, "vibe_bul", lambda: None)
+    monkeypatch.setattr(motorlar, "dsh_bul", lambda: None)
+    monkeypatch.setattr(motorlar, "agy_bul", lambda: None)
     if not tercih_zorla:
         monkeypatch.delenv(motorlar.TERCIH_ORTAMI, raising=False)  # conftest testleri sabitlemek icin koyar; burada gercek mantik sinanir
 
@@ -27,7 +29,7 @@ def kurulu(monkeypatch, opencode=False, claude=False, codex=False, tercih_zorla=
 def test_durum_uc_motoru_ve_kurulum_komutunu_listeler(monkeypatch):
     kurulu(monkeypatch, claude=True)
     d = {m["ad"]: m for m in motorlar.durum()}
-    assert list(d) == ["opencode-sunucu", "claude", "codex", "gemini", "mistral"]
+    assert list(d) == ["opencode-sunucu", "claude", "codex", "gemini", "mistral", "deepseek", "antigravity"]
     assert (d["opencode-sunucu"]["kurulu"], d["claude"]["kurulu"], d["codex"]["kurulu"]) == (False, True, False)
     assert "npm install -g @anthropic-ai/claude-code" in d["claude"]["kurulum"] and "opencode.ai" in d["opencode-sunucu"]["kurulum"]
 
@@ -166,6 +168,7 @@ def test_bulunamayan_cli_mesajlari_ne_yapilacagini_soyler(monkeypatch):
     monkeypatch.setattr(runners, "opencode_bul", lambda: None)
     monkeypatch.setattr(runners, "gemini_bul", lambda: None)
     monkeypatch.setattr(runners, "vibe_bul", lambda: None)
+    monkeypatch.setattr(runners, "dsh_bul", lambda: None)
     monkeypatch.setattr(sunucu, "opencode_bul", lambda: None)
     for cagri, ipucu in ((lambda: runners.ClaudeCodeCalistirici().komut("a.json", None, True), "Ayarlar > Roller"),
                          (lambda: runners.CodexCalistirici().komut(Path("."), None, True, "s.txt"), "Ayarlar > Roller"),

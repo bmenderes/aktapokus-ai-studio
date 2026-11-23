@@ -201,7 +201,7 @@ def calistir_hat(
             yedek = ""
         istem = istem_olustur(rol, gorev, onceki, duzeltme_notu if idx == 0 else None, hafiza)
         bildir(f"-> {rol.ad} ({rol.calistirici}/{rol.model or 'varsayilan model'}) calisiyor...")
-        olay({"tur": "adim-basladi", "sira": len(sonuc.adimlar) + 1, "rol": rol.ad, "calistirici": rol.calistirici, "model": rol.model, "dusunme": rol.dusunme if rol.calistirici == "claude" or (rol.calistirici == "codex" and rol.dusunme in ("low", "medium", "high")) else ""})  # yalniz CLI'ya gercekten gonderilen seviye
+        olay({"tur": "adim-basladi", "sira": len(sonuc.adimlar) + 1, "rol": rol.ad, "calistirici": rol.calistirici, "model": rol.model, "dusunme": rol.dusunme if rol.calistirici == "claude" or (rol.calistirici in ("codex", "antigravity") and rol.dusunme in ("low", "medium", "high")) else ""})  # yalniz CLI'ya gercekten gonderilen seviye
         try:
             ru = calistirici_uret(rol.calistirici)
             ru.dusunme = rol.dusunme or None  # rol basina dusunme seviyesi (Claude Code / Codex)
