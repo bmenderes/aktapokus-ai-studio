@@ -256,6 +256,8 @@ def test_sunucu_cli_yoksa_anlamli_hata(monkeypatch):
 
 
 def test_fabrika_kalici_ornek_ve_hepsini_kapat(monkeypatch):
+    from aktapokus_ai_studio import sunucu as sunucu_mod
+    monkeypatch.setattr(sunucu_mod, "opencode_bul", lambda: "opencode.exe")  # temiz makinede (CI) OpenCode yok; surec bu testte baslatilmaz
     assert "opencode-sunucu" in BILINEN_CALISTIRICILAR
     a = calistirici_olustur("opencode-sunucu")
     b = calistirici_olustur("opencode-sunucu")

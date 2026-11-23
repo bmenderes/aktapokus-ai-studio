@@ -68,6 +68,17 @@ def tarayici_acilmaz(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def kurulum_denetimi_yalitimi(request, monkeypatch):
+    """Gorevden once 'CLI kurulu mu' denetimi makinedeki kurulumlara baglidir (CI'da OpenCode yok -> 409). Testler sahte calistirici
+    kullandigi icin denetim varsayilan olarak atlanir; denetimin kendisini sinayan testler `@pytest.mark.kurulum_denetimi` ile isaretlenir."""
+    if request.node.get_closest_marker("kurulum_denetimi"):
+        return
+    from aktapokus_ai_studio import arayuz
+
+    monkeypatch.setattr(arayuz.Uygulama, "_kurulu_degilse_durdur", staticmethod(lambda ayar, testsiz: None))
+
+
+@pytest.fixture(autouse=True)
 def cli_kayit_yalitimi(tmp_path_factory, monkeypatch):
     """Hicbir test kullanicinin gercek ~/.aktapokus/clilar.json dosyasini okumasin ya da yazmasin."""
     monkeypatch.setenv("AKTAPOKUS_CLILAR", str(tmp_path_factory.mktemp("clilar") / "clilar.json"))

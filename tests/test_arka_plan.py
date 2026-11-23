@@ -63,7 +63,7 @@ def test_masaustu_kisayolu_arka_plandan_pencere_ister_ikinci_sunucu_baslatmaz(ar
 def test_pencere_kapaninca_sunucu_kapanmaz_pencere_acikken_yeni_pencere_acilmaz(arka_plan, monkeypatch):
     acilan, sonuc, ip = arka_plan
     uygulama.uygulama_calistir()
-    assert len(acilan) == 1
+    assert bekle(lambda: len(acilan) == 1)  # CI: pencere istegi bir an gec islenebilir
     monkeypatch.setattr(uygulama, "mevcut_pencereyi_one_getir", lambda: True)  # pencere zaten acik: one getirilir, ikincisi acilmaz
     assert uygulama.uygulama_calistir() == 0 and len(acilan) == 1
     time.sleep(0.5)

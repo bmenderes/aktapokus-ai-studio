@@ -32,3 +32,4 @@ aktapokus_ai_studio = ["web/*.html", "web/*.ico", "web/*.png", "web/*.js", "web/
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = ["kurulum_denetimi: gorevden once CLI kurulum denetimini atlamadan calisir (conftest varsayilan atlar)"]

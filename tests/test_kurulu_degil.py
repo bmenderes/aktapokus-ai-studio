@@ -6,6 +6,8 @@ import pytest
 
 from aktapokus_ai_studio import arayuz, clitanim
 
+pytestmark = pytest.mark.kurulum_denetimi  # conftest denetimi varsayilan olarak atlar; burada denetimin kendisi sinanir
+
 
 def _ayar(*roller):
     return SimpleNamespace(rol_sirasi=lambda: [SimpleNamespace(ad=a, calistirici=c, dogrulama=d) for a, c, d in roller])
