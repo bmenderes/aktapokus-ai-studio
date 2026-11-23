@@ -62,6 +62,23 @@ YARDIM = (
 )
 
 
+# Telegram'daki "/" menusu (setMyCommands). Herkese yalniz /eslestir; eslesmis sohbete (kapsam: chat) tum komutlar.
+ESLESTIR_KOMUTU = [{"command": "eslestir", "description": "Bilgisayardaki kodla eşleştir: /eslestir KOD"}]
+TAM_KOMUTLAR = [
+    {"command": "durum", "description": "Aktif proje, roller, çalışan görev"},
+    {"command": "projeler", "description": "Proje seç"},
+    {"command": "gorev", "description": "Yeni görev (düz metin de olur)"},
+    {"command": "durdur", "description": "Çalışan görevi durdur"},
+    {"command": "yeni", "description": "Yeni proje klasörü: /yeni ad"},
+    {"command": "klasor", "description": "Klasörü elle seç"},
+    {"command": "kokler", "description": "İzinli proje klasörleri"},
+    {"command": "sablon", "description": "Görev şablonları"},
+    {"command": "fark", "description": "Değişikliği göster"},
+    {"command": "gizlilik", "description": "Dosya içeriği gönderimi: acik / kapali"},
+    {"command": "yardim", "description": "Tüm komutlar"},
+]
+
+
 class TelegramHatasi(Exception):
     pass
 
@@ -248,6 +265,7 @@ class Bot:
             self._kaydet()
             self.eslestirme = None
             self._gonder(uid, "Eslesti. Bu sohbet artik botu yonetebilir.\n\n" + YARDIM)
+            self.komut_menusu_kur(yalniz=uid)
             self.log("telegram: kullanici eslesti")
             if self.eslesince:
                 self.eslesince()
@@ -624,8 +642,20 @@ class Bot:
         if son:
             self.offset = son[-1]["update_id"] + 1
 
+    def komut_menusu_kur(self, yalniz: int | None = None) -> None:
+        """Telegram'da "/" yazinca cikan menu. Basarisiz olursa bot yine calisir (yalniz gunluge yazilir)."""
+        istekler = [] if yalniz is not None else [{"commands": ESLESTIR_KOMUTU}]
+        istekler += [{"commands": TAM_KOMUTLAR, "scope": {"type": "chat", "chat_id": c}} for c in ([yalniz] if yalniz is not None else self.izinli)]
+        for veri in istekler:
+            try:
+                self.api.cagir("setMyCommands", veri, zaman_asimi=10)
+            except TelegramHatasi as hata:
+                self.log(f"komut menusu kurulamadi: {hata}")
+                return
+
     def calistir(self) -> None:
         self.birikimi_atla()
+        self.komut_menusu_kur()
         self._olay_kuyrugu, _ = self.app.bus.abone_ol(self.app.bus.sayac, dahili=True)  # gecmisi yeniden oynatma; dahili: pencere sayacini kirletmez
         threading.Thread(target=self._olay_dongusu, daemon=True).start()
         while not self.dur.is_set():

@@ -135,6 +135,18 @@ def test_eslesmis_kullanici_varken_yeni_kodla_ikinci_cihaz_eklenir(kur, tmp_path
     assert bot.izinli == [7, 8]
 
 
+def test_komut_menusu_herkese_yalniz_eslestir_eslesmise_tam(kur):
+    bot, fake, app, _ = kur(izinli=(7,))
+    menu = lambda: [v for m, v in fake.cagrilar if m == "setMyCommands"]
+    assert bekle(lambda: len(menu()) == 2)
+    genel, sohbet = menu()
+    assert [k["command"] for k in genel["commands"]] == ["eslestir"] and "scope" not in genel
+    assert sohbet["scope"] == {"type": "chat", "chat_id": 7} and {"durum", "gorev", "durdur"} <= {k["command"] for k in sohbet["commands"]}
+    kod = bot.eslestirme_kodu_uret(zorla=True)
+    fake.mesaj(8, f"/eslestir {kod}")
+    assert bekle(lambda: any(v.get("scope", {}).get("chat_id") == 8 for v in menu()))  # yeni eslesen sohbete de tam menu
+
+
 def test_eslestirme_5_yanlis_denemede_kilitlenir_ve_sure_dolar(kur):
     bot, fake, app, _ = kur(izinli=())
     kod = bot.eslestirme_kodu_uret()
