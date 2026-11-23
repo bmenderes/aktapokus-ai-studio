@@ -15,13 +15,15 @@ def _olay_isle(html: str) -> str:
     return html.split("function olayIsle(o){")[1].split("async function karar(")[0]
 
 
-def test_araclar_adim_basina_tek_kapali_satirda_toplanir():
+def test_canli_akis_adim_basina_tek_zaman_sirali_akista():
+    """2026-11-23 kullanici istegi: geri bildirim Claude Code gibi tek akista; metin/arac/komut sirayla, ic kaydirma ve birikmis gecici durum yok."""
     html = _html()
     govde = _olay_isle(html)
-    assert "function aracGrubu(" in html and 'e("details",{class:"arac-grup"}' in html
-    assert 'aracGrubu(S.canliSira,S.canliDiv)' in govde and '" araç adımı"' in govde
-    assert "insertBefore(aracKarti(o)" not in govde  # her arac ayri kart olarak akisi doldurmaz
-    assert 'e("details",{class:"arac-grup"},ozet,e("div"))' in html
+    assert "function akisGrubu(" in html and 'akisGrubu(S.canliSira,S.canliDiv)' in govde
+    assert 'ak.liste.append(k)' in govde  # arac karti akisa sirayla eklenir (ayri liste degil)
+    assert 'class:"fb-satir fb-durum"' not in govde  # 'model bekleniyor' gibi durumlar akista birikmez
+    css = re.search(r"\.ak-liste\{[^}]*\}", html).group(0)
+    assert "max-height" not in css and "overflow" not in css  # ic kaydirma yok
 
 def test_yanit_duz_metin_ve_fark_tek_satir():
     govde = _olay_isle(_html())
