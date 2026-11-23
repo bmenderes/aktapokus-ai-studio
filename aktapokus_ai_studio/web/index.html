@@ -384,51 +384,51 @@ body:has(#ayarlar.on) #bolucuSol,html.ayar-tam body:has(#ayarlar.on) #bolucuSag{
 </style>
 </head>
 <body>
-<div id="top">
-  <div class="row"><span class="marka-logo" aria-hidden="true"></span><b>Aktapokus</b><span id="klasorAd" class="mut"></span></div>
-  <div class="row" style="gap:2px"><button id="terminalUst" class="panel-dugme" title="Terminal aç/kapat (Ctrl+`)">⌨</button><button id="ayarUst" class="panel-dugme" title="Ayarlar aç/kapat">⚙</button><button id="solDugme" class="panel-dugme on" title="Sol paneli aç/kapat (Alt+1)">◧</button><button id="sagDugme" class="panel-dugme on" title="Sağ paneli aç/kapat (Alt+2)">◨</button></div>
+<div id="top" role="banner">
+  <div class="row"><span class="marka-logo" aria-hidden="true"></span><b role="heading" aria-level="1">Aktapokus</b><span id="klasorAd" class="mut"></span></div>
+  <div class="row" style="gap:2px"><button id="terminalUst" class="panel-dugme" title="Terminal aç/kapat (Ctrl+`)" aria-label="Terminal aç/kapat">⌨</button><button id="ayarUst" class="panel-dugme" title="Ayarlar aç/kapat" aria-label="Ayarlar aç/kapat">⚙</button><button id="solDugme" class="panel-dugme on" title="Sol paneli aç/kapat (Alt+1)" aria-label="Sol paneli aç/kapat">◧</button><button id="sagDugme" class="panel-dugme on" title="Sağ paneli aç/kapat (Alt+2)" aria-label="Sağ paneli aç/kapat">◨</button></div>
 </div>
 <div id="main">
-  <div id="sol">
+  <div id="sol" role="navigation" aria-label="Görevler ve projeler">
     <div id="solKaydir">
     <div class="row" style="gap:6px"><button id="yeniGorev" class="pri yuvarlak" title="Seçili projede yeni sohbet">+ Yeni</button><button id="yeniProje" class="yuvarlak" title="Yeni proje: bir klasör ekle">+ Proje</button></div>
-    <input id="kenarAra" placeholder="Görev ya da proje ara…" style="width:100%;margin-top:8px" autocomplete="off">
+    <input id="kenarAra" aria-label="Görev ya da proje ara" placeholder="Görev ya da proje ara…" style="width:100%;margin-top:8px" autocomplete="off">
     <div id="gecmis" class="mut3" style="margin-top:6px">-</div>
     
     </div>
     <div id="solAlt"><button id="hesapChip" class="hesap-chip" title="Hesaplar: kim olarak, hangi hizmette giriş yapıldı"><span class="av" id="hesapAv">?</span><span class="hc"><b id="hesapAd">…</b><small id="hesapAlt">yerel kullanıcı</small></span></button><button id="terminalDugme" class="yuvarlak simge" title="Terminal (Alt+3)" aria-label="Terminal">⌨</button><button id="agDugme" class="yuvarlak simge" title="Ağ aracı" aria-label="Ağ aracı">⇄</button><button id="ayarDugme" class="yuvarlak simge" title="Ayarlar" aria-label="Ayarlar">⚙</button></div>
   </div>
   <div class="bolucu" id="bolucuSol" title="Sürükleyin: genişliği değiştirin · çift tıklayın: sıfırla"></div>
-  <div id="orta">
+  <div id="orta" role="main">
     <div id="motorUyari" style="display:none"></div>
     <div id="sohbetBaslik"></div>
     <div id="ilkAdim" style="display:none"></div>
-    <div id="akis"></div>
+    <div id="akis" role="log" aria-label="Sohbet"></div>
     <div id="girdi">
       <div id="kuyrukBar"></div>
       <div id="onayBar"></div>
-      <textarea id="gorev" rows="2" style="width:100%;resize:none" placeholder="Bir görev yazın…"></textarea>
+      <textarea id="gorev" aria-label="Görev" rows="2" style="width:100%;resize:none" placeholder="Bir görev yazın…"></textarea>
       <div id="ekler"></div><input type="file" id="ekSec" multiple hidden accept=".pdf,.txt,.md,.json,.csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.log,application/pdf,text/*"><input type="file" id="ekSecGaleri" multiple hidden accept="image/*,video/*"><input type="file" id="ekSecKamera" hidden accept="image/*" capture="environment">
       <div class="row" style="justify-content:space-between;margin-top:6px;gap:10px;align-items:flex-start"><span style="min-width:0;flex:1"><span class="row" style="gap:6px;flex-wrap:wrap"><span id="ortamCipi"></span><span id="rolCipleri" class="row" style="gap:6px;flex-wrap:wrap"></span></span><span id="girdiBilgi" class="mut3" style="display:block;margin-top:2px"></span></span><span class="row gonder-arac"><button id="mikDugme" class="yuvarlak simge" title="Sesle yaz" aria-label="Sesle yaz" style="display:none">🎤</button><button id="ozetDugme" class="yuvarlak simge" title="Bu sohbetin hafızası: özeti yenile ve komutu yazma kutusuna koy" aria-label="Konuşma özeti">↺</button><button id="ekDugme" class="yuvarlak simge" title="Ekle: kamera, galeri, dosya, proje (yapıştırabilir ya da sürükleyebilirsiniz)" aria-label="Ekle" style="font-size:18px;font-weight:600">+</button><button id="testiAtla" style="display:none" title="Calisan test adimini iptal eder; degisiklikler ve karar adimi devam eder">Testi atla</button><button id="durdur" style="display:none">Durdur</button><button id="gonder" class="pri yuvarlak" style="display:none">Gönder</button></span></div>
     </div>
   </div>
   <div class="bolucu" id="bolucuSag" title="Sürükleyin: genişliği değiştirin · çift tıklayın: sıfırla"></div>
-  <div id="sag">
-    <div id="sekmeler"><button class="sekme on" data-p="p-onizleme">Önizleme</button><button class="sekme" data-p="p-degisiklik">Değişiklikler</button><button class="sekme" data-p="p-ciktilar">Çıktılar</button><button class="sekme" data-p="p-git">Git</button><button class="sekme" data-p="p-github">GitHub</button><button class="sekme" data-p="p-belgeler">Belgeler</button><button class="sekme" data-p="p-dosyalar">Dosyalar</button><button class="sekme" data-p="p-gunluk">Günlük</button></div>
+  <div id="sag" role="complementary" aria-label="Panel">
+    <div id="sekmeler" role="tablist" aria-label="Panel sekmeleri"><button class="sekme on" data-p="p-onizleme" role="tab" id="sk-p-onizleme" aria-controls="p-onizleme" aria-selected="true">Önizleme</button><button class="sekme" data-p="p-degisiklik" role="tab" id="sk-p-degisiklik" aria-controls="p-degisiklik" aria-selected="false">Değişiklikler</button><button class="sekme" data-p="p-ciktilar" role="tab" id="sk-p-ciktilar" aria-controls="p-ciktilar" aria-selected="false">Çıktılar</button><button class="sekme" data-p="p-git" role="tab" id="sk-p-git" aria-controls="p-git" aria-selected="false">Git</button><button class="sekme" data-p="p-github" role="tab" id="sk-p-github" aria-controls="p-github" aria-selected="false">GitHub</button><button class="sekme" data-p="p-belgeler" role="tab" id="sk-p-belgeler" aria-controls="p-belgeler" aria-selected="false">Belgeler</button><button class="sekme" data-p="p-dosyalar" role="tab" id="sk-p-dosyalar" aria-controls="p-dosyalar" aria-selected="false">Dosyalar</button><button class="sekme" data-p="p-gunluk" role="tab" id="sk-p-gunluk" aria-controls="p-gunluk" aria-selected="false">Günlük</button></div>
     <div id="sohbetOzet" class="row mut3" style="display:none;gap:10px;padding:2px 10px"></div>
-    <div id="p-onizleme" class="panel on">
+    <div id="p-onizleme" class="panel on" role="tabpanel" aria-labelledby="sk-p-onizleme">
       <div class="row"><span id="onizUrl" class="mono mut" style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"></span><label class="row mut"><input type="checkbox" id="canliOnizleme" checked> canlı</label><button id="yenile" title="Yenile">Yenile</button><button id="onizAyri" title="Önizlemeyi ayrı bir pencerede aç">↗ Ayrı pencere</button><button id="onizMenu" title="Önizleme menüsü" aria-label="Önizleme menüsü">⋮</button></div>
       <div class="row" style="margin-top:4px"><select id="onizTur"><option value="dosya">Proje dosyaları</option><option value="url">Yerel sunucu</option></select><input id="onizYol" style="flex:1" placeholder="/index.html" value="/"><button id="onizGit">Git</button></div>
       <iframe id="cerceve" sandbox="allow-scripts allow-forms allow-same-origin" title="Önizleme"></iframe>
       <div class="mut3" style="margin-top:4px">Önizleme ayrı bir kapıda, yalıtılmış çerçevede çalışır; uygulamaya erişemez.</div>
     </div>
-    <div id="p-degisiklik" class="panel"></div>
-    <div id="p-ciktilar" class="panel"><div id="ciktiListe"></div><div id="ciktiIzle" style="display:none"></div></div>
-    <div id="p-git" class="panel"></div>
-    <div id="p-github" class="panel"></div>
-    <div id="p-belgeler" class="panel"><input id="belgeAra" placeholder="Belgelerde ara… (yazdıkça süzülür)" autocomplete="off" style="width:100%"><div id="belgeSay" class="mut3" style="margin:3px 0"></div><div id="belgeListe" style="max-height:190px;overflow:auto;border:1px solid var(--line);border-radius:8px"></div><select id="belgeSec" style="display:none"></select><div id="belgeIcerik" class="md" style="margin-top:8px"></div></div>
-    <div id="p-dosyalar" class="panel"><div class="row" style="margin-bottom:6px"><input id="dosyaAra" placeholder="Dosyalarda ara… (yazdıkça süzülür)" autocomplete="off" style="flex:1;min-width:0"><button id="agacDaralt" title="Tümünü daralt" aria-label="Tümünü daralt">⊟</button><button id="agacAc" title="Tümünü genişlet" aria-label="Tümünü genişlet">⊞</button></div><div id="agac" class="agac mono"></div><div id="dosyaGoster" style="margin-top:8px"></div></div>
-    <div id="p-gunluk" class="panel mono"><div id="gunluk"></div></div>
+    <div id="p-degisiklik" class="panel" role="tabpanel" aria-labelledby="sk-p-degisiklik"></div>
+    <div id="p-ciktilar" class="panel" role="tabpanel" aria-labelledby="sk-p-ciktilar"><div id="ciktiListe"></div><div id="ciktiIzle" style="display:none"></div></div>
+    <div id="p-git" class="panel" role="tabpanel" aria-labelledby="sk-p-git"></div>
+    <div id="p-github" class="panel" role="tabpanel" aria-labelledby="sk-p-github"></div>
+    <div id="p-belgeler" class="panel" role="tabpanel" aria-labelledby="sk-p-belgeler"><input id="belgeAra" placeholder="Belgelerde ara… (yazdıkça süzülür)" autocomplete="off" style="width:100%"><div id="belgeSay" class="mut3" style="margin:3px 0"></div><div id="belgeListe" style="max-height:190px;overflow:auto;border:1px solid var(--line);border-radius:8px"></div><select id="belgeSec" style="display:none"></select><div id="belgeIcerik" class="md" style="margin-top:8px"></div></div>
+    <div id="p-dosyalar" class="panel" role="tabpanel" aria-labelledby="sk-p-dosyalar"><div class="row" style="margin-bottom:6px"><input id="dosyaAra" placeholder="Dosyalarda ara… (yazdıkça süzülür)" autocomplete="off" style="flex:1;min-width:0"><button id="agacDaralt" title="Tümünü daralt" aria-label="Tümünü daralt">⊟</button><button id="agacAc" title="Tümünü genişlet" aria-label="Tümünü genişlet">⊞</button></div><div id="agac" class="agac mono"></div><div id="dosyaGoster" style="margin-top:8px"></div></div>
+    <div id="p-gunluk" class="panel mono" role="tabpanel" aria-labelledby="sk-p-gunluk"><div id="gunluk"></div></div>
   </div>
 </div>
 <button id="mobilMenuDugme" aria-label="Menü" title="Menü"><svg class="ik" viewBox="0 0 24 24" style="fill:currentColor;stroke:none"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg></button>
@@ -436,7 +436,7 @@ body:has(#ayarlar.on) #bolucuSol,html.ayar-tam body:has(#ayarlar.on) #bolucuSag{
 <div id="mobilGezinme"><button data-m="sol" class="on">Görevler</button><button data-m="orta">Sohbet</button><button data-m="sag">Panel</button></div>
 <div class="mm-ayrac"></div><button id="mmAyar">Ayarlar</button><button id="mmTerminal">Terminal</button><button id="mmTam">Tam ekran</button></div>
 <div id="durumCubugu">
-  <div class="row"><span id="gitRozet"></span><span id="korRozet"></span><span id="durumMetni" class="durum-hazir">Hazır</span><span id="gecenSure" class="mut3 mono" title="Geçen süre"></span></div>
+  <div class="row"><span id="gitRozet"></span><span id="korRozet"></span><span id="durumMetni" class="durum-hazir" role="status" aria-live="polite">Hazır</span><span id="gecenSure" class="mut3 mono" title="Geçen süre"></span></div>
   <div class="row mut"><span id="kaynakYazi" class="mono" title="Bilgisayarın toplam işlemci (CPU) ve ekran kartı (GPU) kullanımı; bu bilgisayarı kullanan herkes dahil"></span><span id="tokenYazi">token 0</span><span style="width:70px;height:4px;background:var(--panel2);border-radius:2px;display:inline-block"><span id="tokenCubuk" style="display:block;height:4px;width:0;background:var(--tx2);border-radius:2px"></span></span><span id="baglanti" class="badge">bağlanıyor</span></div>
 </div>
 <div id="ayarlar"><button id="ayarMenuDugme" title="Menüyü aç/kapat" aria-label="Menüyü aç/kapat">‹</button><div id="ayarMenu"></div><div id="ayarIcerik"></div></div>
@@ -516,7 +516,7 @@ function md(src){
     if(!l.trim()){i++;continue}
     let p=[];while(i<L.length&&L[i].trim()&&!/^(```|#{1,3}\s|\s*[-*]\s|\s*\d+\.\s|\s*>|\|)/.test(L[i]))p.push(L[i++]);if(!p.length){p.push(L[i++])}h+="<p>"+satir(p.join(" "))+"</p>"}
   return h}
-function sekme(id){if((S.gizliSekme||[]).includes(id)){S.gizliSekme=S.gizliSekme.filter(x=>x!==id);sekmeleriCiz()}document.querySelectorAll(".sekme").forEach(b=>{const on=b.dataset.p===id;b.classList.toggle("on",on);if(on&&b.scrollIntoView)b.scrollIntoView({inline:"nearest",block:"nearest"})});document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("on",p.id===id));if(id==="p-ciktilar")ciktilariYukle();if(id==="p-git")gitPaneliYukle();if(id==="p-github")githubPaneliYukle();sagiAc()}
+function sekme(id){if((S.gizliSekme||[]).includes(id)){S.gizliSekme=S.gizliSekme.filter(x=>x!==id);sekmeleriCiz()}document.querySelectorAll(".sekme").forEach(b=>{const on=b.dataset.p===id;b.classList.toggle("on",on);b.setAttribute("aria-selected",on?"true":"false");b.tabIndex=on?0:-1;if(on&&b.scrollIntoView)b.scrollIntoView({inline:"nearest",block:"nearest"})});document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("on",p.id===id));if(id==="p-ciktilar")ciktilariYukle();if(id==="p-git")gitPaneliYukle();if(id==="p-github")githubPaneliYukle();sagiAc()}
 document.querySelectorAll(".sekme").forEach(b=>b.onclick=()=>sekme(b.dataset.p));
 /* ---- sag panel sekmeleri Claude uygulamasi gibi: her sekme kapatilabilir (x), + ile geri acilir, genislet ve paneli kapat dugmeleri ---- */
 try{S.gizliSekme=JSON.parse(localStorage.getItem("aktapokus-gizli-sekmeler")||"[]").filter(x=>/^p-[a-z]+$/.test(x))}catch(x){S.gizliSekme=[]}
@@ -524,6 +524,8 @@ function sekmeleriCiz(){const bar=$("#sekmeler");const gizli=S.gizliSekme||[];
   bar.querySelectorAll(".sekme").forEach(b=>{b.style.display=gizli.includes(b.dataset.p)?"none":"";if(!b.querySelector(".sk-x"))b.append(e("span",{class:"sk-x",title:"Sekmeyi kapat",text:"×",onclick:ev=>{ev.stopPropagation();sekmeKapat(b.dataset.p)}}))});
   try{localStorage.setItem("aktapokus-gizli-sekmeler",JSON.stringify(gizli))}catch(x){}
   const acik=[...bar.querySelectorAll(".sekme")].filter(b=>b.style.display!=="none");if(acik.length&&!acik.some(b=>b.classList.contains("on")))sekme(acik[0].dataset.p)}
+function sekmeTus(ev){if(!["ArrowLeft","ArrowRight","Home","End"].includes(ev.key))return;const acik=[...document.querySelectorAll("#sekmeler .sekme")].filter(b=>b.style.display!=="none");const i=acik.indexOf(document.activeElement);if(i<0)return;ev.preventDefault();
+  const j=ev.key==="Home"?0:ev.key==="End"?acik.length-1:(i+(ev.key==="ArrowRight"?1:-1)+acik.length)%acik.length;sekme(acik[j].dataset.p);acik[j].focus()}
 function sekmeKapat(id){const acik=[...document.querySelectorAll("#sekmeler .sekme")].filter(b=>b.style.display!=="none");if(acik.length<=1)return;S.gizliSekme=[...(S.gizliSekme||[]),id];sekmeleriCiz()}
 /* Sag panel sekmeleri surukleyerek yeniden siralanir; sira kalici (masaustu) */
 {const bar=$("#sekmeler"),ANAHTAR="aktapokus-sekme-sirasi";let surukle=null;
@@ -545,7 +547,7 @@ function sekmeMenusuKapat(){const m=$("#sekmeMenu");if(m)m.remove()}
   e("button",{id:"sagGenis",class:"panel-dugme",title:"Paneli genişlet / daralt",text:"⤢",onclick:()=>{S.duzen.sagGenis=!S.duzen.sagGenis;duzenUygula();duzenYaz()}}),
   e("button",{class:"panel-dugme",title:"Sağ paneli kapat (Alt+2)",text:"✕",onclick:sagDegis}));
   $("#sekmeler").append(arac)}
-sekmeleriCiz();
+sekmeleriCiz();$("#sekmeler").addEventListener("keydown",sekmeTus);
 function akisaEkle(n){const a=$("#akis");const alta=a.scrollTop+a.clientHeight>=a.scrollHeight-40;a.append(n);if(alta)a.scrollTop=a.scrollHeight;return n}
 /* Otomatik asagi kaydirma: kullanici en alttaysa (ya da kendisi yeni gorev yolladiysa) akis her degisiklikte (arac karti, canli metin, yanit, karar dugmeleri) alta iner; yukari kaydirinca durur */
 /* Sohbet en alta yapışık kalır: kullanıcı yukarı kaydırmadıkça yeni içerik, resim yüklenmesi, kutu boyutunun değişmesi (klavye, yazı kutusu) ve sayfanın yeniden açılması sonrası en son yere iner. */

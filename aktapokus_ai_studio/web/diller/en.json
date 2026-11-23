@@ -3,6 +3,12 @@
  "ad": "English",
  "yerel": "en-US",
  "tam": {
+  "Terminal aç/kapat": "Toggle terminal",
+  "Sol paneli aç/kapat": "Toggle left panel",
+  "Sağ paneli aç/kapat": "Toggle right panel",
+  "Görevler ve projeler": "Tasks and projects",
+  "Görev ya da proje ara": "Search tasks or projects",
+  "Panel sekmeleri": "Panel tabs",
   "Anahtarı iptal et": "Revoke key",
   "İptal?": "Revoke?",
   "kullanılmadı": "never used",

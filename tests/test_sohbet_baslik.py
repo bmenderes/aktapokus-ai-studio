@@ -8,7 +8,7 @@ HTML = (Path(__file__).resolve().parent.parent / "aktapokus_ai_studio" / "web" /
 
 def test_sohbet_basligi_proje_ve_gorev_adini_gosterir_ve_dogru_yerlerde_guncellenir():
     # baslik akisin hemen ustunde; aralarinda yalniz ilk acilis kutusu (#ilkAdim) olabilir
-    assert re.search(r'<div id="sohbetBaslik"></div>\s*(<div id="ilkAdim"[^>]*></div>\s*)?<div id="akis">', HTML)
+    assert re.search(r'<div id="sohbetBaslik"></div>\s*(<div id="ilkAdim"[^>]*></div>\s*)?<div id="akis"[ >]', HTML)
     assert "function sohbetBasligiCiz()" in HTML and 't.ozel_ad||t.gorev' in HTML and '"Yeni görev"' in HTML
     for yer in ("kenarCiz();sohbetBasligiCiz()", "S.gecmisGorev=id;S.sohbetYeni=false;sohbetBasligiCiz()", "S.sohbetYeni=true;sohbetBasligiCiz()", "S.projeId=d.proje||null;sohbetBasligiCiz()"):
         assert yer in HTML, yer
