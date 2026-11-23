@@ -400,7 +400,7 @@ def test_agy_canli_akim_stdin_ve_durdurma(tmp_path, log, monkeypatch):
     assert s.ok and s.metin == "Merhaba Satir1\nSat"
     assert s.token_girdi == 800 and s.token_cikti == 50 and s.token_onbellek == 200
     kayit = satirlar(log)[0]
-    assert kayit["stdin"] == istem and istem not in " ".join(kayit["argv"]) and Path(kayit["cwd"]).resolve() == tmp_path.resolve()
+    assert kayit["istem"] == istem and kayit["stdin"] == "" and ("--print=" + istem) in kayit["argv"] and Path(kayit["cwd"]).resolve() == tmp_path.resolve()  # agy stdin okumaz: istem TEK arguman
     assert {"tur": "durum", "durum": "bekliyor"} in gelen
     assert {"tur": "dusunce", "parca": "planliyorum\n"} in gelen
     assert {"tur": "arac", "ad": "bash", "girdi": {"command": "pytest -q"}} in gelen
@@ -420,6 +420,25 @@ def test_agy_canli_akim_stdin_ve_durdurma(tmp_path, log, monkeypatch):
     assert c2.durdur()
     t.join(30)
     assert sonuc["s"].hata == "Durduruldu"
+
+
+def test_agy_gercek_ic_ice_bicim_cozulur(tmp_path, monkeypatch):
+    """agy 1.5 gercek cikti: olaylar step_update/result icinde; metin text_delta, arac tool_info.parameters (CommandLine, Path)."""
+    monkeypatch.setenv("SAHTE_AGY_MOD", "gercek")
+    c, gelen = agy(), []
+    c.ilerleme = gelen.append
+    s = c.calistir("merhaba dunya", tmp_path)
+    assert s.ok and s.metin == "Tamam: merhab" and s.token_girdi == 700 and s.token_cikti == 30 and s.token_onbellek == 100
+    assert {"tur": "arac", "ad": "run_command", "girdi": {"command": "dir"}} in gelen and {"tur": "kabuk", "satir": "dir", "sure_sn": 0} in gelen
+    assert {"tur": "arac", "ad": "write_file", "girdi": {"path": "not.txt"}} in gelen
+    assert {"tur": "arac-sonuc", "hata": False} in gelen and {"tur": "arac-sonuc", "hata": True} in gelen
+    assert {"tur": "metin", "parca": "Tamam: "} in gelen
+
+
+def test_agy_istem_tire_ile_baslasa_da_bayrak_sanilmaz():
+    assert agy().komut(None, True, "--model x")[2] == "--print=--model x"
+    with pytest.raises(CalistiriciHatasi):
+        agy().calistir("x" * 30000, ".")  # Windows komut satiri siniri: istem arguman olarak gider
 
 
 def test_agy_tekli_json_duz_metin_ve_hatalar(tmp_path, monkeypatch):

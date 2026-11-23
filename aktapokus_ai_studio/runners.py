@@ -1588,6 +1588,8 @@ def agy_bul() -> str | None:
     localappdata = os.environ.get("LOCALAPPDATA")
     if localappdata:
         adaylar.append(Path(localappdata) / "agy" / "bin" / "agy.exe")
+        winget = Path(localappdata) / "Microsoft" / "WinGet"  # winget install Google.AntigravityCLI: PATH yalniz YENI sureclere gecer
+        adaylar.extend(sorted((winget / "Packages").glob("Google.AntigravityCLI_*/agy.exe")))
     adaylar.extend([Path.home() / ".local" / "bin" / "agy.exe", Path.home() / ".local" / "bin" / "agy"])
     for aday in adaylar:
         if aday.is_file():
@@ -1608,9 +1610,53 @@ def _agy_kullanim(u: object) -> tuple[int, int, int]:
     if not isinstance(u, dict):
         return 0, 0, 0
     onb = _sayi_bul(u, ("cache_read_tokens", "cached_input_tokens", "cached_tokens", "cached"))
-    girdi = max(0, _sayi_bul(u, ("input_tokens", "prompt_tokens", "prompt", "input")) - onb)
+    ham_girdi = _sayi_bul(u, ("input_tokens", "prompt_tokens", "prompt", "input"))
     cikti_t = _sayi_bul(u, ("output_tokens", "candidates_tokens", "candidates", "output"))
+    toplam = _sayi_bul(u, ("total_tokens",))
+    # agy 1.5 (gercek): total = input + output (+thinking); onbellek input'un ICINDE DEGIL, cikarilirsa kullanim sifira iner
+    ayri = bool(toplam) and abs(toplam - (ham_girdi + cikti_t + _sayi_bul(u, ("thinking_tokens",)))) <= max(1, cikti_t)
+    girdi = ham_girdi if ayri else max(0, ham_girdi - onb)
     return girdi, cikti_t, onb
+
+
+_AGY_HATA_DURUMLARI = frozenset({"ERROR", "FAILED", "CANCELED", "CANCELLED"})
+_AGY_PARAMETRE = {"commandline": "command", "command": "command", "path": "path", "absolutepath": "path", "targetfile": "path", "filepath": "path", "pattern": "pattern", "query": "pattern", "url": "url"}
+
+
+def agy_olay_duzle(olay: dict) -> dict | None:
+    """agy 1.5 gercek stream-json bicimi olaylari `{"event": "step_update", "step_update": {...}}` icinde verir (2026-11-23 gercek kurulumla
+    dogrulandi): metin `agent_response.text_delta`, arac `step_type=tool` + `tool_info.parameters`, sonuc `result.response/usage`.
+    Bunu calistiricinin bildigi duz bicime cevirir; zaten duz olan (eski/sahte) olay aynen doner. Bilinmeyen adim None."""
+    ev = olay.get("event")
+    ic = olay.get(ev) if isinstance(ev, str) and isinstance(olay.get(ev), dict) else None
+    if ic is None:
+        return olay
+    if ev in ("result", "error", "init"):
+        return {"event": ev, **ic}
+    if ev != "step_update":
+        return None
+    st, durum = str(ic.get("step_type") or ""), str(ic.get("state") or "").upper()
+    if st == "agent_response":
+        for anahtar, tur in (("thinking_delta", "thought"), ("thought_delta", "thought"), ("text_delta", "text")):
+            if isinstance(ic.get(anahtar), str) and ic[anahtar]:
+                return {"event": "step_update", "step_type": tur, "content": ic[anahtar], "delta": True}
+        return None
+    if st == "tool":
+        bilgi = ic.get("tool_info") if isinstance(ic.get("tool_info"), dict) else {}
+        ad = str(ic.get("tool_name") or bilgi.get("name") or "")
+        if durum == "ACTIVE":
+            ham = bilgi.get("parameters") if isinstance(bilgi.get("parameters"), dict) else {}
+            girdi = {}
+            for k, v in ham.items():
+                hedef = _AGY_PARAMETRE.get(str(k).lower())
+                if hedef and hedef not in girdi and isinstance(v, (str, int, float)):
+                    girdi[hedef] = str(v)[:500]
+            return {"event": "step_update", "step_type": "tool_call", "tool": ad, "arguments": girdi}
+        if durum in ("DONE", *_AGY_HATA_DURUMLARI):
+            return {"event": "step_update", "step_type": "tool_result", "status": "error" if durum in _AGY_HATA_DURUMLARI or bilgi.get("error") else "success"}
+    if st == "error" or durum in _AGY_HATA_DURUMLARI:
+        return {"event": "error", "error": ic.get("error") or ic.get("message") or "Antigravity adimi basarisiz"}
+    return None
 
 
 def agy_ciktisini_coz(cikti: str) -> CalistirmaSonucu:
@@ -1626,7 +1672,9 @@ def agy_ciktisini_coz(cikti: str) -> CalistirmaSonucu:
         except json.JSONDecodeError:
             continue
         if isinstance(olay, dict) and any(k in olay for k in anahtarlar):
-            satir_olaylari.append(olay)
+            olay = agy_olay_duzle(olay)
+            if olay is not None:
+                satir_olaylari.append(olay)
 
     if any((o.get("event") in _AGY_AKIS_TIPLERI or o.get("type") in _AGY_AKIS_TIPLERI) for o in satir_olaylari):
         metin = ""
@@ -1727,11 +1775,13 @@ class AntigravityCalistirici(Calistirici):
         except Exception:
             pass
 
-    def komut(self, model: str | None = None, onayli: bool = True) -> list[str]:
+    def komut(self, model: str | None = None, onayli: bool = True, istem: str | None = None) -> list[str]:
+        """istem verilirse `--print=<istem>` TEK arguman olur: agy (Go) stdin'i OKUMAZ (gercek denemede ajan istemi goremeyip klasor disini
+        aradi). `=` bicimi '-' ile baslayan istemin bayrak sanilmasini onler; kabuk yok (liste, shell=False)."""
         onek = self.komut_oneki or ([agy_bul()] if agy_bul() else None)
         if not onek:
             raise CalistiriciHatasi("Antigravity CLI (agy) bulunamadi (PowerShell: irm https://antigravity.google/cli/install.ps1 | iex) ya da AKTAPOKUS_AGY ile yol verin.")
-        komut = [*onek, "-p", self.YONERGE, "--output-format", "stream-json", "--dangerously-skip-permissions" if onayli else "--mode=plan"]
+        komut = [*onek, *(["--print=" + istem] if istem is not None else ["-p", self.YONERGE]), "--output-format", "stream-json", "--dangerously-skip-permissions" if onayli else "--mode=plan"]
         if self.dusunme in self.DUSUNME:
             komut += ["--effort", self.dusunme]
         if model:
@@ -1745,7 +1795,8 @@ class AntigravityCalistirici(Calistirici):
             raise CalistiriciHatasi("Bos istem gonderilemez")
         if len(istem) > 1_000_000:
             raise CalistiriciHatasi("Istem cok uzun (1 milyon karakter siniri)")
-        komut = self.komut(model, onayli)
+        _istemi_denetle(istem)  # Windows komut satiri siniri (istem arguman olarak gider)
+        komut = self.komut(model, onayli, istem)
         baslangic = time.monotonic()
         self._durduruldu = False
 
@@ -1758,10 +1809,12 @@ class AntigravityCalistirici(Calistirici):
             except ValueError:
                 return
             if isinstance(olay, dict):
-                self._olay_bildir(olay)
+                olay = agy_olay_duzle(olay)
+                if olay is not None:
+                    self._olay_bildir(olay)
 
         try:
-            kod, stdout, stderr, asim = _canli_stdinli_akis(self, komut, istem, Path(klasor), zaman_asimi_sn, satir_isle=satir_isle)
+            kod, stdout, stderr, asim = _canli_stdinli_akis(self, komut, None, Path(klasor), zaman_asimi_sn, satir_isle=satir_isle)
         except OSError as hata:
             return CalistirmaSonucu(False, hata=f"Antigravity CLI baslatilamadi: {hata}", sure_sn=time.monotonic() - baslangic)
         sure = time.monotonic() - baslangic
